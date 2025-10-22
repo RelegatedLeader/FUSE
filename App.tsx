@@ -5,6 +5,7 @@ import PagerView from 'react-native-pager-view';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
 import WelcomeScreen from './screens/WelcomeScreen';
+import WalletScreen from './screens/WalletScreen';
 import SignUpScreen from './screens/SignUpScreen';
 import LoginScreen from './screens/LoginScreen';
 import FuseScreen from './screens/FuseScreen';
@@ -20,21 +21,21 @@ function MainPager() {
     <View style={{ flex: 1 }}>
       <View style={styles.tabBar}>
         <TouchableOpacity style={styles.tab}>
-          <Text>Fuse</Text>
+          <Text>Alliances</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tab}>
-          <Text>Alliances</Text>
+          <Text>Fuse</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.tab}>
           <Text>Cyberspace</Text>
         </TouchableOpacity>
       </View>
-      <PagerView style={{ flex: 1 }} initialPage={0}>
+      <PagerView style={{ flex: 1 }} initialPage={1}>
         <View key="1">
-          <FuseScreen />
+          <AlliancesScreen />
         </View>
         <View key="2">
-          <AlliancesScreen />
+          <FuseScreen />
         </View>
         <View key="3">
           <CyberspaceScreen />
@@ -47,7 +48,8 @@ function MainPager() {
 export default function App() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Auth">
+      <Stack.Navigator initialRouteName="Wallet">
+        <Stack.Screen name="Wallet" component={WalletScreen} />
         <Stack.Screen name="Auth" component={AuthStack} options={{ headerShown: false }} />
         <Stack.Screen name="Main" component={MainPager} options={{ headerShown: false }} />
       </Stack.Navigator>
