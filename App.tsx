@@ -1,18 +1,19 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
-import PagerView from 'react-native-pager-view';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import "react-native-get-random-values";
+import React from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
+import PagerView from "react-native-pager-view";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 
-import WelcomeScreen from './screens/WelcomeScreen';
-import WalletScreen from './screens/WalletScreen';
-import SignUpScreen from './screens/SignUpScreen';
-import LoginScreen from './screens/LoginScreen';
-import FuseScreen from './screens/FuseScreen';
-import AlliancesScreen from './screens/AlliancesScreen';
-import CyberspaceScreen from './screens/CyberspaceScreen';
-import ProfileScreen from './screens/ProfileScreen';
-import RandomArenaScreen from './screens/RandomArenaScreen';
+import WelcomeScreen from "./screens/WelcomeScreen";
+import WalletScreen from "./screens/WalletScreen";
+import SignUpScreen from "./screens/SignUpScreen";
+import LoginScreen from "./screens/LoginScreen";
+import FuseScreen from "./screens/FuseScreen";
+import AlliancesScreen from "./screens/AlliancesScreen";
+import CyberspaceScreen from "./screens/CyberspaceScreen";
+import ProfileScreen from "./screens/ProfileScreen";
+import RandomArenaScreen from "./screens/RandomArenaScreen";
 
 const Stack = createStackNavigator();
 
@@ -50,8 +51,16 @@ export default function App() {
     <NavigationContainer>
       <Stack.Navigator initialRouteName="Wallet">
         <Stack.Screen name="Wallet" component={WalletScreen} />
-        <Stack.Screen name="Auth" component={AuthStack} options={{ headerShown: false }} />
-        <Stack.Screen name="Main" component={MainPager} options={{ headerShown: false }} />
+        <Stack.Screen
+          name="Auth"
+          component={AuthStack}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Main"
+          component={MainPager}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
@@ -68,6 +77,11 @@ function AuthStack() {
 }
 
 const styles = StyleSheet.create({
-  tabBar: { flexDirection: 'row', justifyContent: 'space-around', padding: 10, backgroundColor: '#f0f0f0' },
+  tabBar: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    padding: 10,
+    backgroundColor: "#f0f0f0",
+  },
   tab: { padding: 10 },
 });

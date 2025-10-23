@@ -1,55 +1,74 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Button, StyleSheet, Linking, Alert, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Button, StyleSheet, Alert } from 'react-native';
+import EthereumProvider from '@walletconnect/ethereum-provider';
+import QRCode from 'react-native-qrcode-svg';
 
 export default function WalletScreen({ navigation }) {
-  const [hasMetaMask, setHasMetaMask] = useState(false);
-  const [connectedAddress, setConnectedAddress] = useState('');
-
-  useEffect(() => {
-    checkMetaMask();
-  }, []);
-
-  const checkMetaMask = async () => {
-    const supported = await Linking.canOpenURL('metamask://');
-    setHasMetaMask(supported);
-  };
-
-  const downloadMetaMask = () => {
-    const url = Platform.OS === 'ios' 
-      ? 'https://apps.apple.com/app/metamask/id1438144202' 
-      : 'https://play.google.com/store/apps/details?id=io.metamask';
-    Linking.openURL(url);
-  };
+  const [provider, setProvider] = useState<EthereumProvider | null>(null);
+  const [address, setAddress] = useState('');
+  const [uri, setUri] = useState('');
 
   const connectWallet = async () => {
-    // Simulate connection
-    const address = '0x1234567890abcdef'; // Simulated
-    setConnectedAddress(address);
-    // Sign message
-    Alert.alert('Signature Required', 'Sign to connect to Fuse', [
-      { text: 'Cancel' },
-      { text: 'Sign', onPress: () => navigation.navigate('Auth', { walletAddress: address }) },
-    ]);
+    try {
+      const ethProvider = await EthereumProvider.init({
+        projectId: '11f9f6ae9378114a4baf1c23e5547728', // WalletConnect Project ID
+        chains: [613419], // Galactica Mainnet
+        rpcMap: {
+          613419: 'https://galactica-mainnet.g.alchemy.com/public',
+        },
+        showQrModal: false, // We'll handle the modal
+        methods: ['personal_sign'],
+        events: ['accountsChanged', 'chainChanged'],
+      });
+      setProvider(ethProvider);
+
+      ethProvider.on('display_uri', (uri) => {
+        setUri(uri);
+      });
+
+      await ethProvider.connect();
+      const accounts = await ethProvider.request({ method: 'eth_requestAccounts' }) as string[];
+      setAddress(accounts[0]);
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
   };
 
-  if (connectedAddress) {
+  const signMessage = async () => {
+    if (!provider) return;
+    try {
+      const message = 'Connect to Fuse on Galactica Network';
+      const signature = await provider.request({
+        method: 'personal_sign',
+        params: [message, address],
+      });
+      Alert.alert('Signed', `Signature: ${signature}`);
+      navigation.navigate('Auth', { walletAddress: address });
+    } catch (error: any) {
+      Alert.alert('Error', error.message);
+    }
+  };
+
+  if (address) {
     return (
       <View style={styles.container}>
-        <Text>Connected Wallet: {connectedAddress}</Text>
-        <Button title="Proceed" onPress={() => navigation.navigate('Auth')} />
+        <Text>Connected Wallet: {address}</Text>
+        <Button title="Sign to Proceed" onPress={signMessage} />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Connect Your MetaMask Wallet</Text>
-      <Text>MetaMask supports the Galactica Network (GNET) for secure identity storage.</Text>
-      {!hasMetaMask ? (
-        <Button title="Download MetaMask" onPress={downloadMetaMask} />
-      ) : (
-        <Button title="Connect MetaMask" onPress={connectWallet} />
-      )}
+      <Text style={styles.title}>Connect Your Wallet</Text>
+      <Text>Connect via WalletConnect to access Fuse.</Text>
+      <Button title="Connect Wallet" onPress={connectWallet} />
+      {uri ? (
+        <View style={styles.qrContainer}>
+          <Text>Scan this QR code with MetaMask:</Text>
+          <QRCode value={uri} size={200} />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -57,4 +76,5 @@ export default function WalletScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   title: { fontSize: 24, marginBottom: 20, textAlign: 'center' },
+  qrContainer: { marginTop: 20, alignItems: 'center' },
 });

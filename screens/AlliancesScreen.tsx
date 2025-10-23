@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet } from 'react-native';
+import React, { useState } from "react";
+import { View, Text, TextInput, Button, StyleSheet } from "react-native";
 
 export default function AlliancesScreen() {
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
 
   const handleSearch = () => {
     // AI search for alliances
@@ -24,7 +24,12 @@ export default function AlliancesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  container: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
   title: { fontSize: 24, marginBottom: 20 },
-  input: { borderWidth: 1, padding: 10, marginBottom: 10, width: '100%' },
+  input: { borderWidth: 1, padding: 10, marginBottom: 10, width: "100%" },
 });
