@@ -33,12 +33,13 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     try {
       const ethProvider = await EthereumProvider.init({
         projectId: '11f9f6ae9378114a4baf1c23e5547728', // TODO: Replace with valid project ID from https://cloud.walletconnect.com/
-        chains: [613419], // Galactica mainnet
+        chains: [], // No required chains
+        optionalChains: [613419], // Offer Galactica
         rpcMap: {
           613419: 'https://galactica-mainnet.g.alchemy.com/public',
         },
         showQrModal: false,
-        methods: ['personal_sign'],
+        methods: ['personal_sign', 'wallet_switchEthereumChain'],
         events: ['accountsChanged', 'chainChanged'],
       });
       setProvider(ethProvider);
@@ -53,6 +54,17 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       });
 
       await ethProvider.connect();
+
+      // Switch to Galactica Network
+      try {
+        await ethProvider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: '0x95d1b' }], // 613419 in hex
+        });
+      } catch (error) {
+        // If switch fails, stay on current chain
+      }
+
       const accounts = await ethProvider.request({ method: 'eth_requestAccounts' }) as string[];
       setAddress(accounts[0]);
     } catch (error: any) {
