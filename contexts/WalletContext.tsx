@@ -33,9 +33,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     try {
       const ethProvider = await EthereumProvider.init({
         projectId: '11f9f6ae9378114a4baf1c23e5547728', // TODO: Replace with valid project ID from https://cloud.walletconnect.com/
-        chains: [62621], // Galactica Network mainnet chain ID
+        chains: [613419], // Galactica mainnet
         rpcMap: {
-          62621: 'https://galactica-mainnet.g.alchemy.com/public',
+          613419: 'https://galactica-mainnet.g.alchemy.com/public',
         },
         showQrModal: false,
         methods: ['personal_sign'],
