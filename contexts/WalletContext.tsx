@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
-import { Linking } from 'react-native';
+import { Linking, Alert } from 'react-native';
 import EthereumProvider from '@walletconnect/ethereum-provider';
 
 interface WalletContextType {
@@ -33,13 +33,13 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     try {
       const ethProvider = await EthereumProvider.init({
         projectId: '11f9f6ae9378114a4baf1c23e5547728', // TODO: Replace with valid project ID from https://cloud.walletconnect.com/
-        chains: [], // No required chains
-        optionalChains: [613419], // Offer Galactica
+        chains: [137], // Polygon mainnet
+        optionalChains: [],
         rpcMap: {
-          613419: 'https://galactica-mainnet.g.alchemy.com/public',
+          137: 'https://polygon-rpc.com',
         },
         showQrModal: false,
-        methods: ['personal_sign', 'wallet_switchEthereumChain'],
+        methods: ['personal_sign'],
         events: ['accountsChanged', 'chainChanged'],
       });
       setProvider(ethProvider);
@@ -54,16 +54,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       });
 
       await ethProvider.connect();
-
-      // Switch to Galactica Network
-      try {
-        await ethProvider.request({
-          method: 'wallet_switchEthereumChain',
-          params: [{ chainId: '0x95d1b' }], // 613419 in hex
-        });
-      } catch (error) {
-        // If switch fails, stay on current chain
-      }
 
       const accounts = await ethProvider.request({ method: 'eth_requestAccounts' }) as string[];
       setAddress(accounts[0]);

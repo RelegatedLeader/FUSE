@@ -16,7 +16,7 @@ export default function WalletScreen({ navigation }) {
   const handleSign = async () => {
     try {
       const signature = await signMessage(
-        "Connect to Fuse on Galactica Network"
+        "Connect to Fuse on Polygon Network"
       );
       Alert.alert("Signed", `Signature: ${signature}`);
       navigation.navigate("Auth", { walletAddress: address });
