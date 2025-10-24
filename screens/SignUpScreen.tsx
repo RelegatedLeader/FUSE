@@ -7,17 +7,22 @@ import {
   StyleSheet,
   ScrollView,
   Linking,
+  Alert,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useWallet } from '../contexts/WalletContext';
+import { updateUserData, addUserEmail } from '../utils/contract';
 
 export default function SignUpScreen({ navigation }) {
+  const { provider } = useWallet();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [dob, setDob] = useState("");
-  const [location, setLocation] = useState("");
+  const [gender, setGender] = useState("");
+  const [userLocation, setUserLocation] = useState("");
   const [occupation, setOccupation] = useState("");
   const [careerAspiration, setCareerAspiration] = useState("");
   const [mbti, setMbti] = useState("");
@@ -53,25 +58,18 @@ export default function SignUpScreen({ navigation }) {
   };
 
   const handleSignUp = async () => {
-    // Store user data temporarily
-    const userData = {
-      firstName,
-      lastName,
-      email,
-      password,
-      dob,
-      location,
-      occupation,
-      careerAspiration,
-      traits: { extroversion, openness, conscientiousness, agreeableness, neuroticism },
-      mbti,
-      bio,
-      id,
-      openEnded,
-      faceScanned,
-    };
-    await AsyncStorage.setItem('userData', JSON.stringify(userData));
-    navigation.navigate("Wallet");
+    try {
+      const traitsStr = JSON.stringify({ extroversion, openness, conscientiousness, agreeableness, neuroticism });
+      const faceStr = faceScanned ? 'face_scanned' : 'not_scanned';
+      await updateUserData(provider, firstName, lastName, dob, gender, userLocation, id, traitsStr, mbti, faceStr, bio);
+      if (email) {
+        await addUserEmail(provider, email);
+      }
+      Alert.alert("Success", "Data stored on blockchain!");
+      navigation.navigate("Main");
+    } catch (error: any) {
+      Alert.alert("Error", "Failed to store data: " + error.message);
+    }
   };
 
   return (
@@ -110,9 +108,15 @@ export default function SignUpScreen({ navigation }) {
       />
       <TextInput
         style={styles.input}
+        placeholder="Gender"
+        value={gender}
+        onChangeText={setGender}
+      />
+      <TextInput
+        style={styles.input}
         placeholder="Location"
-        value={location}
-        onChangeText={setLocation}
+        value={userLocation}
+        onChangeText={setUserLocation}
       />
       <TextInput
         style={styles.input}

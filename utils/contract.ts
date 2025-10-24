@@ -2,7 +2,10 @@ import { ethers } from 'ethers';
 import CryptoJS from 'crypto-js';
 
 // Placeholder contract address - replace after deployment
-const CONTRACT_ADDRESS = '0xe82803d68aE5610101c83b42667ccE437Dc6D73B'; // Deployed on Polygon mainnet
+const CONTRACT_ADDRESS = '0xE27DB492886C88d53694810d5e1B8d815a251f90'; // Deployed on Polygon mainnet
+
+const POLYGON_RPC = 'https://polygon-rpc.com/';
+const publicProvider = new ethers.JsonRpcProvider(POLYGON_RPC);
 
 const ABI = [
   {
@@ -15,6 +18,21 @@ const ABI = [
       {
         "internalType": "string",
         "name": "_encryptedLastName",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_encryptedBirthdate",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_encryptedGender",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "_encryptedLocation",
         "type": "string"
       },
       {
@@ -49,14 +67,8 @@ const ABI = [
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "string",
-        "name": "_encryptedEmail",
-        "type": "string"
-      }
-    ],
-    "name": "addEmail",
+    "inputs": [],
+    "name": "signIn",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -97,6 +109,21 @@ const ABI = [
     ],
     "name": "getIdentityData",
     "outputs": [
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "",
+        "type": "string"
+      },
       {
         "internalType": "string",
         "name": "",
@@ -245,12 +272,12 @@ const ABI = [
         "type": "address"
       }
     ],
-    "name": "getAllianceCount",
+    "name": "isUserRegistered",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "bool",
         "name": "",
-        "type": "uint256"
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -274,6 +301,21 @@ const ABI = [
       {
         "internalType": "string",
         "name": "encryptedLastName",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "encryptedBirthdate",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "encryptedGender",
+        "type": "string"
+      },
+      {
+        "internalType": "string",
+        "name": "encryptedLocation",
         "type": "string"
       },
       {
@@ -329,6 +371,11 @@ const ABI = [
       {
         "internalType": "bool",
         "name": "isVerified",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "isRegistered",
         "type": "bool"
       }
     ],
@@ -404,11 +451,11 @@ const ABI = [
       {
         "indexed": false,
         "internalType": "uint256",
-        "name": "emailIndex",
+        "name": "timestamp",
         "type": "uint256"
       }
     ],
-    "name": "EmailAdded",
+    "name": "SignedIn",
     "type": "event"
   }
 ];
@@ -425,7 +472,10 @@ export const decryptData = (encryptedData: string): string => {
   return bytes.toString(CryptoJS.enc.Utf8);
 };
 
-export const getContract = (provider: any, signer?: any) => {
+export const getContract = (provider: any, signer?: any, isView: boolean = false) => {
+  if (isView) {
+    return new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
+  }
   if (!signer) {
     const ethersProvider = new ethers.BrowserProvider(provider);
     signer = ethersProvider.getSigner();
@@ -437,6 +487,9 @@ export const updateUserData = async (
   provider: any,
   firstName: string,
   lastName: string,
+  birthdate: string,
+  gender: string,
+  location: string,
   id: string,
   traits: string,
   mbti: string,
@@ -446,6 +499,9 @@ export const updateUserData = async (
   const contract = getContract(provider);
   const encryptedFirstName = encryptData(firstName);
   const encryptedLastName = encryptData(lastName);
+  const encryptedBirthdate = encryptData(birthdate);
+  const encryptedGender = encryptData(gender);
+  const encryptedLocation = encryptData(location);
   const encryptedID = id ? encryptData(id) : '';
   const encryptedTraits = encryptData(traits);
   const encryptedMBTI = encryptData(mbti);
@@ -455,6 +511,9 @@ export const updateUserData = async (
   const tx = await contract.updateData(
     encryptedFirstName,
     encryptedLastName,
+    encryptedBirthdate,
+    encryptedGender,
+    encryptedLocation,
     encryptedID,
     encryptedTraits,
     encryptedMBTI,
@@ -488,16 +547,26 @@ export const joinUserAlliance = async (provider: any, allianceId: number) => {
   return tx;
 };
 
-export const getUserData = async (provider: any, userAddress: string) => {
+export const signInUser = async (provider: any) => {
   const contract = getContract(provider);
+  const tx = await contract.signIn();
+  await tx.wait();
+  return tx;
+};
+
+export const getUserData = async (provider: any, userAddress: string) => {
+  const contract = getContract(provider, undefined, true);
   const identityData = await contract.getIdentityData(userAddress);
   const personalityData = await contract.getPersonalityData(userAddress);
   const extendedData = await contract.getExtendedData(userAddress);
   return {
     encryptedFirstName: identityData[0],
     encryptedLastName: identityData[1],
-    encryptedEmails: identityData[2],
-    encryptedID: identityData[3],
+    encryptedBirthdate: identityData[2],
+    encryptedGender: identityData[3],
+    encryptedLocation: identityData[4],
+    encryptedEmails: identityData[5],
+    encryptedID: identityData[6],
     encryptedTraits: personalityData[0],
     encryptedMBTI: personalityData[1],
     encryptedFace: personalityData[2],
@@ -514,6 +583,9 @@ export const decryptUserData = (encryptedData: any) => {
   return {
     firstName: decryptData(encryptedData.encryptedFirstName),
     lastName: decryptData(encryptedData.encryptedLastName),
+    birthdate: decryptData(encryptedData.encryptedBirthdate),
+    gender: decryptData(encryptedData.encryptedGender),
+    location: decryptData(encryptedData.encryptedLocation),
     emails: encryptedData.encryptedEmails.map((e: string) => decryptData(e)),
     id: encryptedData.encryptedID ? decryptData(encryptedData.encryptedID) : '',
     traits: JSON.parse(decryptData(encryptedData.encryptedTraits)),

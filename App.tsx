@@ -8,6 +8,7 @@ import { WalletProvider, useWallet } from "./contexts/WalletContext";
 
 import WelcomeScreen from "./screens/WelcomeScreen";
 import WalletScreen from "./screens/WalletScreen";
+import SignInScreen from "./screens/SignInScreen";
 import SignUpScreen from "./screens/SignUpScreen";
 import LoginScreen from "./screens/LoginScreen";
 import FuseScreen from "./screens/FuseScreen";
@@ -71,6 +72,7 @@ export default function App() {
       <NavigationContainer>
         <Stack.Navigator initialRouteName="Wallet">
           <Stack.Screen name="Wallet" component={WalletScreen} />
+          <Stack.Screen name="SignIn" component={SignInScreen} />
           <Stack.Screen
             name="Auth"
             component={AuthStack}

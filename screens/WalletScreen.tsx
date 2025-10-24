@@ -10,6 +10,7 @@ export default function WalletScreen({ navigation }) {
   const handleConnect = async () => {
     try {
       await connectWallet();
+      navigation.navigate("SignIn");
     } catch (error: any) {
       Alert.alert("Error", error.message);
     }
@@ -59,7 +60,7 @@ export default function WalletScreen({ navigation }) {
     return (
       <View style={styles.container}>
         <Text>Connected Wallet: {address}</Text>
-        <Button title="Sign to Proceed" onPress={handleSign} />
+        <Button title="Proceed" onPress={() => navigation.navigate("SignIn")} />
         <Button title="Disconnect" onPress={handleDisconnect} />
       </View>
     );
