@@ -55,6 +55,30 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
       await ethProvider.connect();
 
+      // Switch to Polygon if not already
+      try {
+        await ethProvider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: '0x89' }], // Polygon mainnet
+        });
+      } catch (switchError: any) {
+        // If chain not added, add it
+        if (switchError.code === 4902) {
+          await ethProvider.request({
+            method: 'wallet_addEthereumChain',
+            params: [
+              {
+                chainId: '0x89',
+                chainName: 'Polygon Mainnet',
+                nativeCurrency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 },
+                rpcUrls: ['https://polygon-rpc.com'],
+                blockExplorerUrls: ['https://polygonscan.com'],
+              },
+            ],
+          });
+        }
+      }
+
       const accounts = await ethProvider.request({ method: 'eth_requestAccounts' }) as string[];
       setAddress(accounts[0]);
     } catch (error: any) {
