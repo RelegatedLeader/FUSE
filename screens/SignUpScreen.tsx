@@ -9,16 +9,20 @@ import {
   Linking,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SignUpScreen({ navigation }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [dob, setDob] = useState("");
   const [location, setLocation] = useState("");
   const [occupation, setOccupation] = useState("");
   const [careerAspiration, setCareerAspiration] = useState("");
   const [mbti, setMbti] = useState("");
+  const [bio, setBio] = useState("");
+  const [id, setId] = useState(""); // Optional ID
   const [openEnded, setOpenEnded] = useState("");
   // Personality traits 0-100
   const [extroversion, setExtroversion] = useState(50);
@@ -48,9 +52,26 @@ export default function SignUpScreen({ navigation }) {
     }
   };
 
-  const handleSignUp = () => {
-    // TODO: Implement sign up with all data, face scan, store on blockchain
-    navigation.navigate("Main");
+  const handleSignUp = async () => {
+    // Store user data temporarily
+    const userData = {
+      firstName,
+      lastName,
+      email,
+      password,
+      dob,
+      location,
+      occupation,
+      careerAspiration,
+      traits: { extroversion, openness, conscientiousness, agreeableness, neuroticism },
+      mbti,
+      bio,
+      id,
+      openEnded,
+      faceScanned,
+    };
+    await AsyncStorage.setItem('userData', JSON.stringify(userData));
+    navigation.navigate("Wallet");
   };
 
   return (
@@ -58,9 +79,15 @@ export default function SignUpScreen({ navigation }) {
       <Text style={styles.title}>Sign Up</Text>
       <TextInput
         style={styles.input}
-        placeholder="Full Name"
-        value={name}
-        onChangeText={setName}
+        placeholder="First Name"
+        value={firstName}
+        onChangeText={setFirstName}
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Last Name"
+        value={lastName}
+        onChangeText={setLastName}
       />
       <TextInput
         style={styles.input}
@@ -149,6 +176,23 @@ export default function SignUpScreen({ navigation }) {
         placeholder="Enter your MBTI (e.g., ENFP)"
         value={mbti}
         onChangeText={setMbti}
+      />
+
+      <Text style={styles.section}>Personal Bio</Text>
+      <TextInput
+        style={[styles.input, { height: 100 }]}
+        placeholder="Write a genuine bio about yourself (up to 200 words)..."
+        multiline
+        value={bio}
+        onChangeText={setBio}
+      />
+
+      <Text style={styles.section}>Optional ID (for verification)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="ID Number (optional)"
+        value={id}
+        onChangeText={setId}
       />
 
       <Text style={styles.section}>Open-Ended Questions</Text>

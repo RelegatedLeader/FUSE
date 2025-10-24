@@ -16,6 +16,7 @@
     "@react-navigation/stack": "^7.4.10",
     "@walletconnect/ethereum-provider": "^2.22.4",
     "babel-preset-expo": "~54.0.0",
+    "crypto-js": "^4.2.0",
     "ethers": "^6.15.0",
     "expo": "54.0.19",
     "expo-camera": "^17.0.8",
