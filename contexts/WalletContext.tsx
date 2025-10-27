@@ -16,7 +16,6 @@ import { isUserRegistered } from "../utils/contract";
 interface WalletContextType {
   provider: any;
   address: string;
-  signer: any;
   signClient: any;
   sessionTopic: string;
   isRegistered: boolean;
@@ -54,7 +53,6 @@ interface WalletProviderProps {
 export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [provider, setProvider] = useState<any>(null);
   const [address, setAddress] = useState("");
-  const [signer, setSigner] = useState<any>(null);
   const [isRegistered, setIsRegistered] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [signClient, setSignClient] = useState<any>(null);
@@ -83,24 +81,20 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           const { id, params } = event;
           console.log("Session proposal received:", params);
 
-          const { requiredNamespaces } = params;
-
-          const namespaces = buildApprovedNamespaces({
-            proposal: params,
-            supportedNamespaces: {
-              eip155: {
-                chains: ["eip155:137"], // Polygon mainnet
-                methods: ["eth_sendTransaction", "personal_sign", "eth_sign"],
-                events: ["accountsChanged", "chainChanged"],
-                accounts:
-                  requiredNamespaces.eip155?.chains?.map(
-                    (chain) => `${chain}:${params.proposer.publicKey}`
-                  ) || [],
-              },
-            },
-          });
-
           try {
+            // Approve the session with the namespaces requested by the wallet
+            const namespaces = buildApprovedNamespaces({
+              proposal: params,
+              supportedNamespaces: {
+                eip155: {
+                  chains: ["eip155:137"], // Polygon mainnet
+                  methods: ["eth_sendTransaction", "personal_sign", "eth_sign"],
+                  events: ["accountsChanged", "chainChanged"],
+                  accounts: [], // Will be filled by buildApprovedNamespaces
+                },
+              },
+            });
+
             await client.approve({ id, namespaces });
             console.log("Session approved");
           } catch (error) {
@@ -109,50 +103,10 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           }
         });
 
-        client.on("session_request", async (event) => {
-          console.log("Session request received:", event);
-          // Handle session requests (signing, transactions, etc.)
-          const { topic, params, id } = event;
-          const { request } = params;
-
-          try {
-            // For personal_sign requests, approve automatically for now
-            if (request.method === "personal_sign") {
-              await client.respond({
-                topic,
-                response: {
-                  id,
-                  jsonrpc: "2.0",
-                  result: "0x", // Mock signature - in production you'd sign properly
-                },
-              });
-            } else {
-              await client.respond({
-                topic,
-                response: {
-                  id,
-                  jsonrpc: "2.0",
-                  result: "0x",
-                },
-              });
-            }
-          } catch (error) {
-            console.error("Session request failed:", error);
-            await client.respond({
-              topic,
-              response: {
-                id,
-                jsonrpc: "2.0",
-                error: getSdkError("USER_REJECTED"),
-              },
-            });
-          }
-        });
-
         client.on("session_delete", () => {
           console.log("Session deleted");
           setAddress("");
-          setSigner(null);
+          setSessionTopic("");
           Alert.alert("Disconnected", "Wallet disconnected");
         });
 
@@ -229,56 +183,15 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
           try {
             const session = await Promise.race([approval(), timeoutPromise]);
-            console.log("Session approved:", session);
+            console.log("Session established:", session);
 
-            // Extract address from session
+            // Extract real address from session
             const accounts = session.namespaces.eip155.accounts;
             if (accounts && accounts.length > 0) {
-              const address = accounts[0].split(":")[2]; // Extract address from eip155:137:address
-              console.log("Connected address:", address);
-
+              const address = accounts[0].split(":")[2];
+              console.log("Connected to real wallet:", address);
               setAddress(address);
-
-              // Store session topic
               setSessionTopic(session.topic);
-
-              // Create ethers signer (this is simplified - in reality you'd need the private key)
-              const ethersSigner = {
-                getAddress: async () => address,
-                signMessage: async (message: string) => {
-                  // Request signature through WalletConnect
-                  try {
-                    const signature = await signClient.request({
-                      topic: session.topic,
-                      chainId: "eip155:137",
-                      request: {
-                        method: "personal_sign",
-                        params: [message, address],
-                      },
-                    });
-                    return signature;
-                  } catch (error) {
-                    console.error("Signature request failed:", error);
-                    return `mock-signature-${Date.now()}`;
-                  }
-                },
-                sendTransaction: async (tx: any) => {
-                  // This would need real transaction sending through WalletConnect
-                  return {
-                    hash: `tx-${Date.now()}`,
-                    wait: async () => ({ status: 1 }),
-                  };
-                },
-              };
-              setSigner(ethersSigner);
-
-              Alert.alert(
-                "Connected",
-                `Successfully connected!\nAddress: ${address.slice(
-                  0,
-                  6
-                )}...${address.slice(-4)}`
-              );
             } else {
               console.error("No accounts in session");
               Alert.alert("Connection Failed", "No accounts found in session");
@@ -324,7 +237,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       }
       setProvider(null);
       setAddress("");
-      setSigner(null);
       setSessionTopic("");
       Alert.alert("Disconnected", "Wallet disconnected successfully.");
     } catch (error: any) {
@@ -334,9 +246,16 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   };
 
   const signMessage = async (message: string) => {
-    if (!signer) throw new Error("No wallet connected");
+    if (!signClient || !sessionTopic || !address) throw new Error("No wallet connected");
     try {
-      const signature = await signer.signMessage(message);
+      const signature = await signClient.request({
+        topic: sessionTopic,
+        chainId: "eip155:137",
+        request: {
+          method: "personal_sign",
+          params: [message, address],
+        },
+      });
       return signature;
     } catch (error) {
       console.error("Sign message error:", error);
@@ -345,13 +264,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   };
 
   const checkRegistration = async (): Promise<boolean> => {
-    if (!address || !signer) return false;
+    if (!address) return false;
 
     try {
-      // Create a provider from the signer for view calls
-      const provider =
-        signer.provider ||
-        new ethers.JsonRpcProvider("https://polygon-rpc.com");
+      // Use public Polygon provider for view calls
+      const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
       const registered = await isUserRegistered(provider, address);
       setIsRegistered(registered);
       return registered;
@@ -383,19 +300,10 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     traits: string,
     mbti: string
   ) => {
-    console.log("WalletContext updateUserData called");
-    console.log("Context state:", { signClient: !!signClient, sessionTopic, address });
-
-    if (!signClient || !sessionTopic || !address) {
-      console.error("Missing required wallet state:", { signClient: !!signClient, sessionTopic, address });
-      throw new Error("No wallet connected");
-    }
-
+    if (!signClient || !sessionTopic || !address) throw new Error("No wallet connected");
     try {
       const { updateUserData: updateData } = await import("../utils/contract");
-      console.log("Calling contract updateUserData...");
       await updateData(signClient, sessionTopic, address, firstName, lastName, birthdate, gender, location, id, traits, mbti);
-      console.log("Contract updateUserData completed");
       Alert.alert("Success", "Profile created successfully!");
     } catch (error) {
       console.error("Update user data error:", error);
@@ -408,7 +316,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       value={{
         provider,
         address,
-        signer,
         signClient,
         sessionTopic,
         isRegistered,

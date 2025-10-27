@@ -175,9 +175,6 @@ export default function SignUpScreen({ navigation }) {
 
   const executeSignUp = async () => {
     try {
-      console.log("Starting executeSignUp...");
-      console.log("Wallet state:", { signer: !!signer, address, updateUserData: !!updateUserData });
-
       Alert.alert(
         "Processing",
         "Storing your encrypted data on the blockchain..."
@@ -189,17 +186,6 @@ export default function SignUpScreen({ navigation }) {
         conscientiousness,
         agreeableness,
         neuroticism,
-      });
-
-      console.log("Calling updateUserData with:", {
-        firstName,
-        lastName,
-        dob,
-        gender,
-        userLocation,
-        id,
-        traitsStr,
-        mbti
       });
 
       await updateUserData(
