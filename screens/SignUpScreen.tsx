@@ -202,7 +202,7 @@ export default function SignUpScreen({ navigation }) {
         })
       );
       Alert.alert("Success", "Account created successfully!");
-      navigation.navigate("SignIn");
+      navigation.navigate("Main");
     } catch (error) {
       Alert.alert(
         "Error",

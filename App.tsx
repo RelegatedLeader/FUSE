@@ -68,26 +68,41 @@ function MainPager() {
   );
 }
 
-export default function App() {
+function AppNavigator() {
+  const { address, isRegistered, checkRegistration } = useWallet();
+  const [initialCheckDone, setInitialCheckDone] = React.useState(false);
+
+  React.useEffect(() => {
+    const initializeApp = async () => {
+      if (address) {
+        await checkRegistration();
+      }
+      setInitialCheckDone(true);
+    };
+
+    if (!initialCheckDone) {
+      initializeApp();
+    }
+  }, [address, checkRegistration, initialCheckDone]);
+
+  if (!initialCheckDone) {
+    // Show loading screen while checking registration
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
+
   return (
-    <WalletProvider>
-      <NavigationContainer>
-        <Stack.Navigator initialRouteName="Wallet">
-          <Stack.Screen name="Wallet" component={WalletScreen} />
-          <Stack.Screen name="SignIn" component={SignInScreen} />
-          <Stack.Screen
-            name="Auth"
-            component={AuthStack}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Main"
-            component={MainPager}
-            options={{ headerShown: false }}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </WalletProvider>
+    <Stack.Navigator
+      initialRouteName={address ? (isRegistered ? "Main" : "Auth") : "Wallet"}
+      screenOptions={{ headerShown: false }}
+    >
+      <Stack.Screen name="Wallet" component={WalletScreen} />
+      <Stack.Screen name="Auth" component={AuthStack} />
+      <Stack.Screen name="Main" component={MainPager} />
+    </Stack.Navigator>
   );
 }
 
@@ -98,6 +113,16 @@ function AuthStack() {
       <Stack.Screen name="SignUp" component={SignUpScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
     </Stack.Navigator>
+  );
+}
+
+export default function App() {
+  return (
+    <WalletProvider>
+      <NavigationContainer>
+        <AppNavigator />
+      </NavigationContainer>
+    </WalletProvider>
   );
 }
 

@@ -1,40 +1,25 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Button, StyleSheet, Alert } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
-import { getContract, signInUser, isUserRegistered } from "../utils/contract";
 
 export default function SignInScreen({ navigation }) {
-  const { address, provider, signer } = useWallet();
-  const [isRegistered, setIsRegistered] = useState(false);
+  const { address, isRegistered, signIn, checkRegistration } = useWallet();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    checkRegistration();
-  }, [address]);
-
-  const checkRegistration = async () => {
-    if (!address || !provider) return;
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Request timed out")), 10000)
-    );
-    try {
-      const registered = await Promise.race([
-        isUserRegistered(provider, address),
-        timeout,
-      ]);
-      setIsRegistered(registered);
-    } catch (error: any) {
-      console.error("Check registration error:", error);
-      setIsRegistered(false); // Assume not registered if check fails
-    } finally {
+    const initialize = async () => {
+      if (address) {
+        await checkRegistration();
+      }
       setLoading(false);
-    }
-  };
+    };
+    initialize();
+  }, [address, checkRegistration]);
 
   const handleSignIn = async () => {
     if (isRegistered) {
       try {
-        await signInUser(signer);
+        await signIn();
         navigation.navigate("Main");
       } catch (error: any) {
         Alert.alert("Error", "Failed to sign in: " + error.message);
