@@ -30,8 +30,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
   const connectWallet = async () => {
     if (provider) return; // Already connected
+    let ethProvider: EthereumProvider | null = null;
     try {
-      const ethProvider = await EthereumProvider.init({
+      ethProvider = await EthereumProvider.init({
         projectId: "11f9f6ae9378114a4baf1c23e5547728", // TODO: Replace with valid project ID from https://cloud.walletconnect.com/
         chains: [137], // Polygon mainnet
         optionalChains: [],
@@ -53,7 +54,15 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         setAddress("");
       });
 
-      await ethProvider.connect();
+      // Set a timeout for the connection process
+      const connectionTimeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Connection timed out. Please try again.")), 60000) // 60 second timeout
+      );
+
+      await Promise.race([
+        ethProvider.connect(),
+        connectionTimeout
+      ]);
 
       const connectedAccounts = (await ethProvider.request({
         method: "eth_accounts",
@@ -88,6 +97,15 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         }
       }
     } catch (error: any) {
+      // Clean up on error
+      if (ethProvider) {
+        try {
+          await ethProvider.disconnect();
+        } catch (disconnectError) {
+          // Ignore disconnect errors during cleanup
+        }
+        setProvider(null);
+      }
       throw error;
     }
   };
