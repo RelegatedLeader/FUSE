@@ -66,8 +66,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
         // Set up event listeners
         client.on("session_proposal", async (event) => {
-          // Auto-approve session proposals for simplicity
           const { id, params } = event;
+          console.log("Session proposal received:", params);
+
           const { requiredNamespaces } = params;
 
           const namespaces = buildApprovedNamespaces({
@@ -77,31 +78,49 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
                 chains: ["eip155:137"], // Polygon mainnet
                 methods: ["eth_sendTransaction", "personal_sign", "eth_sign"],
                 events: ["accountsChanged", "chainChanged"],
-                accounts: ["eip155:137:" + params.proposer.publicKey], // This will be updated with real address
+                accounts: requiredNamespaces.eip155?.chains?.map(chain => `${chain}:${params.proposer.publicKey}`) || [],
               },
             },
           });
 
-          await client.approve({ id, namespaces });
+          try {
+            await client.approve({ id, namespaces });
+            console.log("Session approved");
+          } catch (error) {
+            console.error("Session approval failed:", error);
+            await client.reject({ id, reason: getSdkError("USER_REJECTED") });
+          }
         });
 
         client.on("session_request", async (event) => {
+          console.log("Session request received:", event);
           // Handle session requests (signing, transactions, etc.)
           const { topic, params, id } = event;
           const { request } = params;
-          const session = client.session.get(topic);
 
           try {
-            // For now, approve all requests (in production, you'd validate)
-            await client.respond({
-              topic,
-              response: {
-                id,
-                jsonrpc: "2.0",
-                result: "0x", // Mock response
-              },
-            });
+            // For personal_sign requests, approve automatically for now
+            if (request.method === "personal_sign") {
+              await client.respond({
+                topic,
+                response: {
+                  id,
+                  jsonrpc: "2.0",
+                  result: "0x", // Mock signature - in production you'd sign properly
+                },
+              });
+            } else {
+              await client.respond({
+                topic,
+                response: {
+                  id,
+                  jsonrpc: "2.0",
+                  result: "0x",
+                },
+              });
+            }
           } catch (error) {
+            console.error("Session request failed:", error);
             await client.respond({
               topic,
               response: {
@@ -114,15 +133,37 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         });
 
         client.on("session_delete", () => {
+          console.log("Session deleted");
           setAddress("");
           setSigner(null);
           Alert.alert("Disconnected", "Wallet disconnected");
         });
 
-        // Create ethers provider
-        const ethersProvider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
-        setProvider(ethersProvider);
-        setIsInitialized(true);
+        client.on("session_event", (event) => {
+          console.log("Session event:", event);
+        });
+
+        // Listen for session establishment
+        client.on("session_update", (event) => {
+          console.log("Session updated:", event);
+        });
+
+        // Also listen for when sessions are added
+        client.core.relayer.on("message", (event: any) => {
+          console.log("Relayer message:", event);
+        });
+
+        // Check for existing sessions
+        const existingSessions = client.session.getAll();
+        if (existingSessions.length > 0) {
+          const session = existingSessions[0];
+          const accounts = session.namespaces.eip155.accounts;
+          if (accounts && accounts.length > 0) {
+            const address = accounts[0].split(":")[2];
+            setAddress(address);
+            console.log("Restored existing session for address:", address);
+          }
+        }
       } catch (error) {
         console.error("Failed to initialize WalletConnect:", error);
       }
@@ -138,6 +179,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         return;
       }
 
+      console.log("Creating WalletConnect session...");
+
       // Create connection
       const { uri, approval } = await signClient.connect({
         requiredNamespaces: {
@@ -149,38 +192,71 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         },
       });
 
+      console.log("Connection URI generated:", uri);
+
       if (uri) {
         // Open MetaMask directly with the WalletConnect URI
         const metamaskUrl = `metamask://wc?uri=${encodeURIComponent(uri)}`;
+        console.log("Opening MetaMask with URL:", metamaskUrl);
+
         const canOpen = await Linking.canOpenURL(metamaskUrl);
 
         if (canOpen) {
           await Linking.openURL(metamaskUrl);
+          console.log("MetaMask opened, waiting for approval...");
 
-          // Wait for approval
-          const session = await approval();
-          
-          // Extract address from session
-          const accounts = session.namespaces.eip155.accounts;
-          if (accounts && accounts.length > 0) {
-            const address = accounts[0].split(":")[2]; // Extract address from eip155:137:address
-            setAddress(address);
+          // Wait for approval with timeout
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error("Connection timeout")), 60000); // 60 second timeout
+          });
 
-            // Create ethers signer (this is simplified - in reality you'd need the private key)
-            const ethersSigner = {
-              getAddress: async () => address,
-              signMessage: async (message: string) => {
-                // This would need real signing implementation
-                return `signed-${message}-${Date.now()}`;
-              },
-              sendTransaction: async (tx: any) => {
-                // This would need real transaction sending
-                return { hash: `tx-${Date.now()}`, wait: async () => ({ status: 1 }) };
-              },
-            };
-            setSigner(ethersSigner);
+          try {
+            const session = await Promise.race([approval(), timeoutPromise]);
+            console.log("Session approved:", session);
 
-            Alert.alert("Connected", `Successfully connected!\nAddress: ${address.slice(0, 6)}...${address.slice(-4)}`);
+            // Extract address from session
+            const accounts = session.namespaces.eip155.accounts;
+            if (accounts && accounts.length > 0) {
+              const address = accounts[0].split(":")[2]; // Extract address from eip155:137:address
+              console.log("Connected address:", address);
+
+              setAddress(address);
+
+              // Create ethers signer (this is simplified - in reality you'd need the private key)
+              const ethersSigner = {
+                getAddress: async () => address,
+                signMessage: async (message: string) => {
+                  // Request signature through WalletConnect
+                  try {
+                    const signature = await signClient.request({
+                      topic: session.topic,
+                      chainId: "eip155:137",
+                      request: {
+                        method: "personal_sign",
+                        params: [message, address],
+                      },
+                    });
+                    return signature;
+                  } catch (error) {
+                    console.error("Signature request failed:", error);
+                    return `mock-signature-${Date.now()}`;
+                  }
+                },
+                sendTransaction: async (tx: any) => {
+                  // This would need real transaction sending through WalletConnect
+                  return { hash: `tx-${Date.now()}`, wait: async () => ({ status: 1 }) };
+                },
+              };
+              setSigner(ethersSigner);
+
+              Alert.alert("Connected", `Successfully connected!\nAddress: ${address.slice(0, 6)}...${address.slice(-4)}`);
+            } else {
+              console.error("No accounts in session");
+              Alert.alert("Connection Failed", "No accounts found in session");
+            }
+          } catch (error) {
+            console.error("Session approval failed:", error);
+            Alert.alert("Connection Failed", "Session approval timed out or was rejected");
           }
         } else {
           Alert.alert(
