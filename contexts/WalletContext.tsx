@@ -383,10 +383,19 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     traits: string,
     mbti: string
   ) => {
-    if (!signClient || !sessionTopic || !address) throw new Error("No wallet connected");
+    console.log("WalletContext updateUserData called");
+    console.log("Context state:", { signClient: !!signClient, sessionTopic, address });
+
+    if (!signClient || !sessionTopic || !address) {
+      console.error("Missing required wallet state:", { signClient: !!signClient, sessionTopic, address });
+      throw new Error("No wallet connected");
+    }
+
     try {
       const { updateUserData: updateData } = await import("../utils/contract");
+      console.log("Calling contract updateUserData...");
       await updateData(signClient, sessionTopic, address, firstName, lastName, birthdate, gender, location, id, traits, mbti);
+      console.log("Contract updateUserData completed");
       Alert.alert("Success", "Profile created successfully!");
     } catch (error) {
       console.error("Update user data error:", error);

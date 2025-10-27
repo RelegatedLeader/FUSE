@@ -10,7 +10,6 @@ import {
   Alert,
   TouchableOpacity,
   Modal,
-  FlatList,
   Dimensions,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
@@ -176,6 +175,9 @@ export default function SignUpScreen({ navigation }) {
 
   const executeSignUp = async () => {
     try {
+      console.log("Starting executeSignUp...");
+      console.log("Wallet state:", { signer: !!signer, address, updateUserData: !!updateUserData });
+
       Alert.alert(
         "Processing",
         "Storing your encrypted data on the blockchain..."
@@ -187,6 +189,17 @@ export default function SignUpScreen({ navigation }) {
         conscientiousness,
         agreeableness,
         neuroticism,
+      });
+
+      console.log("Calling updateUserData with:", {
+        firstName,
+        lastName,
+        dob,
+        gender,
+        userLocation,
+        id,
+        traitsStr,
+        mbti
       });
 
       await updateUserData(
@@ -287,15 +300,14 @@ export default function SignUpScreen({ navigation }) {
       />
       {showSuggestions && currentValue.length > 0 && (
         <View style={styles.suggestionsContainer}>
-          <FlatList
-            data={suggestions
-              .filter((s) =>
-                s.toLowerCase().includes(currentValue.toLowerCase())
-              )
-              .slice(0, 5)}
-            keyExtractor={(item) => item}
-            renderItem={({ item }) => (
+          {suggestions
+            .filter((s) =>
+              s.toLowerCase().includes(currentValue.toLowerCase())
+            )
+            .slice(0, 5)
+            .map((item) => (
               <TouchableOpacity
+                key={item}
                 style={styles.suggestionItem}
                 onPress={() => {
                   onSelect(item);
@@ -304,8 +316,7 @@ export default function SignUpScreen({ navigation }) {
               >
                 <Text>{item}</Text>
               </TouchableOpacity>
-            )}
-          />
+            ))}
         </View>
       )}
     </View>

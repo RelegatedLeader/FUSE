@@ -169,6 +169,38 @@ export const updateUserData = async (
   traits: string,
   mbti: string
 ) => {
+  console.log("Contract updateUserData called with:", { sessionTopic, address });
+
+  // First, check if we're on the correct network (Polygon mainnet)
+  console.log("Checking current chain...");
+  const currentChain = await signClient.request({
+    topic: sessionTopic,
+    chainId: "eip155:137",
+    request: {
+      method: "eth_chainId",
+      params: [],
+    },
+  });
+  console.log("Current chain ID:", currentChain);
+
+  if (currentChain !== "0x89") { // 0x89 is 137 in hex (Polygon mainnet)
+    console.log("Switching to Polygon mainnet...");
+    try {
+      await signClient.request({
+        topic: sessionTopic,
+        chainId: "eip155:137",
+        request: {
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: "0x89" }],
+        },
+      });
+      console.log("Switched to Polygon mainnet");
+    } catch (error) {
+      console.error("Failed to switch network:", error);
+      throw new Error("Please switch to Polygon mainnet in MetaMask and try again");
+    }
+  }
+
   const contract = getContract(publicProvider, undefined, true); // Use public provider for encoding
   const encryptedFirstName = encryptData(firstName);
   const encryptedLastName = encryptData(lastName);
@@ -190,10 +222,14 @@ export const updateUserData = async (
     encryptedMBTI,
   };
 
+  console.log("Encoded input:", input);
+
   // Encode the function call
   const data = contract.interface.encodeFunctionData("updateData", [input]);
+  console.log("Encoded transaction data:", data);
 
   // Send transaction through WalletConnect
+  console.log("Sending transaction request to WalletConnect...");
   const txHash = await signClient.request({
     topic: sessionTopic,
     chainId: "eip155:137",
@@ -209,6 +245,7 @@ export const updateUserData = async (
     },
   });
 
+  console.log("Transaction sent, hash:", txHash);
   return { hash: txHash };
 };
 
@@ -217,12 +254,45 @@ export const signInUser = async (
   sessionTopic: string,
   address: string
 ) => {
+  console.log("Contract signInUser called with:", { sessionTopic, address });
+
+  // First, check if we're on the correct network (Polygon mainnet)
+  console.log("Checking current chain...");
+  const currentChain = await signClient.request({
+    topic: sessionTopic,
+    chainId: "eip155:137",
+    request: {
+      method: "eth_chainId",
+      params: [],
+    },
+  });
+  console.log("Current chain ID:", currentChain);
+
+  if (currentChain !== "0x89") { // 0x89 is 137 in hex (Polygon mainnet)
+    console.log("Switching to Polygon mainnet...");
+    try {
+      await signClient.request({
+        topic: sessionTopic,
+        chainId: "eip155:137",
+        request: {
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: "0x89" }],
+        },
+      });
+      console.log("Switched to Polygon mainnet");
+    } catch (error) {
+      console.error("Failed to switch network:", error);
+      throw new Error("Please switch to Polygon mainnet in MetaMask and try again");
+    }
+  }
+
   const contract = getContract(publicProvider, undefined, true); // Use public provider for encoding
 
   // Encode the function call
   const data = contract.interface.encodeFunctionData("signIn", []);
 
   // Send transaction through WalletConnect
+  console.log("Sending signIn transaction request to WalletConnect...");
   const txHash = await signClient.request({
     topic: sessionTopic,
     chainId: "eip155:137",
@@ -238,6 +308,7 @@ export const signInUser = async (
     },
   });
 
+  console.log("SignIn transaction sent, hash:", txHash);
   return { hash: txHash };
 };
 
