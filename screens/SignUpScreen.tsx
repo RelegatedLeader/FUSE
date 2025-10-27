@@ -15,7 +15,7 @@ import { useWallet } from "../contexts/WalletContext";
 import { updateUserData } from "../utils/contract";
 
 export default function SignUpScreen({ navigation }) {
-  const { provider } = useWallet();
+  const { signer } = useWallet();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -68,7 +68,7 @@ export default function SignUpScreen({ navigation }) {
       });
       const faceStr = faceScanned ? "face_scanned" : "not_scanned";
       await updateUserData(
-        provider,
+        signer,
         firstName,
         lastName,
         dob,

@@ -4,7 +4,7 @@ import { useWallet } from "../contexts/WalletContext";
 import { getContract, signInUser, isUserRegistered } from "../utils/contract";
 
 export default function SignInScreen({ navigation }) {
-  const { address, provider } = useWallet();
+  const { address, provider, signer } = useWallet();
   const [isRegistered, setIsRegistered] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -34,7 +34,7 @@ export default function SignInScreen({ navigation }) {
   const handleSignIn = async () => {
     if (isRegistered) {
       try {
-        await signInUser(provider);
+        await signInUser(signer);
         navigation.navigate("Main");
       } catch (error: any) {
         Alert.alert("Error", "Failed to sign in: " + error.message);

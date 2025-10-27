@@ -1,5 +1,6 @@
 import { ethers } from "ethers";
 import CryptoJS from "crypto-js";
+import { Alert } from "react-native";
 
 // Placeholder contract address - replace after deployment
 const CONTRACT_ADDRESS = "0xE4fC636D0da367f402b33e413442b43B1b103c01"; // Deployed on Polygon mainnet
@@ -150,8 +151,7 @@ export const getContract = (
     return new ethers.Contract(CONTRACT_ADDRESS, ABI, publicProvider);
   }
   if (!signer) {
-    const ethersProvider = new ethers.BrowserProvider(provider);
-    signer = ethersProvider.getSigner();
+    throw new Error("Signer is required for transactions");
   }
   return new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
 };

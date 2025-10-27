@@ -46,14 +46,14 @@ export default function WalletScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Connect Your Wallet</Text>
-      <Text>Connect via WalletConnect to access Fuse.</Text>
+      <Text>Connect MetaMask to access Fuse on Polygon.</Text>
       {connecting ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0000ff" />
-          <Text style={styles.loadingText}>Connecting to wallet...</Text>
+          <Text style={styles.loadingText}>Connecting to MetaMask...</Text>
         </View>
       ) : (
-        <Button title="Connect Wallet" onPress={handleConnect} />
+        <Button title="Connect MetaMask" onPress={handleConnect} />
       )}
     </View>
   );
@@ -67,6 +67,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   title: { fontSize: 24, marginBottom: 20, textAlign: "center" },
+  subtitle: { fontSize: 16, marginBottom: 10, color: "#666", textAlign: "center" },
   loadingContainer: { marginTop: 20, alignItems: "center" },
   loadingText: { marginTop: 10, fontSize: 16 },
 });
