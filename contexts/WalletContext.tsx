@@ -55,6 +55,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
       await ethProvider.connect();
 
+      const connectedAccounts = await ethProvider.request({ method: 'eth_accounts' }) as string[];
+      setAddress(connectedAccounts[0]);
+
       // Switch to Polygon if not already
       try {
         await ethProvider.request({
@@ -79,8 +82,6 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         }
       }
 
-      const accounts = await ethProvider.request({ method: 'eth_requestAccounts' }) as string[];
-      setAddress(accounts[0]);
     } catch (error: any) {
       throw error;
     }

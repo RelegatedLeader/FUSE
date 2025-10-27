@@ -4,7 +4,7 @@ import CryptoJS from 'crypto-js';
 // Placeholder contract address - replace after deployment
 const CONTRACT_ADDRESS = '0xE27DB492886C88d53694810d5e1B8d815a251f90'; // Deployed on Polygon mainnet
 
-const POLYGON_RPC = 'https://polygon-rpc.com/';
+const POLYGON_RPC = 'https://polygon-rpc.com';
 const publicProvider = new ethers.JsonRpcProvider(POLYGON_RPC);
 
 const ABI = [

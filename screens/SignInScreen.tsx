@@ -14,11 +14,13 @@ export default function SignInScreen({ navigation }) {
 
   const checkRegistration = async () => {
     if (!address || !provider) return;
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 10000));
     try {
       const contract = getContract(provider, undefined, true);
-      const registered = await contract.isUserRegistered(address);
+      const registered = await Promise.race([contract.isUserRegistered(address), timeout]);
       setIsRegistered(registered);
     } catch (error: any) {
+      console.error('Check registration error:', error);
       Alert.alert("Error", "Failed to check registration: " + error.message);
     } finally {
       setLoading(false);
@@ -34,7 +36,7 @@ export default function SignInScreen({ navigation }) {
         Alert.alert("Error", "Failed to sign in: " + error.message);
       }
     } else {
-      navigation.navigate("SignUp");
+      navigation.navigate("Auth", { screen: "SignUp" });
     }
   };
 
