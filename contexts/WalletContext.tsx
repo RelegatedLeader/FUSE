@@ -1,6 +1,14 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  ReactNode,
+  useEffect,
+} from "react";
 import { Alert, Linking } from "react-native";
-import { ethers } from 'ethers';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ethers } from "ethers";
+import EthereumProvider from "@walletconnect/ethereum-provider";
 
 interface WalletContextType {
   provider: any;
@@ -29,83 +37,120 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [provider, setProvider] = useState<any>(null);
   const [address, setAddress] = useState("");
   const [signer, setSigner] = useState<any>(null);
+  const [ethereumProvider, setEthereumProvider] = useState<any>(null);
 
   useEffect(() => {
-    // Check for deep link responses from MetaMask
-    const handleDeepLink = (event: any) => {
-      console.log('Deep link received:', event.url);
-      // Handle MetaMask connection response here
+    // Initialize WalletConnect on app start
+    const initWalletConnect = async () => {
+      try {
+        const ethProvider = await EthereumProvider.init({
+          projectId: "REPLACE_WITH_YOUR_WALLETCONNECT_PROJECT_ID", // Get this from https://cloud.walletconnect.com/
+          chains: [137], // Polygon mainnet
+          optionalChains: [137, 80001], // Polygon mainnet and testnet
+          showQrModal: false, // We'll handle the modal ourselves
+          methods: ["eth_sendTransaction", "personal_sign", "eth_sign"],
+          events: ["accountsChanged", "chainChanged", "disconnect"],
+        });
+
+        setEthereumProvider(ethProvider);
+
+        // Handle connection events
+        ethProvider.on("accountsChanged", (accounts: string[]) => {
+          if (accounts.length > 0) {
+            setAddress(accounts[0]);
+            // Create ethers signer
+            const ethersProvider = new ethers.BrowserProvider(ethProvider);
+            const ethersSigner = ethersProvider.getSigner();
+            setSigner(ethersSigner);
+          }
+        });
+
+        ethProvider.on("chainChanged", (chainId: string) => {
+          console.log("Chain changed to:", chainId);
+          if (parseInt(chainId) !== 137) {
+            Alert.alert(
+              "Network Warning",
+              "Please switch to Polygon network for optimal experience."
+            );
+          }
+        });
+
+        ethProvider.on("disconnect", () => {
+          setProvider(null);
+          setAddress("");
+          setSigner(null);
+          Alert.alert("Disconnected", "Wallet disconnected");
+        });
+
+        // Check if already connected
+        if (ethProvider.connected) {
+          const accounts = ethProvider.accounts;
+          if (accounts.length > 0) {
+            setAddress(accounts[0]);
+            const ethersProvider = new ethers.BrowserProvider(ethProvider);
+            const ethersSigner = ethersProvider.getSigner();
+            setSigner(ethersSigner);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to initialize WalletConnect:", error);
+      }
     };
 
-    const subscription = Linking.addEventListener('url', handleDeepLink);
-    return () => subscription?.remove();
+    initWalletConnect();
   }, []);
 
   const connectWallet = async () => {
     try {
-      // Create Polygon provider
-      const polygonProvider = new ethers.JsonRpcProvider('https://polygon-rpc.com');
-
-      // Check if MetaMask is installed
-      const canOpen = await Linking.canOpenURL('metamask://');
-
-      if (canOpen) {
-        // Open MetaMask app
-        await Linking.openURL('metamask://');
-
-        // Simulate connection for now - in production you'd handle the actual response
-        setTimeout(() => {
-          setProvider(polygonProvider);
-          setAddress("0x742d35Cc6634C0532925a3b844Bc454e4438f44e");
-
-          // Create a mock signer that would normally come from MetaMask
-          const mockSigner = {
-            getAddress: async () => "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
-            signMessage: async (message: string) => {
-              console.log('Signing message:', message);
-              return "0x" + Math.random().toString(16).substr(2, 130);
-            },
-            sendTransaction: async (tx: any) => {
-              console.log('Sending transaction:', tx);
-              return {
-                hash: "0x" + Math.random().toString(16).substr(2, 64),
-                wait: async () => ({ status: 1 })
-              };
-            }
-          };
-          setSigner(mockSigner);
-
-          Alert.alert("Connected", "MetaMask connected to Polygon!");
-        }, 3000);
-
-      } else {
+      if (!ethereumProvider) {
         Alert.alert(
-          "MetaMask Required",
-          "Please install MetaMask mobile app",
-          [
-            { text: "Cancel", style: "cancel" },
-            {
-              text: "Install MetaMask",
-              onPress: () => Linking.openURL("https://metamask.io/download/")
-            }
-          ]
+          "Error",
+          "WalletConnect not initialized. Please restart the app."
         );
+        return;
       }
+
+      // Connect to MetaMask
+      await ethereumProvider.connect();
+
+      // The accountsChanged event will handle setting the address and signer
+      Alert.alert("Connected", "Successfully connected to MetaMask!");
     } catch (error: any) {
-      console.error('Wallet connection error:', error);
-      Alert.alert("Connection Error", error.message);
+      console.error("Wallet connection error:", error);
+      Alert.alert(
+        "Connection Failed",
+        error.message || "Failed to connect to MetaMask"
+      );
     }
   };
 
   const disconnectWallet = async () => {
-    setProvider(null);
-    setAddress("");
-    Alert.alert("Disconnected", "Wallet disconnected successfully.");
+    try {
+      if (ethereumProvider) {
+        await ethereumProvider.disconnect();
+      }
+      setProvider(null);
+      setAddress("");
+      setSigner(null);
+      Alert.alert("Disconnected", "Wallet disconnected successfully.");
+    } catch (error: any) {
+      console.error("Disconnect error:", error);
+      Alert.alert("Error", "Failed to disconnect wallet");
+    }
   };
 
   const signMessage = async (message: string) => {
-    if (!signer) throw new Error("No signer available");
-    return await signer.signMessage(message);
+    if (!ethereumProvider) throw new Error("No wallet connected");
+    try {
+      const signature = await ethereumProvider.request({
+        method: "personal_sign",
+        params: [message, address],
+      });
+      return signature;
+    } catch (error) {
+      console.error("Sign message error:", error);
+      throw error;
+    }
   };
 
   return (

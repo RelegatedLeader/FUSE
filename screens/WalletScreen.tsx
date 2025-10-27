@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, Button, StyleSheet, Alert, ActivityIndicator } from "react-native";
+import {
+  View,
+  Text,
+  Button,
+  StyleSheet,
+  Alert,
+  ActivityIndicator,
+} from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 
 export default function WalletScreen({ navigation }) {
@@ -67,7 +74,12 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   title: { fontSize: 24, marginBottom: 20, textAlign: "center" },
-  subtitle: { fontSize: 16, marginBottom: 10, color: "#666", textAlign: "center" },
+  subtitle: {
+    fontSize: 16,
+    marginBottom: 10,
+    color: "#666",
+    textAlign: "center",
+  },
   loadingContainer: { marginTop: 20, alignItems: "center" },
   loadingText: { marginTop: 10, fontSize: 16 },
 });
