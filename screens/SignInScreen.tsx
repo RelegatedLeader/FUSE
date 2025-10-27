@@ -43,7 +43,10 @@ export default function SignInScreen({ navigation }) {
     try {
       Alert.alert("Processing", "Updating your activity on the blockchain...");
       await signIn();
-      Alert.alert("Success", "Signed in successfully! Your activity has been recorded on the blockchain.");
+      Alert.alert(
+        "Success",
+        "Signed in successfully! Your activity has been recorded on the blockchain."
+      );
       navigation.navigate("Main");
     } catch (error: any) {
       Alert.alert("Error", "Failed to sign in: " + error.message);

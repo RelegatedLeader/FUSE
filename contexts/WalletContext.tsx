@@ -17,12 +17,24 @@ interface WalletContextType {
   provider: any;
   address: string;
   signer: any;
+  signClient: any;
+  sessionTopic: string;
   isRegistered: boolean;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => Promise<void>;
   signMessage: (message: string) => Promise<string>;
   checkRegistration: () => Promise<boolean>;
   signIn: () => Promise<void>;
+  updateUserData: (
+    firstName: string,
+    lastName: string,
+    birthdate: string,
+    gender: string,
+    location: string,
+    id: string,
+    traits: string,
+    mbti: string
+  ) => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -46,6 +58,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [isRegistered, setIsRegistered] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [signClient, setSignClient] = useState<any>(null);
+  const [sessionTopic, setSessionTopic] = useState("");
 
   useEffect(() => {
     // Initialize WalletConnect Sign Client
@@ -79,7 +92,10 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
                 chains: ["eip155:137"], // Polygon mainnet
                 methods: ["eth_sendTransaction", "personal_sign", "eth_sign"],
                 events: ["accountsChanged", "chainChanged"],
-                accounts: requiredNamespaces.eip155?.chains?.map(chain => `${chain}:${params.proposer.publicKey}`) || [],
+                accounts:
+                  requiredNamespaces.eip155?.chains?.map(
+                    (chain) => `${chain}:${params.proposer.publicKey}`
+                  ) || [],
               },
             },
           });
@@ -223,6 +239,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
               setAddress(address);
 
+              // Store session topic
+              setSessionTopic(session.topic);
+
               // Create ethers signer (this is simplified - in reality you'd need the private key)
               const ethersSigner = {
                 getAddress: async () => address,
@@ -245,19 +264,31 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
                 },
                 sendTransaction: async (tx: any) => {
                   // This would need real transaction sending through WalletConnect
-                  return { hash: `tx-${Date.now()}`, wait: async () => ({ status: 1 }) };
+                  return {
+                    hash: `tx-${Date.now()}`,
+                    wait: async () => ({ status: 1 }),
+                  };
                 },
               };
               setSigner(ethersSigner);
 
-              Alert.alert("Connected", `Successfully connected!\nAddress: ${address.slice(0, 6)}...${address.slice(-4)}`);
+              Alert.alert(
+                "Connected",
+                `Successfully connected!\nAddress: ${address.slice(
+                  0,
+                  6
+                )}...${address.slice(-4)}`
+              );
             } else {
               console.error("No accounts in session");
               Alert.alert("Connection Failed", "No accounts found in session");
             }
           } catch (error) {
             console.error("Session approval failed:", error);
-            Alert.alert("Connection Failed", "Session approval timed out or was rejected");
+            Alert.alert(
+              "Connection Failed",
+              "Session approval timed out or was rejected"
+            );
           }
         } else {
           Alert.alert(
@@ -266,24 +297,35 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
             [
               {
                 text: "Open App Store",
-                onPress: () => Linking.openURL("market://details?id=io.metamask")
+                onPress: () =>
+                  Linking.openURL("market://details?id=io.metamask"),
               },
-              { text: "Cancel", style: "cancel" }
+              { text: "Cancel", style: "cancel" },
             ]
           );
         }
       }
     } catch (error: any) {
       console.error("Connection error:", error);
-      Alert.alert("Connection Failed", error.message || "Failed to connect to MetaMask");
+      Alert.alert(
+        "Connection Failed",
+        error.message || "Failed to connect to MetaMask"
+      );
     }
   };
 
   const disconnectWallet = async () => {
     try {
+      if (signClient && sessionTopic) {
+        await signClient.disconnect({
+          topic: sessionTopic,
+          reason: getSdkError("USER_DISCONNECTED"),
+        });
+      }
       setProvider(null);
       setAddress("");
       setSigner(null);
+      setSessionTopic("");
       Alert.alert("Disconnected", "Wallet disconnected successfully.");
     } catch (error: any) {
       console.error("Disconnect error:", error);
@@ -307,7 +349,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
     try {
       // Create a provider from the signer for view calls
-      const provider = signer.provider || new ethers.JsonRpcProvider("https://polygon-rpc.com");
+      const provider =
+        signer.provider ||
+        new ethers.JsonRpcProvider("https://polygon-rpc.com");
       const registered = await isUserRegistered(provider, address);
       setIsRegistered(registered);
       return registered;
@@ -318,14 +362,35 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   };
 
   const signIn = async () => {
-    if (!signer) throw new Error("No wallet connected");
+    if (!signClient || !sessionTopic || !address) throw new Error("No wallet connected");
     try {
       const { signInUser } = await import("../utils/contract");
-      await signInUser(signer);
+      await signInUser(signClient, sessionTopic, address);
       Alert.alert("Success", "Signed in successfully!");
     } catch (error) {
       console.error("Sign in error:", error);
       Alert.alert("Error", "Failed to sign in: " + (error as Error).message);
+    }
+  };
+
+  const updateUserData = async (
+    firstName: string,
+    lastName: string,
+    birthdate: string,
+    gender: string,
+    location: string,
+    id: string,
+    traits: string,
+    mbti: string
+  ) => {
+    if (!signClient || !sessionTopic || !address) throw new Error("No wallet connected");
+    try {
+      const { updateUserData: updateData } = await import("../utils/contract");
+      await updateData(signClient, sessionTopic, address, firstName, lastName, birthdate, gender, location, id, traits, mbti);
+      Alert.alert("Success", "Profile created successfully!");
+    } catch (error) {
+      console.error("Update user data error:", error);
+      Alert.alert("Error", "Failed to create profile: " + (error as Error).message);
     }
   };
 
@@ -335,12 +400,15 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         provider,
         address,
         signer,
+        signClient,
+        sessionTopic,
         isRegistered,
         connectWallet,
         disconnectWallet,
         signMessage,
         checkRegistration,
         signIn,
+        updateUserData,
       }}
     >
       {children}

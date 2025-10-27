@@ -157,7 +157,9 @@ export const getContract = (
 };
 
 export const updateUserData = async (
-  provider: any,
+  signClient: any,
+  sessionTopic: string,
+  address: string,
   firstName: string,
   lastName: string,
   birthdate: string,
@@ -167,7 +169,7 @@ export const updateUserData = async (
   traits: string,
   mbti: string
 ) => {
-  const contract = getContract(provider);
+  const contract = getContract(publicProvider, undefined, true); // Use public provider for encoding
   const encryptedFirstName = encryptData(firstName);
   const encryptedLastName = encryptData(lastName);
   const encryptedBirthdate = encryptData(birthdate);
@@ -188,16 +190,55 @@ export const updateUserData = async (
     encryptedMBTI,
   };
 
-  const tx = await contract.updateData(input);
-  await tx.wait();
-  return tx;
+  // Encode the function call
+  const data = contract.interface.encodeFunctionData("updateData", [input]);
+
+  // Send transaction through WalletConnect
+  const txHash = await signClient.request({
+    topic: sessionTopic,
+    chainId: "eip155:137",
+    request: {
+      method: "eth_sendTransaction",
+      params: [{
+        from: address,
+        to: CONTRACT_ADDRESS,
+        data: data,
+        gasLimit: "0x30D40", // 200,000 gas
+        gasPrice: "0x3B9ACA00", // 1 gwei
+      }],
+    },
+  });
+
+  return { hash: txHash };
 };
 
-export const signInUser = async (provider: any) => {
-  const contract = getContract(provider);
-  const tx = await contract.signIn();
-  await tx.wait();
-  return tx;
+export const signInUser = async (
+  signClient: any,
+  sessionTopic: string,
+  address: string
+) => {
+  const contract = getContract(publicProvider, undefined, true); // Use public provider for encoding
+
+  // Encode the function call
+  const data = contract.interface.encodeFunctionData("signIn", []);
+
+  // Send transaction through WalletConnect
+  const txHash = await signClient.request({
+    topic: sessionTopic,
+    chainId: "eip155:137",
+    request: {
+      method: "eth_sendTransaction",
+      params: [{
+        from: address,
+        to: CONTRACT_ADDRESS,
+        data: data,
+        gasLimit: "0x186A0", // 100,000 gas
+        gasPrice: "0x3B9ACA00", // 1 gwei
+      }],
+    },
+  });
+
+  return { hash: txHash };
 };
 
 export const isUserRegistered = async (provider: any, userAddress: string) => {

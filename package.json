@@ -37,6 +37,7 @@
   },
   "devDependencies": {
     "@expo/cli": "^54.0.13",
+    "@types/crypto-js": "^4.2.2",
     "@types/react": "~19.1.0",
     "typescript": "~5.9.2"
   },

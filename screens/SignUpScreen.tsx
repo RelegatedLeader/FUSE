@@ -16,7 +16,6 @@ import {
 import { CameraView, useCameraPermissions } from "expo-camera";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useWallet } from "../contexts/WalletContext";
-import { updateUserData } from "../utils/contract";
 import Slider from "@react-native-community/slider";
 
 const { width, height } = Dimensions.get("window");
@@ -79,7 +78,7 @@ const MBTI_SUGGESTIONS = [
 ];
 
 export default function SignUpScreen({ navigation }) {
-  const { signer } = useWallet();
+  const { signer, address, updateUserData } = useWallet();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -177,7 +176,10 @@ export default function SignUpScreen({ navigation }) {
 
   const executeSignUp = async () => {
     try {
-      Alert.alert("Processing", "Storing your encrypted data on the blockchain...");
+      Alert.alert(
+        "Processing",
+        "Storing your encrypted data on the blockchain..."
+      );
 
       const traitsStr = JSON.stringify({
         extroversion,
@@ -188,7 +190,6 @@ export default function SignUpScreen({ navigation }) {
       });
 
       await updateUserData(
-        signer,
         firstName,
         lastName,
         dob,
@@ -225,7 +226,10 @@ export default function SignUpScreen({ navigation }) {
         })
       );
 
-      Alert.alert("Success", "Account created successfully! Your encrypted data has been stored on the blockchain.");
+      Alert.alert(
+        "Success",
+        "Account created successfully! Your encrypted data has been stored on the blockchain."
+      );
       navigation.navigate("Main");
     } catch (error) {
       Alert.alert(
@@ -317,8 +321,15 @@ export default function SignUpScreen({ navigation }) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={true}
       >
-        <Text style={styles.title}>Create Your Fuse Profile</Text>
-
+        {/* Wallet Display */}
+        {address && (
+          <View style={styles.walletDisplay}>
+            <Text style={styles.walletText}>
+              Connected: {address.slice(0, 6)}...{address.slice(-4)}
+            </Text>
+          </View>
+        )}
+        <Text style={styles.title}>Create Your Fuse Profile</Text>{" "}
         {/* Basic Information */}
         <Text style={styles.sectionTitle}>Basic Information</Text>
         <TextInput
@@ -347,9 +358,7 @@ export default function SignUpScreen({ navigation }) {
           value={dob}
           onChangeText={setDob}
         />
-
         {renderDropdown(GENDER_OPTIONS, gender, setGender, "Select Gender")}
-
         {/* Location & Career */}
         <Text style={styles.sectionTitle}>Location & Career</Text>
         {renderSuggestions(
@@ -360,7 +369,6 @@ export default function SignUpScreen({ navigation }) {
           showLocationSuggestions,
           setShowLocationSuggestions
         )}
-
         {renderSuggestions(
           OCCUPATION_SUGGESTIONS,
           occupation,
@@ -369,7 +377,6 @@ export default function SignUpScreen({ navigation }) {
           showOccupationSuggestions,
           setShowOccupationSuggestions
         )}
-
         {renderSuggestions(
           CAREER_SUGGESTIONS,
           careerAspiration,
@@ -378,7 +385,6 @@ export default function SignUpScreen({ navigation }) {
           showCareerSuggestions,
           setShowCareerSuggestions
         )}
-
         {/* Personality Traits */}
         <Text style={styles.sectionTitle}>Personality Traits</Text>
         <Text style={styles.sliderLabel}>Extroversion: {extroversion}%</Text>
@@ -391,7 +397,6 @@ export default function SignUpScreen({ navigation }) {
           minimumTrackTintColor="#007AFF"
           maximumTrackTintColor="#CCCCCC"
         />
-
         <Text style={styles.sliderLabel}>Openness: {openness}%</Text>
         <Slider
           style={styles.slider}
@@ -402,7 +407,6 @@ export default function SignUpScreen({ navigation }) {
           minimumTrackTintColor="#007AFF"
           maximumTrackTintColor="#CCCCCC"
         />
-
         <Text style={styles.sliderLabel}>
           Conscientiousness: {conscientiousness}%
         </Text>
@@ -415,7 +419,6 @@ export default function SignUpScreen({ navigation }) {
           minimumTrackTintColor="#007AFF"
           maximumTrackTintColor="#CCCCCC"
         />
-
         <Text style={styles.sliderLabel}>Agreeableness: {agreeableness}%</Text>
         <Slider
           style={styles.slider}
@@ -426,7 +429,6 @@ export default function SignUpScreen({ navigation }) {
           minimumTrackTintColor="#007AFF"
           maximumTrackTintColor="#CCCCCC"
         />
-
         <Text style={styles.sliderLabel}>Neuroticism: {neuroticism}%</Text>
         <Slider
           style={styles.slider}
@@ -437,7 +439,6 @@ export default function SignUpScreen({ navigation }) {
           minimumTrackTintColor="#007AFF"
           maximumTrackTintColor="#CCCCCC"
         />
-
         {/* MBTI */}
         <Text style={styles.sectionTitle}>MBTI Personality Type</Text>
         <TouchableOpacity style={styles.linkButton} onPress={handleMbtiLink}>
@@ -445,7 +446,6 @@ export default function SignUpScreen({ navigation }) {
             Take Official MBTI Test (Recommended)
           </Text>
         </TouchableOpacity>
-
         {renderSuggestions(
           MBTI_SUGGESTIONS,
           mbti,
@@ -454,7 +454,6 @@ export default function SignUpScreen({ navigation }) {
           showMbtiSuggestions,
           setShowMbtiSuggestions
         )}
-
         {/* Bio */}
         <Text style={styles.sectionTitle}>Personal Bio</Text>
         <Text style={styles.bioHint}>
@@ -470,7 +469,6 @@ export default function SignUpScreen({ navigation }) {
           onChangeText={setBio}
           textAlignVertical="top"
         />
-
         {/* Optional ID */}
         <Text style={styles.sectionTitle}>Optional Verification</Text>
         <TextInput
@@ -479,7 +477,6 @@ export default function SignUpScreen({ navigation }) {
           value={id}
           onChangeText={setId}
         />
-
         {/* Open-Ended Question */}
         <Text style={styles.sectionTitle}>Tell Us More</Text>
         <TextInput
@@ -490,7 +487,6 @@ export default function SignUpScreen({ navigation }) {
           onChangeText={setOpenEnded}
           textAlignVertical="top"
         />
-
         {/* Face Scan */}
         <Text style={styles.sectionTitle}>Face Verification</Text>
         {!permission ? (
@@ -524,7 +520,6 @@ export default function SignUpScreen({ navigation }) {
             <Text style={styles.scannedText}>✓ Face scanned successfully!</Text>
           </View>
         )}
-
         {/* Sign Up Button */}
         <TouchableOpacity
           style={[
@@ -559,7 +554,6 @@ export default function SignUpScreen({ navigation }) {
         >
           <Text style={styles.signUpButtonText}>Create Account</Text>
         </TouchableOpacity>
-
         <View style={styles.bottomPadding} />
       </ScrollView>
     </View>
@@ -681,5 +675,17 @@ const styles = StyleSheet.create({
   },
   signUpButtonDisabled: { backgroundColor: "#ccc" },
   signUpButtonText: { color: "#fff", fontSize: 18, fontWeight: "bold" },
+  walletDisplay: {
+    backgroundColor: "#f0f0f0",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 20,
+    alignItems: "center",
+  },
+  walletText: {
+    fontSize: 14,
+    color: "#333",
+    fontWeight: "600",
+  },
   bottomPadding: { height: 50 },
 });
