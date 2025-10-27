@@ -94,24 +94,21 @@ function AppNavigator() {
     );
   }
 
+  // Determine initial route based on wallet and registration status
+  let initialRoute = "Wallet";
+  if (address) {
+    initialRoute = isRegistered ? "SignIn" : "SignUp"; // Go to SignIn if registered, SignUp if not
+  }
+
   return (
     <Stack.Navigator
-      initialRouteName={address ? (isRegistered ? "Main" : "Auth") : "Wallet"}
+      initialRouteName={initialRoute}
       screenOptions={{ headerShown: false }}
     >
       <Stack.Screen name="Wallet" component={WalletScreen} />
-      <Stack.Screen name="Auth" component={AuthStack} />
-      <Stack.Screen name="Main" component={MainPager} />
-    </Stack.Navigator>
-  );
-}
-
-function AuthStack() {
-  return (
-    <Stack.Navigator>
-      <Stack.Screen name="Welcome" component={WelcomeScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
-      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="SignIn" component={SignInScreen} />
+      <Stack.Screen name="Main" component={MainPager} />
     </Stack.Navigator>
   );
 }

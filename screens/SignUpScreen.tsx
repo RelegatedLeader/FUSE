@@ -157,7 +157,28 @@ export default function SignUpScreen({ navigation }) {
       return;
     }
 
+    // Show gas confirmation popup
+    Alert.alert(
+      "Confirm Transaction",
+      "This will store your encrypted profile data on the Polygon blockchain. This requires a small gas fee.\n\nEstimated gas cost: ~0.01 MATIC\n\nDo you want to proceed?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Pay Gas & Create Account",
+          style: "default",
+          onPress: executeSignUp,
+        },
+      ]
+    );
+  };
+
+  const executeSignUp = async () => {
     try {
+      Alert.alert("Processing", "Storing your encrypted data on the blockchain...");
+
       const traitsStr = JSON.stringify({
         extroversion,
         openness,
@@ -177,6 +198,8 @@ export default function SignUpScreen({ navigation }) {
         traitsStr,
         mbti
       );
+
+      // Store locally as well for quick access
       await AsyncStorage.setItem(
         "userData",
         JSON.stringify({
@@ -201,12 +224,13 @@ export default function SignUpScreen({ navigation }) {
           },
         })
       );
-      Alert.alert("Success", "Account created successfully!");
+
+      Alert.alert("Success", "Account created successfully! Your encrypted data has been stored on the blockchain.");
       navigation.navigate("Main");
     } catch (error) {
       Alert.alert(
-        "Error",
-        "Failed to create account: " + (error as Error).message
+        "Transaction Failed",
+        "Failed to store data on blockchain: " + (error as Error).message
       );
     }
   };

@@ -11,6 +11,7 @@ import { ethers } from "ethers";
 import { Core } from "@walletconnect/core";
 import { buildApprovedNamespaces, getSdkError } from "@walletconnect/utils";
 import { SignClient } from "@walletconnect/sign-client";
+import { isUserRegistered } from "../utils/contract";
 
 interface WalletContextType {
   provider: any;
@@ -302,12 +303,12 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   };
 
   const checkRegistration = async (): Promise<boolean> => {
-    if (!address) return false;
+    if (!address || !signer) return false;
 
-    // For demo/testing, check local storage
     try {
-      const userData = await AsyncStorage.getItem("userData");
-      const registered = !!userData;
+      // Create a provider from the signer for view calls
+      const provider = signer.provider || new ethers.JsonRpcProvider("https://polygon-rpc.com");
+      const registered = await isUserRegistered(provider, address);
       setIsRegistered(registered);
       return registered;
     } catch (error) {
@@ -319,7 +320,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const signIn = async () => {
     if (!signer) throw new Error("No wallet connected");
     try {
-      // For demo, just show success
+      const { signInUser } = await import("../utils/contract");
+      await signInUser(signer);
       Alert.alert("Success", "Signed in successfully!");
     } catch (error) {
       console.error("Sign in error:", error);

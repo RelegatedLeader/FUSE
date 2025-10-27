@@ -18,14 +18,35 @@ export default function SignInScreen({ navigation }) {
 
   const handleSignIn = async () => {
     if (isRegistered) {
-      try {
-        await signIn();
-        navigation.navigate("Main");
-      } catch (error: any) {
-        Alert.alert("Error", "Failed to sign in: " + error.message);
-      }
+      // Show gas confirmation for sign in transaction
+      Alert.alert(
+        "Confirm Sign In",
+        "This will update your activity data on the blockchain. This requires a small gas fee.\n\nEstimated gas cost: ~0.005 MATIC\n\nDo you want to proceed?",
+        [
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+          {
+            text: "Pay Gas & Sign In",
+            style: "default",
+            onPress: executeSignIn,
+          },
+        ]
+      );
     } else {
-      navigation.navigate("Auth", { screen: "SignUp" });
+      navigation.navigate("SignUp");
+    }
+  };
+
+  const executeSignIn = async () => {
+    try {
+      Alert.alert("Processing", "Updating your activity on the blockchain...");
+      await signIn();
+      Alert.alert("Success", "Signed in successfully! Your activity has been recorded on the blockchain.");
+      navigation.navigate("Main");
+    } catch (error: any) {
+      Alert.alert("Error", "Failed to sign in: " + error.message);
     }
   };
 
