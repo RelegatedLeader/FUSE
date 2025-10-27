@@ -25,9 +25,9 @@ function MainPager() {
   const handleDisconnect = async () => {
     try {
       await disconnectWallet();
-      Alert.alert('Disconnected', 'Wallet disconnected successfully.');
+      Alert.alert("Disconnected", "Wallet disconnected successfully.");
     } catch (error: any) {
-      Alert.alert('Error', error.message);
+      Alert.alert("Error", error.message);
     }
   };
 
@@ -36,7 +36,9 @@ function MainPager() {
       {address && (
         <View style={styles.header}>
           <TouchableOpacity onPress={handleDisconnect}>
-            <Text>Wallet: {address.slice(0, 6)}...{address.slice(-4)}</Text>
+            <Text>
+              Wallet: {address.slice(0, 6)}...{address.slice(-4)}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -100,7 +102,7 @@ function AuthStack() {
 }
 
 const styles = StyleSheet.create({
-  header: { padding: 10, backgroundColor: '#eee', alignItems: 'center' },
+  header: { padding: 10, backgroundColor: "#eee", alignItems: "center" },
   tabBar: {
     flexDirection: "row",
     justifyContent: "space-around",

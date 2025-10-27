@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Button, StyleSheet, Alert } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
-import { getContract, signInUser } from '../utils/contract';
+import { getContract, signInUser, isUserRegistered } from "../utils/contract";
 
 export default function SignInScreen({ navigation }) {
   const { address, provider } = useWallet();
@@ -14,14 +14,18 @@ export default function SignInScreen({ navigation }) {
 
   const checkRegistration = async () => {
     if (!address || !provider) return;
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), 10000));
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Request timed out")), 10000)
+    );
     try {
-      const contract = getContract(provider, undefined, true);
-      const registered = await Promise.race([contract.isUserRegistered(address), timeout]);
+      const registered = await Promise.race([
+        isUserRegistered(provider, address),
+        timeout,
+      ]);
       setIsRegistered(registered);
     } catch (error: any) {
-      console.error('Check registration error:', error);
-      Alert.alert("Error", "Failed to check registration: " + error.message);
+      console.error("Check registration error:", error);
+      setIsRegistered(false); // Assume not registered if check fails
     } finally {
       setLoading(false);
     }
@@ -52,7 +56,10 @@ export default function SignInScreen({ navigation }) {
     <View style={styles.container}>
       <Text style={styles.title}>Welcome to Fuse</Text>
       <Text>Wallet Address: {address}</Text>
-      <Button title={isRegistered ? "Sign In to Proceed" : "Sign Up to Proceed"} onPress={handleSignIn} />
+      <Button
+        title={isRegistered ? "Sign In to Proceed" : "Sign Up to Proceed"}
+        onPress={handleSignIn}
+      />
     </View>
   );
 }
