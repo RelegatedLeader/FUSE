@@ -77,7 +77,16 @@ const MBTI_SUGGESTIONS = [
 ];
 
 export default function SignUpScreen({ navigation }) {
-  const { signer, address, updateUserData } = useWallet();
+  const { address, updateUserData, isInitialized } = useWallet();
+  console.log("SignUpScreen rendered with address:", address, "isInitialized:", isInitialized);
+
+  if (!isInitialized) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <Text>Loading wallet...</Text>
+      </View>
+    );
+  }
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -118,6 +127,10 @@ export default function SignUpScreen({ navigation }) {
     }
   }, [permission]);
 
+  useEffect(() => {
+    console.log("SignUpScreen address changed:", address);
+  }, [address]);
+
   const handleMbtiLink = () => {
     Linking.openURL("https://www.16personalities.com/free-personality-test");
   };
@@ -131,7 +144,8 @@ export default function SignUpScreen({ navigation }) {
   };
 
   const handleSignUp = async () => {
-    if (!signer) {
+    console.log("SignUp handleSignUp called, address:", address);
+    if (!address) {
       Alert.alert("Error", "Please connect your wallet first");
       return;
     }

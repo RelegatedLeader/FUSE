@@ -19,6 +19,7 @@ interface WalletContextType {
   signClient: any;
   sessionTopic: string;
   isRegistered: boolean;
+  isInitialized: boolean;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => Promise<void>;
   signMessage: (message: string) => Promise<string>;
@@ -137,6 +138,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         }
       } catch (error) {
         console.error("Failed to initialize WalletConnect:", error);
+      } finally {
+        setIsInitialized(true);
       }
     };
 
@@ -319,6 +322,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         signClient,
         sessionTopic,
         isRegistered,
+        isInitialized,
         connectWallet,
         disconnectWallet,
         signMessage,
