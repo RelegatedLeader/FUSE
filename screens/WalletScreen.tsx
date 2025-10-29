@@ -10,7 +10,7 @@ import {
 import { useWallet } from "../contexts/WalletContext";
 
 export default function WalletScreen({ navigation }) {
-  const { address, connectWallet, disconnectWallet } = useWallet();
+  const { address, connectWallet, disconnectWallet, clearAllSessions } = useWallet();
   const [connecting, setConnecting] = useState(false);
 
   useEffect(() => {
@@ -40,12 +40,22 @@ export default function WalletScreen({ navigation }) {
     }
   };
 
+  const handleClearSessions = async () => {
+    try {
+      await clearAllSessions();
+      Alert.alert("Cleared", "All sessions cleared. App will restart fresh.");
+    } catch (error: any) {
+      Alert.alert("Error", error.message);
+    }
+  };
+
   if (address) {
     return (
       <View style={styles.container}>
         <Text>Connected Wallet: {address}</Text>
         <Button title="Proceed" onPress={() => navigation.navigate("SignIn")} />
         <Button title="Disconnect" onPress={handleDisconnect} />
+        <Button title="Clear All Sessions" onPress={handleClearSessions} color="red" />
       </View>
     );
   }

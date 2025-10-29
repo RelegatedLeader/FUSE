@@ -188,6 +188,7 @@ export default function SignUpScreen({ navigation }) {
   };
 
   const executeSignUp = async () => {
+    console.log("executeSignUp called");
     try {
       Alert.alert(
         "Processing",

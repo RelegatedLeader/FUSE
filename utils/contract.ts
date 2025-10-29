@@ -169,6 +169,7 @@ export const updateUserData = async (
   traits: string,
   mbti: string
 ) => {
+  console.log("updateUserData in contract.ts called with:", { sessionTopic, address });
   const contract = getContract(publicProvider, undefined, true); // Use public provider for encoding
   const encryptedFirstName = encryptData(firstName);
   const encryptedLastName = encryptData(lastName);
@@ -194,22 +195,37 @@ export const updateUserData = async (
   const data = contract.interface.encodeFunctionData("updateData", [input]);
 
   // Send transaction through WalletConnect
-  const txHash = await signClient.request({
-    topic: sessionTopic,
-    chainId: "eip155:137",
-    request: {
-      method: "eth_sendTransaction",
-      params: [{
-        from: address,
-        to: CONTRACT_ADDRESS,
-        data: data,
-        gasLimit: "0x30D40", // 200,000 gas
-        gasPrice: "0x3B9ACA00", // 1 gwei
-      }],
-    },
+  console.log("Sending updateData transaction through WalletConnect...");
+  console.log("Transaction params:", {
+    from: address,
+    to: CONTRACT_ADDRESS,
+    data: data.substring(0, 100) + "...", // Log first 100 chars of data
+    gasLimit: "0x30D40",
+    gasPrice: "0x3B9ACA00",
   });
 
-  return { hash: txHash };
+  try {
+    const txHash = await signClient.request({
+      topic: sessionTopic,
+      chainId: "eip155:137",
+      request: {
+        method: "eth_sendTransaction",
+        params: [{
+          from: address,
+          to: CONTRACT_ADDRESS,
+          data: data,
+          gasLimit: "0x493E0", // 300,000 gas (increased)
+          gasPrice: "0x5F5E100", // 100 gwei (increased for Polygon)
+        }],
+      },
+    });
+
+    console.log("Transaction sent successfully, hash:", txHash);
+    return { hash: txHash };
+  } catch (error) {
+    console.error("Transaction failed:", error);
+    throw error;
+  }
 };
 
 export const signInUser = async (
@@ -223,22 +239,37 @@ export const signInUser = async (
   const data = contract.interface.encodeFunctionData("signIn", []);
 
   // Send transaction through WalletConnect
-  const txHash = await signClient.request({
-    topic: sessionTopic,
-    chainId: "eip155:137",
-    request: {
-      method: "eth_sendTransaction",
-      params: [{
-        from: address,
-        to: CONTRACT_ADDRESS,
-        data: data,
-        gasLimit: "0x186A0", // 100,000 gas
-        gasPrice: "0x3B9ACA00", // 1 gwei
-      }],
-    },
+  console.log("Sending signIn transaction through WalletConnect...");
+  console.log("Transaction params:", {
+    from: address,
+    to: CONTRACT_ADDRESS,
+    data: data,
+    gasLimit: "0x30D40", // 200,000 gas
+    gasPrice: "0x5F5E100", // 100 gwei
   });
 
-  return { hash: txHash };
+  try {
+    const txHash = await signClient.request({
+      topic: sessionTopic,
+      chainId: "eip155:137",
+      request: {
+        method: "eth_sendTransaction",
+        params: [{
+          from: address,
+          to: CONTRACT_ADDRESS,
+          data: data,
+          gasLimit: "0x30D40", // 200,000 gas
+          gasPrice: "0x5F5E100", // 100 gwei
+        }],
+      },
+    });
+
+    console.log("SignIn transaction sent successfully, hash:", txHash);
+    return { hash: txHash };
+  } catch (error) {
+    console.error("SignIn transaction failed:", error);
+    throw error;
+  }
 };
 
 export const isUserRegistered = async (provider: any, userAddress: string) => {

@@ -22,6 +22,7 @@ interface WalletContextType {
   isInitialized: boolean;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => Promise<void>;
+  clearAllSessions: () => Promise<void>;
   signMessage: (message: string) => Promise<string>;
   checkRegistration: () => Promise<boolean>;
   signIn: () => Promise<void>;
@@ -77,7 +78,23 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
         setSignClient(client);
 
-        // Set up event listeners
+        // Clear all existing sessions for fresh testing
+        console.log("Clearing all existing sessions for fresh testing...");
+        const existingSessions = client.session.getAll();
+        if (existingSessions.length > 0) {
+          console.log(`Found ${existingSessions.length} existing sessions, clearing them...`);
+          for (const session of existingSessions) {
+            try {
+              await client.disconnect({
+                topic: session.topic,
+                reason: getSdkError("USER_DISCONNECTED"),
+              });
+              console.log(`Cleared session: ${session.topic}`);
+            } catch (error) {
+              console.error(`Failed to clear session ${session.topic}:`, error);
+            }
+          }
+        }
         client.on("session_proposal", async (event) => {
           const { id, params } = event;
           console.log("Session proposal received:", params);
@@ -125,17 +142,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           console.log("Relayer message:", event);
         });
 
-        // Check for existing sessions
-        const existingSessions = client.session.getAll();
-        if (existingSessions.length > 0) {
-          const session = existingSessions[0];
-          const accounts = session.namespaces.eip155.accounts;
-          if (accounts && accounts.length > 0) {
-            const address = accounts[0].split(":")[2];
-            setAddress(address);
-            console.log("Restored existing session for address:", address);
-          }
-        }
+        // Sessions are cleared on init for fresh testing - no restoration
       } catch (error) {
         console.error("Failed to initialize WalletConnect:", error);
       } finally {
@@ -241,10 +248,36 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       setProvider(null);
       setAddress("");
       setSessionTopic("");
+      setIsRegistered(false);
+      // Clear stored session data
+      await AsyncStorage.removeItem("walletconnect");
+      console.log("Wallet disconnected and session cleared");
       Alert.alert("Disconnected", "Wallet disconnected successfully.");
     } catch (error: any) {
       console.error("Disconnect error:", error);
       Alert.alert("Error", "Failed to disconnect wallet");
+    }
+  };
+
+  const clearAllSessions = async () => {
+    try {
+      if (signClient) {
+        const sessions = signClient.session.getAll();
+        for (const session of sessions) {
+          await signClient.disconnect({
+            topic: session.topic,
+            reason: getSdkError("USER_DISCONNECTED"),
+          });
+        }
+      }
+      setProvider(null);
+      setAddress("");
+      setSessionTopic("");
+      setIsRegistered(false);
+      await AsyncStorage.removeItem("walletconnect");
+      console.log("All sessions cleared");
+    } catch (error) {
+      console.error("Clear sessions error:", error);
     }
   };
 
@@ -303,9 +336,11 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     traits: string,
     mbti: string
   ) => {
+    console.log("updateUserData called with:", { signClient: !!signClient, sessionTopic, address });
     if (!signClient || !sessionTopic || !address) throw new Error("No wallet connected");
     try {
       const { updateUserData: updateData } = await import("../utils/contract");
+      console.log("Calling updateData from contract utils");
       await updateData(signClient, sessionTopic, address, firstName, lastName, birthdate, gender, location, id, traits, mbti);
       Alert.alert("Success", "Profile created successfully!");
     } catch (error) {
@@ -325,6 +360,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         isInitialized,
         connectWallet,
         disconnectWallet,
+        clearAllSessions,
         signMessage,
         checkRegistration,
         signIn,
