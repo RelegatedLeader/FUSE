@@ -359,7 +359,7 @@ export default function SignUpScreen({ navigation }) {
             </Text>
           </View>
         )}
-        <Text style={styles.title}>Create Your Fuse Profile</Text>{" "}
+        <Text style={styles.title}>Create Your Fuse Profile</Text>
         {/* Basic Information */}
         <Text style={styles.sectionTitle}>Basic Information</Text>
         <TextInput
@@ -488,8 +488,7 @@ export default function SignUpScreen({ navigation }) {
         <Text style={styles.sectionTitle}>Personal Bio</Text>
         <Text style={styles.bioHint}>
           Write a genuine bio about yourself. This helps our AI understand you
-          better for matching. Minimum 200 words required. Current: {wordCount}{" "}
-          words
+          better for matching. Minimum 200 words required. Current: {wordCount} words
         </Text>
         <TextInput
           style={[styles.input, styles.bioInput]}
@@ -534,16 +533,15 @@ export default function SignUpScreen({ navigation }) {
           </TouchableOpacity>
         ) : !faceScanned ? (
           <View style={styles.cameraContainer}>
-            <CameraView style={styles.camera} facing="front" ref={cameraRef}>
-              <View style={styles.cameraOverlay}>
-                <TouchableOpacity
-                  style={styles.scanButton}
-                  onPress={takePicture}
-                >
-                  <Text style={styles.scanButtonText}>Scan Face</Text>
-                </TouchableOpacity>
-              </View>
-            </CameraView>
+            <CameraView style={styles.camera} facing="front" ref={cameraRef} />
+            <View style={styles.cameraOverlay}>
+              <TouchableOpacity
+                style={styles.scanButton}
+                onPress={takePicture}
+              >
+                <Text style={styles.scanButtonText}>Scan Face</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
           <View style={styles.scannedContainer}>
