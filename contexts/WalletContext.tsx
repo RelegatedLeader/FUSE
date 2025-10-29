@@ -84,7 +84,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         console.log("Clearing all existing sessions for fresh testing...");
         const existingSessions = client.session.getAll();
         if (existingSessions.length > 0) {
-          console.log(`Found ${existingSessions.length} existing sessions, clearing them...`);
+          console.log(
+            `Found ${existingSessions.length} existing sessions, clearing them...`
+          );
           for (const session of existingSessions) {
             try {
               await client.disconnect({
@@ -208,7 +210,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         let opened = false;
 
         // Method 1: iOS Universal Link (primary method for iOS)
-        const universalLink = `https://metamask.app.link/wc?uri=${encodeURIComponent(uri)}`;
+        const universalLink = `https://metamask.app.link/wc?uri=${encodeURIComponent(
+          uri
+        )}`;
         console.log("Trying MetaMask universal link:", universalLink);
 
         try {
@@ -241,7 +245,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
         // Method 3: Fallback to showing connection URI if app opening failed
         if (!opened) {
-          console.log("Could not open MetaMask app, showing manual connection option");
+          console.log(
+            "Could not open MetaMask app, showing manual connection option"
+          );
           Alert.alert(
             "MetaMask Connection",
             "Could not open MetaMask automatically. Please copy the connection URI and paste it manually in MetaMask.",
@@ -253,10 +259,17 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
                   console.log("URI for manual connection:", uri);
                   try {
                     Clipboard.setString(uri);
-                    Alert.alert("URI Copied", "The connection URI has been copied to your clipboard. Open MetaMask and paste it in the WalletConnect section.");
+                    Alert.alert(
+                      "URI Copied",
+                      "The connection URI has been copied to your clipboard. Open MetaMask and paste it in the WalletConnect section."
+                    );
                   } catch (clipboardError) {
                     console.error("Clipboard error:", clipboardError);
-                    Alert.alert("Copy Failed", "Please manually copy this URI and paste it in MetaMask:\n\n" + uri);
+                    Alert.alert(
+                      "Copy Failed",
+                      "Please manually copy this URI and paste it in MetaMask:\n\n" +
+                        uri
+                    );
                   }
                 },
               },
@@ -272,7 +285,10 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
 
         // Wait for approval with timeout
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error("Connection timeout - please try again")), 60000); // 60 second timeout
+          setTimeout(
+            () => reject(new Error("Connection timeout - please try again")),
+            60000
+          ); // 60 second timeout
         });
 
         try {
@@ -314,8 +330,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           [
             {
               text: "Open App Store",
-              onPress: () =>
-                Linking.openURL("market://details?id=io.metamask"),
+              onPress: () => Linking.openURL("market://details?id=io.metamask"),
             },
             { text: "Cancel", style: "cancel" },
           ]
@@ -377,7 +392,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   };
 
   const signMessage = async (message: string) => {
-    if (!signClient || !sessionTopic || !address) throw new Error("No wallet connected");
+    if (!signClient || !sessionTopic || !address)
+      throw new Error("No wallet connected");
     try {
       const signature = await signClient.request({
         topic: sessionTopic,
@@ -411,7 +427,8 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   };
 
   const signIn = async () => {
-    if (!signClient || !sessionTopic || !address) throw new Error("No wallet connected");
+    if (!signClient || !sessionTopic || !address)
+      throw new Error("No wallet connected");
     try {
       const { signInUser } = await import("../utils/contract");
       await signInUser(signClient, sessionTopic, address);
@@ -432,12 +449,29 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     traits: string,
     mbti: string
   ) => {
-    console.log("updateUserData called with:", { signClient: !!signClient, sessionTopic, address });
-    if (!signClient || !sessionTopic || !address) throw new Error("No wallet connected");
+    console.log("updateUserData called with:", {
+      signClient: !!signClient,
+      sessionTopic,
+      address,
+    });
+    if (!signClient || !sessionTopic || !address)
+      throw new Error("No wallet connected");
     try {
       const { updateUserData: updateData } = await import("../utils/contract");
       console.log("Calling updateData from contract utils");
-      const result = await updateData(signClient, sessionTopic, address, firstName, lastName, birthdate, gender, location, id, traits, mbti);
+      const result = await updateData(
+        signClient,
+        sessionTopic,
+        address,
+        firstName,
+        lastName,
+        birthdate,
+        gender,
+        location,
+        id,
+        traits,
+        mbti
+      );
       return result; // Return transaction hash
     } catch (error) {
       console.error("Update user data error:", error);

@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import CryptoJS from "crypto-js";
-import { Alert } from "react-native";
+import { Alert, Linking } from "react-native";
 
 // Placeholder contract address - replace after deployment
 const CONTRACT_ADDRESS = "0xE4fC636D0da367f402b33e413442b43B1b103c01"; // Deployed on Polygon mainnet
@@ -169,7 +169,10 @@ export const updateUserData = async (
   traits: string,
   mbti: string
 ) => {
-  console.log("updateUserData in contract.ts called with:", { sessionTopic, address });
+  console.log("updateUserData in contract.ts called with:", {
+    sessionTopic,
+    address,
+  });
 
   try {
     const contract = getContract(publicProvider, undefined, true); // Use public provider for encoding
@@ -202,7 +205,10 @@ export const updateUserData = async (
       data = contract.interface.encodeFunctionData("updateData", [input]);
       console.log("Function data encoded successfully");
     } catch (encodeError) {
-      console.warn("Contract encoding failed, will still attempt transaction:", encodeError);
+      console.warn(
+        "Contract encoding failed, will still attempt transaction:",
+        encodeError
+      );
       // If encoding fails, send a basic transaction - MetaMask will still open
       data = "0x00"; // Minimal data, MetaMask will still show the transaction
     }
@@ -211,41 +217,192 @@ export const updateUserData = async (
     console.log("Sending transaction to MetaMask...");
     console.log("Transaction to:", CONTRACT_ADDRESS);
 
+    // Check current network before switching
+    try {
+      console.log("🔍 Checking current network...");
+      const currentChainId = await signClient.request({
+        topic: sessionTopic,
+        chainId: "eip155:1", // Use a default chainId for the request
+        request: {
+          method: "eth_chainId",
+          params: [],
+        },
+      });
+      console.log("📡 Current chain ID:", currentChainId);
+      if (currentChainId !== "0x89" && currentChainId !== "89") {
+        console.log("🔄 Not on Polygon, need to switch network");
+      } else {
+        console.log("✅ Already on Polygon network");
+      }
+    } catch (chainError) {
+      console.log("❌ Could not get current chain ID:", chainError);
+      // Continue anyway, try to switch
+    }
+
+    // First ensure we're on Polygon network
+    try {
+      console.log("🚀 Attempting to switch to Polygon network...");
+      await signClient.request({
+        topic: sessionTopic,
+        chainId: "eip155:137",
+        request: {
+          method: "wallet_switchEthereumChain",
+          params: [{ chainId: "0x89" }], // Polygon mainnet chainId in hex
+        },
+      });
+      console.log("✅ Successfully switched to Polygon network");
+    } catch (switchError: any) {
+      console.log("❌ Network switch failed:", switchError);
+      // If network doesn't exist, try to add it
+      if (
+        switchError.code === 4902 ||
+        switchError.message?.includes("Unrecognized chain")
+      ) {
+        console.log("📥 Adding Polygon network to MetaMask...");
+        try {
+          await signClient.request({
+            topic: sessionTopic,
+            chainId: "eip155:137",
+            request: {
+              method: "wallet_addEthereumChain",
+              params: [
+                {
+                  chainId: "0x89",
+                  chainName: "Polygon Mainnet",
+                  nativeCurrency: {
+                    name: "MATIC",
+                    symbol: "MATIC",
+                    decimals: 18,
+                  },
+                  rpcUrls: ["https://polygon-rpc.com/"],
+                  blockExplorerUrls: ["https://polygonscan.com/"],
+                },
+              ],
+            },
+          });
+          console.log("✅ Added Polygon network, now switching...");
+          // Try switching again
+          await signClient.request({
+            topic: sessionTopic,
+            chainId: "eip155:137",
+            request: {
+              method: "wallet_switchEthereumChain",
+              params: [{ chainId: "0x89" }],
+            },
+          });
+          console.log(
+            "✅ Successfully switched to Polygon network after adding it"
+          );
+        } catch (addError) {
+          console.error("❌ Failed to add Polygon network:", addError);
+          throw new Error("Please add Polygon network to your wallet manually");
+        }
+      } else {
+        console.log(
+          "❌ Network switch failed with different error:",
+          switchError
+        );
+        // Continue anyway - maybe already on Polygon
+      }
+    }
+
+    // Small delay to ensure network switch is processed
+    console.log("⏳ Waiting for network switch to complete...");
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    console.log("▶️ Proceeding with transaction...");
+
     // Add timeout to prevent hanging
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error("Transaction timeout - MetaMask didn't respond within 30 seconds")), 30000); // 30 second timeout
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              "Transaction timeout - MetaMask didn't respond within 30 seconds"
+            )
+          ),
+        30000
+      ); // 30 second timeout
     });
+
+    // Now try the actual contract transaction
+    console.log("📤 Sending contract transaction...");
 
     const txPromise = signClient.request({
       topic: sessionTopic,
       chainId: "eip155:137",
       request: {
         method: "eth_sendTransaction",
-        params: [{
-          from: address,
-          to: CONTRACT_ADDRESS,
-          data: data,
-          gasLimit: "0x493E0", // 300,000 gas (increased)
-          gasPrice: "0x5F5E100", // 100 gwei (increased for Polygon)
-        }],
+        params: [
+          {
+            from: address,
+            to: CONTRACT_ADDRESS,
+            data: data,
+            value: "0x0", // 0 ETH
+            gasLimit: "0x249F0", // 150,000 gas (increased for contract call)
+            gasPrice: "0x3B9ACA00", // 50 gwei for Polygon (reduced from 100 gwei)
+          },
+        ],
       },
     });
 
-    const txHash = await Promise.race([txPromise, timeoutPromise]);
-    console.log("Transaction sent successfully, hash:", txHash);
-    return { hash: txHash };
+    console.log("📤 Sending transaction request to MetaMask...");
+    console.log("📋 Transaction details:", {
+      from: address,
+      to: CONTRACT_ADDRESS,
+      data: data.substring(0, 50) + "...",
+      value: "0x0",
+      gasLimit: "0x249F0",
+      gasPrice: "0x3B9ACA00",
+    });
+
+    // FORCE OPEN METAMASK - This ensures MetaMask opens regardless of WalletConnect redirect
+    console.log("🔗 Force opening MetaMask app...");
+    // Small delay to ensure transaction request is processed first
+    setTimeout(async () => {
+      try {
+        await Linking.openURL('https://metamask.app.link/');
+        console.log("✅ MetaMask open URL triggered");
+      } catch (linkError) {
+        console.warn("⚠️ Could not open MetaMask URL:", linkError);
+      }
+    }, 500); // 500ms delay
+
+    try {
+      console.log("⏳ Waiting for MetaMask approval...");
+      const txHash = await Promise.race([txPromise, timeoutPromise]);
+      console.log("✅ Transaction approved! Hash:", txHash);
+      console.log("Transaction sent successfully, hash:", txHash);
+      return { hash: txHash };
+    } catch (txError) {
+      console.error("❌ Transaction failed or timed out:", txError);
+      throw txError;
+    }
   } catch (error: any) {
     console.error("Transaction failed:", error);
 
     // If it's a contract-related error, provide better messaging
-    if (error.message?.includes("cryptoJs") || error.message?.includes("CryptoJS")) {
-      console.error("CryptoJS error - check if crypto-js package is properly installed");
-      throw new Error("Encryption library error. Please check CryptoJS installation.");
+    if (
+      error.message?.includes("cryptoJs") ||
+      error.message?.includes("CryptoJS")
+    ) {
+      console.error(
+        "CryptoJS error - check if crypto-js package is properly installed"
+      );
+      throw new Error(
+        "Encryption library error. Please check CryptoJS installation."
+      );
     }
 
-    if (error.message?.includes("invalid") || error.message?.includes("address")) {
-      console.error("Contract address might be invalid or contract not deployed");
-      throw new Error("Contract interaction failed. Contract may not be deployed at this address.");
+    if (
+      error.message?.includes("invalid") ||
+      error.message?.includes("address")
+    ) {
+      console.error(
+        "Contract address might be invalid or contract not deployed"
+      );
+      throw new Error(
+        "Contract interaction failed. Contract may not be deployed at this address."
+      );
     }
 
     // If transaction fails, throw the error instead of simulating
@@ -270,13 +427,39 @@ export const signInUser = async (
     to: CONTRACT_ADDRESS,
     data: data,
     gasLimit: "0x30D40", // 200,000 gas
-    gasPrice: "0x5F5E100", // 100 gwei
+    gasPrice: "0x3B9ACA00", // 50 gwei for Polygon
   });
+
+  // First ensure we're on Polygon network
+  try {
+    await signClient.request({
+      topic: sessionTopic,
+      chainId: "eip155:137",
+      request: {
+        method: "wallet_switchEthereumChain",
+        params: [{ chainId: "0x89" }], // Polygon mainnet chainId in hex
+      },
+    });
+    console.log("Switched to Polygon network for signIn");
+  } catch (switchError) {
+    console.log(
+      "Network switch failed or already on Polygon for signIn:",
+      switchError
+    );
+  }
 
   try {
     // Add timeout to prevent hanging
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error("Sign in timeout - MetaMask didn't respond within 30 seconds")), 30000); // 30 second timeout
+      setTimeout(
+        () =>
+          reject(
+            new Error(
+              "Sign in timeout - MetaMask didn't respond within 30 seconds"
+            )
+          ),
+        30000
+      ); // 30 second timeout
     });
 
     const txPromise = signClient.request({
@@ -284,13 +467,16 @@ export const signInUser = async (
       chainId: "eip155:137",
       request: {
         method: "eth_sendTransaction",
-        params: [{
-          from: address,
-          to: CONTRACT_ADDRESS,
-          data: data,
-          gasLimit: "0x30D40", // 200,000 gas
-          gasPrice: "0x5F5E100", // 100 gwei
-        }],
+        params: [
+          {
+            from: address,
+            to: CONTRACT_ADDRESS,
+            data: data,
+            value: "0x0", // 0 ETH
+            gasLimit: "0x30D40", // 200,000 gas
+            gasPrice: "0x3B9ACA00", // 50 gwei for Polygon
+          },
+        ],
       },
     });
 
@@ -335,7 +521,7 @@ export const getUserDataByTransaction = async (
       verified: true,
       userAddress,
       contractAddress: CONTRACT_ADDRESS,
-      note: "Data retrieval requires contract upgrade. Data is stored locally."
+      note: "Data retrieval requires contract upgrade. Data is stored locally.",
     };
   } catch (error) {
     console.error("Error retrieving user data by transaction:", error);
@@ -343,10 +529,13 @@ export const getUserDataByTransaction = async (
   }
 };
 
-export const getLocalUserDataByTransaction = async (transactionHash: string) => {
+export const getLocalUserDataByTransaction = async (
+  transactionHash: string
+) => {
   try {
     // Import AsyncStorage dynamically to avoid circular dependencies
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    const AsyncStorage =
+      require("@react-native-async-storage/async-storage").default;
 
     const storedData = await AsyncStorage.getItem("userData");
     if (!storedData) {

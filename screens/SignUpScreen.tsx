@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   Modal,
   Dimensions,
+  Animated,
 } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -29,7 +30,10 @@ type RootStackParamList = {
   Main: undefined;
 };
 
-type SignUpScreenNavigationProp = StackNavigationProp<RootStackParamList, 'SignUp'>;
+type SignUpScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  "SignUp"
+>;
 
 type Props = {
   navigation: SignUpScreenNavigationProp;
@@ -97,7 +101,12 @@ const MBTI_SUGGESTIONS = [
 
 export default function SignUpScreen({ navigation }: Props) {
   const { address, updateUserData, isInitialized } = useWallet();
-  console.log("SignUpScreen rendered with address:", address, "isInitialized:", isInitialized);
+  console.log(
+    "SignUpScreen rendered with address:",
+    address,
+    "isInitialized:",
+    isInitialized
+  );
 
   if (!isInitialized) {
     return (
@@ -134,15 +143,49 @@ export default function SignUpScreen({ navigation }: Props) {
   const [showCareerSuggestions, setShowCareerSuggestions] = useState(false);
   const [showMbtiSuggestions, setShowMbtiSuggestions] = useState(false);
   const [showCameraModal, setShowCameraModal] = useState(false);
-  const [faceValidationMessage, setFaceValidationMessage] = useState<string>("");
+  const [faceValidationMessage, setFaceValidationMessage] =
+    useState<string>("");
   const [isFaceValid, setIsFaceValid] = useState(false);
 
   const [permission, requestPermission] = useCameraPermissions();
   const [faceScanned, setFaceScanned] = useState(false);
-  const [scanStep, setScanStep] = useState<'center' | 'left' | 'right' | 'complete'>('center');
-  const [capturedImages, setCapturedImages] = useState<{[key: string]: any}>({});
+  const [isTransactionLoading, setIsTransactionLoading] = useState(false);
+  const [showManualMetaMaskPrompt, setShowManualMetaMaskPrompt] = useState(false);
+  const rocketAnimation = useRef(new Animated.Value(0)).current;
+
+  // Animate rocket when loading
+  useEffect(() => {
+    if (isTransactionLoading) {
+      // Start rocket animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(rocketAnimation, {
+            toValue: -10,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(rocketAnimation, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      // Reset animation
+      rocketAnimation.setValue(0);
+    }
+  }, [isTransactionLoading, rocketAnimation]);
+  const [scanStep, setScanStep] = useState<
+    "center" | "left" | "right" | "complete"
+  >("center");
+  const [capturedImages, setCapturedImages] = useState<{ [key: string]: any }>(
+    {}
+  );
   const [isScanning, setIsScanning] = useState(false);
-  const [detectedFaceAngle, setDetectedFaceAngle] = useState<'center' | 'left' | 'right' | 'unknown'>('unknown');
+  const [detectedFaceAngle, setDetectedFaceAngle] = useState<
+    "center" | "left" | "right" | "unknown"
+  >("unknown");
   const [isDetectingFaces, setIsDetectingFaces] = useState(false);
   const cameraRef = useRef<any>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -157,30 +200,118 @@ export default function SignUpScreen({ navigation }: Props) {
     console.log("SignUpScreen address changed:", address);
   }, [address]);
 
+  // Load saved form data on component mount
+  useEffect(() => {
+    const loadSavedData = async () => {
+      try {
+        const savedData = await AsyncStorage.getItem("signupFormData");
+        if (savedData) {
+          const parsedData = JSON.parse(savedData);
+          setFirstName(parsedData.firstName || "");
+          setLastName(parsedData.lastName || "");
+          setEmail(parsedData.email || "");
+          setDob(parsedData.dob || "");
+          setGender(parsedData.gender || "");
+          setUserLocation(parsedData.userLocation || "");
+          setOccupation(parsedData.occupation || "");
+          setCareerAspiration(parsedData.careerAspiration || "");
+          setMbti(parsedData.mbti || "");
+          setBio(parsedData.bio || "");
+          setId(parsedData.id || "");
+          setOpenEnded(parsedData.openEnded || "");
+          setExtroversion(parsedData.extroversion || 50);
+          setOpenness(parsedData.openness || 50);
+          setConscientiousness(parsedData.conscientiousness || 50);
+          setAgreeableness(parsedData.agreeableness || 50);
+          setNeuroticism(parsedData.neuroticism || 50);
+          console.log("Loaded saved form data");
+        }
+      } catch (error) {
+        console.log("Error loading saved form data:", error);
+      }
+    };
+    loadSavedData();
+  }, []);
+
+  // Save form data whenever it changes
+  const saveFormData = async () => {
+    try {
+      const formData = {
+        firstName,
+        lastName,
+        email,
+        dob,
+        gender,
+        userLocation,
+        occupation,
+        careerAspiration,
+        mbti,
+        bio,
+        id,
+        openEnded,
+        extroversion,
+        openness,
+        conscientiousness,
+        agreeableness,
+        neuroticism,
+      };
+      await AsyncStorage.setItem("signupFormData", JSON.stringify(formData));
+    } catch (error) {
+      console.log("Error saving form data:", error);
+    }
+  };
+
+  // Save data on any change (debounced)
+  useEffect(() => {
+    const timeoutId = setTimeout(saveFormData, 500); // Save after 500ms of no changes
+    return () => clearTimeout(timeoutId);
+  }, [
+    firstName,
+    lastName,
+    email,
+    dob,
+    gender,
+    userLocation,
+    occupation,
+    careerAspiration,
+    mbti,
+    bio,
+    id,
+    openEnded,
+    extroversion,
+    openness,
+    conscientiousness,
+    agreeableness,
+    neuroticism,
+  ]);
+
   // Real-time face detection simulation based on scan step
   useEffect(() => {
-    if (showCameraModal && scanStep !== 'complete') {
+    if (showCameraModal && scanStep !== "complete") {
       // Simulate real-time detection by cycling through angles
       const interval = setInterval(() => {
-        setDetectedFaceAngle(prev => {
-          if (scanStep === 'center') {
-            return prev === 'center' ? 'unknown' : 'center';
-          } else if (scanStep === 'left') {
-            return prev === 'left' ? 'unknown' : 'left';
-          } else if (scanStep === 'right') {
-            return prev === 'right' ? 'unknown' : 'right';
+        setDetectedFaceAngle((prev) => {
+          if (scanStep === "center") {
+            return prev === "center" ? "unknown" : "center";
+          } else if (scanStep === "left") {
+            return prev === "left" ? "unknown" : "left";
+          } else if (scanStep === "right") {
+            return prev === "right" ? "unknown" : "right";
           }
-          return 'unknown';
+          return "unknown";
         });
       }, 1000); // Update every second
 
       return () => clearInterval(interval);
     } else {
-      setDetectedFaceAngle('unknown');
+      setDetectedFaceAngle("unknown");
     }
   }, [showCameraModal, scanStep]);
 
-  const validateFaceAngle = async (photo: any, expectedAngle: 'center' | 'left' | 'right'): Promise<boolean> => {
+  const validateFaceAngle = async (
+    photo: any,
+    expectedAngle: "center" | "left" | "right"
+  ): Promise<boolean> => {
     try {
       // Basic validation - check if we have image data
       if (!photo || !photo.base64) {
@@ -191,22 +322,25 @@ export default function SignUpScreen({ navigation }: Props) {
 
       // For now, we'll do basic validation - in production you'd use ML face detection
       // Check image size as a basic proxy for content
-      if (photo.base64.length < 10000) { // Very small image
-        setFaceValidationMessage("Image too small. Please ensure proper lighting and positioning.");
+      if (photo.base64.length < 10000) {
+        // Very small image
+        setFaceValidationMessage(
+          "Image too small. Please ensure proper lighting and positioning."
+        );
         setIsFaceValid(false);
         return false;
       }
 
       // Simulate angle validation with user feedback
-      if (expectedAngle === 'center') {
+      if (expectedAngle === "center") {
         setFaceValidationMessage("✓ Front face captured successfully!");
         setIsFaceValid(true);
         return true;
-      } else if (expectedAngle === 'left') {
+      } else if (expectedAngle === "left") {
         setFaceValidationMessage("✓ Left profile captured successfully!");
         setIsFaceValid(true);
         return true;
-      } else if (expectedAngle === 'right') {
+      } else if (expectedAngle === "right") {
         setFaceValidationMessage("✓ Right profile captured successfully!");
         setIsFaceValid(true);
         return true;
@@ -222,7 +356,8 @@ export default function SignUpScreen({ navigation }: Props) {
   };
 
   const detectFaceAngle = async (frameData: any) => {
-    if (isDetectingFaces || !frameData || isScanning || scanStep === 'complete') return;
+    if (isDetectingFaces || !frameData || isScanning || scanStep === "complete")
+      return;
 
     setIsDetectingFaces(true);
     try {
@@ -231,26 +366,34 @@ export default function SignUpScreen({ navigation }: Props) {
         const face = faces[0];
 
         // Basic angle detection based on face bounds and landmarks
-        let detectedAngle: 'center' | 'left' | 'right' | 'unknown' = 'unknown';
+        let detectedAngle: "center" | "left" | "right" | "unknown" = "unknown";
         let isProperlyPositioned = false;
 
         // Check if face is roughly centered in the oval
-        const faceCenterX = (face.frame.left + face.frame.left + face.frame.width) / 2;
-        const faceCenterY = (face.frame.top + face.frame.top + face.frame.height) / 2;
+        const faceCenterX =
+          (face.frame.left + face.frame.left + face.frame.width) / 2;
+        const faceCenterY =
+          (face.frame.top + face.frame.top + face.frame.height) / 2;
         const ovalCenterX = width / 2;
         const ovalCenterY = height * 0.4; // Approximate oval center
 
         const distanceFromCenter = Math.sqrt(
-          Math.pow(faceCenterX - ovalCenterX, 2) + Math.pow(faceCenterY - ovalCenterY, 2)
+          Math.pow(faceCenterX - ovalCenterX, 2) +
+            Math.pow(faceCenterY - ovalCenterY, 2)
         );
 
         // If face is close to center, consider it positioned
-        if (distanceFromCenter < 100) { // Within 100 pixels of center
+        if (distanceFromCenter < 100) {
+          // Within 100 pixels of center
           isProperlyPositioned = true;
 
           // For now, assume the current scan step angle if positioned properly
           // In production, analyze facial landmarks for precise angles
-          if (scanStep === 'center' || scanStep === 'left' || scanStep === 'right') {
+          if (
+            scanStep === "center" ||
+            scanStep === "left" ||
+            scanStep === "right"
+          ) {
             detectedAngle = scanStep;
           }
         }
@@ -258,9 +401,17 @@ export default function SignUpScreen({ navigation }: Props) {
         setDetectedFaceAngle(detectedAngle);
 
         // Auto-capture if face is properly positioned and angle matches expected
-        if (isProperlyPositioned && detectedAngle === scanStep && !capturedImages[scanStep]) {
+        if (
+          isProperlyPositioned &&
+          detectedAngle === scanStep &&
+          !capturedImages[scanStep]
+        ) {
           console.log(`Auto-capturing ${scanStep} face...`);
-          setFaceValidationMessage(`✓ ${scanStep.charAt(0).toUpperCase() + scanStep.slice(1)} face detected! Capturing...`);
+          setFaceValidationMessage(
+            `✓ ${
+              scanStep.charAt(0).toUpperCase() + scanStep.slice(1)
+            } face detected! Capturing...`
+          );
           setIsFaceValid(true);
 
           // Auto-take picture after a short delay to show feedback
@@ -268,20 +419,26 @@ export default function SignUpScreen({ navigation }: Props) {
             await takePicture();
           }, 1000);
         } else if (isProperlyPositioned) {
-          setFaceValidationMessage(`✓ Face positioned correctly. Hold still for ${scanStep} capture.`);
+          setFaceValidationMessage(
+            `✓ Face positioned correctly. Hold still for ${scanStep} capture.`
+          );
           setIsFaceValid(true);
         } else {
-          setFaceValidationMessage("Position your face in the center of the oval");
+          setFaceValidationMessage(
+            "Position your face in the center of the oval"
+          );
           setIsFaceValid(false);
         }
       } else {
-        setDetectedFaceAngle('unknown');
-        setFaceValidationMessage("No face detected. Position your face in the oval.");
+        setDetectedFaceAngle("unknown");
+        setFaceValidationMessage(
+          "No face detected. Position your face in the oval."
+        );
         setIsFaceValid(false);
       }
     } catch (error) {
       console.error("Face detection error:", error);
-      setDetectedFaceAngle('unknown');
+      setDetectedFaceAngle("unknown");
       setFaceValidationMessage("Face detection error. Please try again.");
       setIsFaceValid(false);
     } finally {
@@ -307,8 +464,11 @@ export default function SignUpScreen({ navigation }: Props) {
       });
 
       // Validate the captured face angle (only for actual scanning steps)
-      if (scanStep !== 'complete') {
-        const isValid = await validateFaceAngle(photo, scanStep as 'center' | 'left' | 'right');
+      if (scanStep !== "complete") {
+        const isValid = await validateFaceAngle(
+          photo,
+          scanStep as "center" | "left" | "right"
+        );
 
         if (!isValid) {
           // Don't proceed to next step if validation failed
@@ -322,19 +482,22 @@ export default function SignUpScreen({ navigation }: Props) {
       setCapturedImages(newCapturedImages);
 
       // Move to next step or complete
-      if (scanStep === 'center') {
-        setScanStep('left');
-      } else if (scanStep === 'left') {
-        setScanStep('right');
-      } else if (scanStep === 'right') {
-        setScanStep('complete');
+      if (scanStep === "center") {
+        setScanStep("left");
+      } else if (scanStep === "left") {
+        setScanStep("right");
+      } else if (scanStep === "right") {
+        setScanStep("complete");
         setFaceScanned(true);
         // Close the modal after a brief delay to show completion
         setTimeout(() => {
           setShowCameraModal(false);
         }, 1500);
         // Process all captured images here
-        console.log("Face scan complete! Captured images:", Object.keys(newCapturedImages));
+        console.log(
+          "Face scan complete! Captured images:",
+          Object.keys(newCapturedImages)
+        );
       }
     } catch (error) {
       console.error("Error taking picture:", error);
@@ -377,6 +540,9 @@ export default function SignUpScreen({ navigation }: Props) {
 
   const executeSignUp = async () => {
     console.log("executeSignUp called");
+    setIsTransactionLoading(true);
+    setShowManualMetaMaskPrompt(false);
+
     try {
       const traitsStr = JSON.stringify({
         extroversion,
@@ -411,6 +577,9 @@ export default function SignUpScreen({ navigation }: Props) {
         openEnded,
       };
 
+      // Show manual MetaMask prompt after a short delay if transaction doesn't complete quickly
+      // NOTE: Removed manual prompt since we now force open MetaMask automatically
+
       // Call updateUserData - MetaMask will open automatically for confirmation
       // Note: Face scans are stored locally only due to transaction size limits
       const result = await updateUserData(
@@ -423,6 +592,11 @@ export default function SignUpScreen({ navigation }: Props) {
         JSON.stringify(blockchainUserData), // Face scans removed from blockchain storage
         mbti
       );
+
+      // Clear the manual prompt timer
+      // NOTE: Removed since we force open MetaMask automatically
+      setIsTransactionLoading(false);
+      setShowManualMetaMaskPrompt(false);
 
       // Store locally as well for quick access
       await AsyncStorage.setItem(
@@ -454,7 +628,13 @@ export default function SignUpScreen({ navigation }: Props) {
 
       Alert.alert(
         "Account Created Successfully!",
-        `Your encrypted profile data has been stored on the blockchain${result.note ? ' (simulated)' : ''}.\n\nFace scans are securely stored locally on your device.\n\nTransaction ID: ${result.hash}\n\n${result.note ? result.note + '\n\n' : ''}You can use this transaction ID to retrieve your profile data anytime.`,
+        `Your encrypted profile data has been stored on the blockchain${
+          result.note ? " (simulated)" : ""
+        }.\n\nFace scans are securely stored locally on your device.\n\nTransaction ID: ${
+          result.hash
+        }\n\n${
+          result.note ? result.note + "\n\n" : ""
+        }You can use this transaction ID to retrieve your profile data anytime.`,
         [
           {
             text: "View Profile",
@@ -464,6 +644,8 @@ export default function SignUpScreen({ navigation }: Props) {
       );
     } catch (error) {
       console.error("SignUp error:", error);
+      setIsTransactionLoading(false);
+      setShowManualMetaMaskPrompt(false);
       Alert.alert(
         "Transaction Failed",
         "Failed to store data on blockchain: " + (error as Error).message,
@@ -530,9 +712,7 @@ export default function SignUpScreen({ navigation }: Props) {
       {showSuggestions && currentValue.length > 0 && (
         <View style={styles.suggestionsContainer}>
           {suggestions
-            .filter((s) =>
-              s.toLowerCase().includes(currentValue.toLowerCase())
-            )
+            .filter((s) => s.toLowerCase().includes(currentValue.toLowerCase()))
             .slice(0, 5)
             .map((item) => (
               <TouchableOpacity
@@ -555,6 +735,37 @@ export default function SignUpScreen({ navigation }: Props) {
 
   return (
     <View style={styles.container}>
+      {/* Transaction Loading Modal with Rocket Ship */}
+      <Modal
+        visible={isTransactionLoading}
+        transparent={true}
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.loadingModal}>
+            <Animated.View
+              style={[
+                styles.rocketContainer,
+                {
+                  transform: [{ translateY: rocketAnimation }],
+                },
+              ]}
+            >
+              <Text style={styles.rocketEmoji}>🚀</Text>
+              <View style={styles.rocketTrail}>
+                <Text style={styles.trailDot}>•</Text>
+                <Text style={styles.trailDot}>•</Text>
+                <Text style={styles.trailDot}>•</Text>
+              </View>
+            </Animated.View>
+            <Text style={styles.loadingTitle}>Launching to Polygon</Text>
+            <Text style={styles.loadingSubtitle}>
+              Storing your encrypted profile data on the blockchain...
+              {"\n\n"}🔗 Opening MetaMask automatically to approve the transaction.
+            </Text>
+          </View>
+        </View>
+      </Modal>
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
@@ -698,7 +909,8 @@ export default function SignUpScreen({ navigation }: Props) {
         <Text style={styles.sectionTitle}>Personal Bio</Text>
         <Text style={styles.bioHint}>
           Write a genuine bio about yourself. This helps our AI understand you
-          better for matching. Minimum 200 words required. Current: {wordCount} words
+          better for matching. Minimum 200 words required. Current: {wordCount}{" "}
+          words
         </Text>
         <TextInput
           style={[styles.input, styles.bioInput]}
@@ -745,17 +957,23 @@ export default function SignUpScreen({ navigation }: Props) {
           <TouchableOpacity
             style={styles.startScanButton}
             onPress={() => {
-              setScanStep('center');
+              setScanStep("center");
               setCapturedImages({});
               setShowCameraModal(true);
             }}
           >
-            <Text style={styles.startScanButtonText}>Start Face Verification</Text>
+            <Text style={styles.startScanButtonText}>
+              Start Face Verification
+            </Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.scannedContainer}>
-            <Text style={styles.scannedText}>✓ Face verification complete!</Text>
-            <Text style={styles.scannedSubtext}>3 face angles captured and encrypted</Text>
+            <Text style={styles.scannedText}>
+              ✓ Face verification complete!
+            </Text>
+            <Text style={styles.scannedSubtext}>
+              3 face angles captured and encrypted
+            </Text>
           </View>
         )}
 
@@ -767,7 +985,11 @@ export default function SignUpScreen({ navigation }: Props) {
           onRequestClose={() => setShowCameraModal(false)}
         >
           <View style={styles.fullScreenCameraContainer}>
-            <CameraView style={styles.fullScreenCamera} facing="front" ref={cameraRef} />
+            <CameraView
+              style={styles.fullScreenCamera}
+              facing="front"
+              ref={cameraRef}
+            />
             <View style={styles.cameraOverlay}>
               {/* Oval Guide */}
               <View style={styles.ovalGuide}>
@@ -778,51 +1000,113 @@ export default function SignUpScreen({ navigation }: Props) {
               <View style={styles.instructionsContainer}>
                 <Text style={styles.instructionsTitle}>Face Verification</Text>
                 <Text style={styles.instructionsText}>
-                  {scanStep === 'center' && detectedFaceAngle === 'center' && "✓ Face detected - hold steady for front capture"}
-                  {scanStep === 'center' && detectedFaceAngle !== 'center' && "Position your face in the center of the oval"}
-                  {scanStep === 'left' && detectedFaceAngle === 'left' && "✓ Left profile detected - hold steady for capture"}
-                  {scanStep === 'left' && detectedFaceAngle !== 'left' && "Slowly turn your head to the left"}
-                  {scanStep === 'right' && detectedFaceAngle === 'right' && "✓ Right profile detected - hold steady for capture"}
-                  {scanStep === 'right' && detectedFaceAngle !== 'right' && "Slowly turn your head to the right"}
-                  {scanStep === 'complete' && "Face scan complete!"}
+                  {scanStep === "center" &&
+                    detectedFaceAngle === "center" &&
+                    "✓ Face detected - hold steady for front capture"}
+                  {scanStep === "center" &&
+                    detectedFaceAngle !== "center" &&
+                    "Position your face in the center of the oval"}
+                  {scanStep === "left" &&
+                    detectedFaceAngle === "left" &&
+                    "✓ Left profile detected - hold steady for capture"}
+                  {scanStep === "left" &&
+                    detectedFaceAngle !== "left" &&
+                    "Slowly turn your head to the left"}
+                  {scanStep === "right" &&
+                    detectedFaceAngle === "right" &&
+                    "✓ Right profile detected - hold steady for capture"}
+                  {scanStep === "right" &&
+                    detectedFaceAngle !== "right" &&
+                    "Slowly turn your head to the right"}
+                  {scanStep === "complete" && "Face scan complete!"}
                 </Text>
 
                 {/* Real-time Status */}
-                {detectedFaceAngle !== 'unknown' && scanStep !== 'complete' && (
+                {detectedFaceAngle !== "unknown" && scanStep !== "complete" && (
                   <Text style={styles.realTimeStatus}>
-                    {detectedFaceAngle === 'center' && "📷 Scanning front face..."}
-                    {detectedFaceAngle === 'left' && "📷 Scanning left side..."}
-                    {detectedFaceAngle === 'right' && "📷 Scanning right side..."}
+                    {detectedFaceAngle === "center" &&
+                      "📷 Scanning front face..."}
+                    {detectedFaceAngle === "left" && "📷 Scanning left side..."}
+                    {detectedFaceAngle === "right" &&
+                      "📷 Scanning right side..."}
                   </Text>
                 )}
 
                 {/* Validation Message */}
                 {faceValidationMessage ? (
-                  <Text style={[styles.validationMessage, isFaceValid ? styles.validationSuccess : styles.validationError]}>
+                  <Text
+                    style={[
+                      styles.validationMessage,
+                      isFaceValid
+                        ? styles.validationSuccess
+                        : styles.validationError,
+                    ]}
+                  >
                     {faceValidationMessage}
                   </Text>
                 ) : null}
 
                 {/* Progress Indicators */}
                 <View style={styles.progressContainer}>
-                  <View style={[styles.progressDot, scanStep === 'center' || scanStep === 'left' || scanStep === 'right' || scanStep === 'complete' ? styles.progressDotActive : null]} />
-                  <View style={[styles.progressDot, scanStep === 'left' || scanStep === 'right' || scanStep === 'complete' ? styles.progressDotActive : null]} />
-                  <View style={[styles.progressDot, scanStep === 'right' || scanStep === 'complete' ? styles.progressDotActive : null]} />
+                  <View
+                    style={[
+                      styles.progressDot,
+                      scanStep === "center" ||
+                      scanStep === "left" ||
+                      scanStep === "right" ||
+                      scanStep === "complete"
+                        ? styles.progressDotActive
+                        : null,
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.progressDot,
+                      scanStep === "left" ||
+                      scanStep === "right" ||
+                      scanStep === "complete"
+                        ? styles.progressDotActive
+                        : null,
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.progressDot,
+                      scanStep === "right" || scanStep === "complete"
+                        ? styles.progressDotActive
+                        : null,
+                    ]}
+                  />
                 </View>
 
                 <Text style={styles.progressText}>
-                  Step {scanStep === 'center' ? '1' : scanStep === 'left' ? '2' : scanStep === 'right' ? '3' : 'Complete'} of 3
+                  Step{" "}
+                  {scanStep === "center"
+                    ? "1"
+                    : scanStep === "left"
+                    ? "2"
+                    : scanStep === "right"
+                    ? "3"
+                    : "Complete"}{" "}
+                  of 3
                 </Text>
               </View>
 
               {/* Scan Button */}
               <TouchableOpacity
-                style={[styles.scanButton, isScanning && styles.scanButtonDisabled]}
+                style={[
+                  styles.scanButton,
+                  isScanning && styles.scanButtonDisabled,
+                ]}
                 onPress={takePicture}
                 disabled={isScanning}
               >
                 <Text style={styles.scanButtonText}>
-                  {isScanning ? "Capturing..." : scanStep === 'complete' ? "Complete" : "Capture"}
+                  {isScanning
+                    ? "Capturing..."
+                    : scanStep === "complete"
+                    ? "Complete"
+                    : "Capture"}
                 </Text>
               </TouchableOpacity>
 
@@ -1092,7 +1376,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   scannedText: { color: "#2e7d32", fontSize: 16, fontWeight: "bold" },
-  scannedSubtext: { color: "#2e7d32", fontSize: 12, marginTop: 4, opacity: 0.8 },
+  scannedSubtext: {
+    color: "#2e7d32",
+    fontSize: 12,
+    marginTop: 4,
+    opacity: 0.8,
+  },
   signUpButton: {
     backgroundColor: "#007AFF",
     padding: 16,
@@ -1116,4 +1405,90 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   bottomPadding: { height: 50 },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingModal: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 30,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    minWidth: 300,
+  },
+  rocketContainer: {
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  rocketEmoji: {
+    fontSize: 60,
+    marginBottom: 10,
+  },
+  rocketTrail: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  trailDot: {
+    fontSize: 20,
+    color: "#007AFF",
+    marginHorizontal: 2,
+    opacity: 0.6,
+  },
+  loadingTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#333",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  loadingSubtitle: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  manualPrompt: {
+    backgroundColor: "#f8f9fa",
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#e9ecef",
+  },
+  manualPromptTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  manualPromptText: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  manualButton: {
+    backgroundColor: "#F6851B", // MetaMask orange
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  manualButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
 });

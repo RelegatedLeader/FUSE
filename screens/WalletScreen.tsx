@@ -18,14 +18,23 @@ type RootStackParamList = {
   Main: undefined;
 };
 
-type WalletScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Wallet'>;
+type WalletScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  "Wallet"
+>;
 
 type Props = {
   navigation: WalletScreenNavigationProp;
 };
 
 export default function WalletScreen({ navigation }: Props) {
-  const { address, connectWallet, disconnectWallet, clearAllSessions, isConnecting } = useWallet();
+  const {
+    address,
+    connectWallet,
+    disconnectWallet,
+    clearAllSessions,
+    isConnecting,
+  } = useWallet();
 
   useEffect(() => {
     if (address) {
@@ -66,7 +75,11 @@ export default function WalletScreen({ navigation }: Props) {
         <Text>Connected Wallet: {address}</Text>
         <Button title="Proceed" onPress={() => navigation.navigate("SignIn")} />
         <Button title="Disconnect" onPress={handleDisconnect} />
-        <Button title="Clear All Sessions" onPress={handleClearSessions} color="red" />
+        <Button
+          title="Clear All Sessions"
+          onPress={handleClearSessions}
+          color="red"
+        />
       </View>
     );
   }

@@ -11,7 +11,10 @@ type RootStackParamList = {
   Main: undefined;
 };
 
-type SignInScreenNavigationProp = StackNavigationProp<RootStackParamList, 'SignIn'>;
+type SignInScreenNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  "SignIn"
+>;
 
 type Props = {
   navigation: SignInScreenNavigationProp;
