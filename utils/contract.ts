@@ -213,8 +213,52 @@ export const updateUserData = async (
       data = "0x00"; // Minimal data, MetaMask will still show the transaction
     }
 
-    // Send transaction through WalletConnect - always attempt this
-    console.log("Sending transaction to MetaMask...");
+    // Estimate gas dynamically
+    console.log("🔍 Estimating gas for transaction...");
+    let gasLimit: string;
+    let maxFeePerGas: string;
+    let maxPriorityFeePerGas: string;
+    
+    try {
+      // Create a temporary transaction object for gas estimation
+      const tempTx = {
+        from: address,
+        to: CONTRACT_ADDRESS,
+        data: data,
+        value: "0x0",
+      };
+      
+      // Estimate gas limit
+      const estimatedGas = await publicProvider.estimateGas(tempTx);
+      const gasLimitWithBuffer = estimatedGas * BigInt(120) / BigInt(100); // 20% buffer
+      gasLimit = "0x" + gasLimitWithBuffer.toString(16);
+      console.log("📊 Estimated gas limit:", gasLimit, "(with 20% buffer)");
+      
+      // Get current fee data
+      const feeData = await publicProvider.getFeeData();
+      const baseFee = feeData.maxFeePerGas || feeData.gasPrice || ethers.parseUnits("50", "gwei");
+      const priorityFee = feeData.maxPriorityFeePerGas || ethers.parseUnits("30", "gwei");
+      
+      // Apply buffers
+      const bufferedMaxFee = baseFee * BigInt(150) / BigInt(100); // 50% buffer on base fee
+      const bufferedPriorityFee = priorityFee * BigInt(150) / BigInt(100); // 50% buffer on priority fee
+      
+      maxFeePerGas = "0x" + bufferedMaxFee.toString(16);
+      maxPriorityFeePerGas = "0x" + bufferedPriorityFee.toString(16);
+      
+      console.log("💰 Max fee per gas:", ethers.formatUnits(bufferedMaxFee, "gwei"), "gwei");
+      console.log("⚡ Max priority fee per gas:", ethers.formatUnits(bufferedPriorityFee, "gwei"), "gwei");
+      
+    } catch (gasError) {
+      console.warn("⚠️ Gas estimation failed, using fallback values:", gasError);
+      // Fallback values
+      gasLimit = "0x493E0"; // 300,000
+      maxFeePerGas = "0xB2D05E00"; // ~75 gwei
+      maxPriorityFeePerGas = "0x6F05B59D"; // ~30 gwei
+    }
+
+    // Send transaction through WalletConnect
+    console.log("📤 Sending contract transaction...");
     console.log("Transaction to:", CONTRACT_ADDRESS);
 
     // Check current network before switching
@@ -338,9 +382,9 @@ export const updateUserData = async (
             to: CONTRACT_ADDRESS,
             data: data,
             value: "0x0", // 0 ETH
-            gasLimit: "0x493E0", // 300,000 gas (increased for contract call with buffer)
-            maxFeePerGas: "0xB2D05E00", // ~75 gwei max fee per gas (EIP-1559)
-            maxPriorityFeePerGas: "0x6F05B59D", // ~30 gwei max priority fee per gas (EIP-1559)
+            gasLimit: gasLimit,
+            maxFeePerGas: maxFeePerGas,
+            maxPriorityFeePerGas: maxPriorityFeePerGas,
           },
         ],
       },
@@ -352,9 +396,9 @@ export const updateUserData = async (
       to: CONTRACT_ADDRESS,
       data: data.substring(0, 50) + "...",
       value: "0x0",
-      gasLimit: "0x493E0",
-      maxFeePerGas: "0xB2D05E00",
-      maxPriorityFeePerGas: "0x6F05B59D",
+      gasLimit: gasLimit,
+      maxFeePerGas: maxFeePerGas,
+      maxPriorityFeePerGas: maxPriorityFeePerGas,
     });
 
     // FORCE OPEN METAMASK - This ensures MetaMask opens regardless of WalletConnect redirect
@@ -436,15 +480,59 @@ export const signInUser = async (
   // Encode the function call
   const data = contract.interface.encodeFunctionData("signIn", []);
 
+  // Estimate gas dynamically
+  console.log("🔍 Estimating gas for signIn transaction...");
+  let gasLimit: string;
+  let maxFeePerGas: string;
+  let maxPriorityFeePerGas: string;
+  
+  try {
+    // Create a temporary transaction object for gas estimation
+    const tempTx = {
+      from: address,
+      to: CONTRACT_ADDRESS,
+      data: data,
+      value: "0x0",
+    };
+    
+    // Estimate gas limit
+    const estimatedGas = await publicProvider.estimateGas(tempTx);
+    const gasLimitWithBuffer = estimatedGas * BigInt(120) / BigInt(100); // 20% buffer
+    gasLimit = "0x" + gasLimitWithBuffer.toString(16);
+    console.log("📊 Estimated gas limit for signIn:", gasLimit, "(with 20% buffer)");
+    
+    // Get current fee data
+    const feeData = await publicProvider.getFeeData();
+    const baseFee = feeData.maxFeePerGas || feeData.gasPrice || ethers.parseUnits("50", "gwei");
+    const priorityFee = feeData.maxPriorityFeePerGas || ethers.parseUnits("30", "gwei");
+    
+    // Apply buffers
+    const bufferedMaxFee = baseFee * BigInt(150) / BigInt(100); // 50% buffer on base fee
+    const bufferedPriorityFee = priorityFee * BigInt(150) / BigInt(100); // 50% buffer on priority fee
+    
+    maxFeePerGas = "0x" + bufferedMaxFee.toString(16);
+    maxPriorityFeePerGas = "0x" + bufferedPriorityFee.toString(16);
+    
+    console.log("💰 Max fee per gas for signIn:", ethers.formatUnits(bufferedMaxFee, "gwei"), "gwei");
+    console.log("⚡ Max priority fee per gas for signIn:", ethers.formatUnits(bufferedPriorityFee, "gwei"), "gwei");
+    
+  } catch (gasError) {
+    console.warn("⚠️ Gas estimation failed for signIn, using fallback values:", gasError);
+    // Fallback values
+    gasLimit = "0x30D40"; // 200,000
+    maxFeePerGas = "0xB2D05E00"; // ~75 gwei
+    maxPriorityFeePerGas = "0x6F05B59D"; // ~30 gwei
+  }
+
   // Send transaction through WalletConnect
-  console.log("Sending signIn transaction through WalletConnect...");
+  console.log("📤 Sending signIn transaction...");
   console.log("Transaction params:", {
     from: address,
     to: CONTRACT_ADDRESS,
     data: data,
-    gasLimit: "0x30D40", // 200,000 gas
-    maxFeePerGas: "0xB2D05E00", // ~75 gwei max fee per gas (EIP-1559)
-    maxPriorityFeePerGas: "0x6F05B59D", // ~30 gwei max priority fee per gas (EIP-1559)
+    gasLimit: gasLimit,
+    maxFeePerGas: maxFeePerGas,
+    maxPriorityFeePerGas: maxPriorityFeePerGas,
   });
 
   // First ensure we're on Polygon network
@@ -490,9 +578,9 @@ export const signInUser = async (
             to: CONTRACT_ADDRESS,
             data: data,
             value: "0x0", // 0 ETH
-            gasLimit: "0x30D40", // 200,000 gas
-            maxFeePerGas: "0xB2D05E00", // ~75 gwei max fee per gas (EIP-1559)
-            maxPriorityFeePerGas: "0x6F05B59D", // ~30 gwei max priority fee per gas (EIP-1559)
+            gasLimit: gasLimit,
+            maxFeePerGas: maxFeePerGas,
+            maxPriorityFeePerGas: maxPriorityFeePerGas,
           },
         ],
       },
