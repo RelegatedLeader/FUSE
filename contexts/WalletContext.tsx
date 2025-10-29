@@ -11,7 +11,6 @@ import { ethers } from "ethers";
 import { Core } from "@walletconnect/core";
 import { buildApprovedNamespaces, getSdkError } from "@walletconnect/utils";
 import { SignClient } from "@walletconnect/sign-client";
-import { isUserRegistered } from "../utils/contract";
 
 interface WalletContextType {
   provider: any;
@@ -36,7 +35,8 @@ interface WalletContextType {
     id: string,
     traits: string,
     mbti: string
-  ) => Promise<void>;
+  ) => Promise<{ hash: any; note?: string }>;
+  getUserDataByTransaction: (transactionHash: string) => Promise<any>;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -400,6 +400,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     try {
       // Use public Polygon provider for view calls
       const provider = new ethers.JsonRpcProvider("https://polygon-rpc.com");
+      const { isUserRegistered } = await import("../utils/contract");
       const registered = await isUserRegistered(provider, address);
       setIsRegistered(registered);
       return registered;
@@ -436,12 +437,18 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     try {
       const { updateUserData: updateData } = await import("../utils/contract");
       console.log("Calling updateData from contract utils");
-      await updateData(signClient, sessionTopic, address, firstName, lastName, birthdate, gender, location, id, traits, mbti);
-      Alert.alert("Success", "Profile created successfully!");
+      const result = await updateData(signClient, sessionTopic, address, firstName, lastName, birthdate, gender, location, id, traits, mbti);
+      return result; // Return transaction hash
     } catch (error) {
       console.error("Update user data error:", error);
-      Alert.alert("Error", "Failed to create profile: " + (error as Error).message);
+      throw error; // Re-throw to let caller handle
     }
+  };
+
+  const getUserDataByTransaction = async (transactionHash: string) => {
+    if (!address) throw new Error("No wallet connected");
+    const { getLocalUserDataByTransaction } = await import("../utils/contract");
+    return await getLocalUserDataByTransaction(transactionHash);
   };
 
   return (
@@ -461,6 +468,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         checkRegistration,
         signIn,
         updateUserData,
+        getUserDataByTransaction,
       }}
     >
       {children}

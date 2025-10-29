@@ -1,8 +1,23 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Button, StyleSheet, Alert } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
+import { StackNavigationProp } from "@react-navigation/stack";
 
-export default function SignInScreen({ navigation }) {
+// Define navigation types
+type RootStackParamList = {
+  Wallet: undefined;
+  SignUp: undefined;
+  SignIn: undefined;
+  Main: undefined;
+};
+
+type SignInScreenNavigationProp = StackNavigationProp<RootStackParamList, 'SignIn'>;
+
+type Props = {
+  navigation: SignInScreenNavigationProp;
+};
+
+export default function SignInScreen({ navigation }: Props) {
   const { address, isRegistered, signIn, checkRegistration } = useWallet();
   const [loading, setLoading] = useState(true);
 

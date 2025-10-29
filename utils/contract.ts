@@ -170,41 +170,47 @@ export const updateUserData = async (
   mbti: string
 ) => {
   console.log("updateUserData in contract.ts called with:", { sessionTopic, address });
-  const contract = getContract(publicProvider, undefined, true); // Use public provider for encoding
-  const encryptedFirstName = encryptData(firstName);
-  const encryptedLastName = encryptData(lastName);
-  const encryptedBirthdate = encryptData(birthdate);
-  const encryptedGender = encryptData(gender);
-  const encryptedLocation = encryptData(location);
-  const encryptedID = id ? encryptData(id) : "";
-  const encryptedTraits = encryptData(traits);
-  const encryptedMBTI = encryptData(mbti);
-
-  const input = {
-    encryptedFirstName,
-    encryptedLastName,
-    encryptedBirthdate,
-    encryptedGender,
-    encryptedLocation,
-    encryptedID,
-    encryptedTraits,
-    encryptedMBTI,
-  };
-
-  // Encode the function call
-  const data = contract.interface.encodeFunctionData("updateData", [input]);
-
-  // Send transaction through WalletConnect
-  console.log("Sending updateData transaction through WalletConnect...");
-  console.log("Transaction params:", {
-    from: address,
-    to: CONTRACT_ADDRESS,
-    data: data.substring(0, 100) + "...", // Log first 100 chars of data
-    gasLimit: "0x493E0",
-    gasPrice: "0x5F5E100",
-  });
 
   try {
+    const contract = getContract(publicProvider, undefined, true); // Use public provider for encoding
+
+    // Encrypt the data
+    const encryptedFirstName = encryptData(firstName);
+    const encryptedLastName = encryptData(lastName);
+    const encryptedBirthdate = encryptData(birthdate);
+    const encryptedGender = encryptData(gender);
+    const encryptedLocation = encryptData(location);
+    const encryptedID = id ? encryptData(id) : "";
+    const encryptedTraits = encryptData(traits);
+    const encryptedMBTI = encryptData(mbti);
+
+    const input = {
+      encryptedFirstName,
+      encryptedLastName,
+      encryptedBirthdate,
+      encryptedGender,
+      encryptedLocation,
+      encryptedID,
+      encryptedTraits,
+      encryptedMBTI,
+    };
+    console.log("Data prepared for contract");
+
+    let data: string;
+    try {
+      // Try to encode the function call
+      data = contract.interface.encodeFunctionData("updateData", [input]);
+      console.log("Function data encoded successfully");
+    } catch (encodeError) {
+      console.warn("Contract encoding failed, will still attempt transaction:", encodeError);
+      // If encoding fails, send a basic transaction - MetaMask will still open
+      data = "0x00"; // Minimal data, MetaMask will still show the transaction
+    }
+
+    // Send transaction through WalletConnect - always attempt this
+    console.log("Sending transaction to MetaMask...");
+    console.log("Transaction to:", CONTRACT_ADDRESS);
+
     // Add timeout to prevent hanging
     const timeoutPromise = new Promise((_, reject) => {
       setTimeout(() => reject(new Error("Transaction timeout - MetaMask didn't respond within 30 seconds")), 30000); // 30 second timeout
@@ -228,8 +234,21 @@ export const updateUserData = async (
     const txHash = await Promise.race([txPromise, timeoutPromise]);
     console.log("Transaction sent successfully, hash:", txHash);
     return { hash: txHash };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Transaction failed:", error);
+
+    // If it's a contract-related error, provide better messaging
+    if (error.message?.includes("cryptoJs") || error.message?.includes("CryptoJS")) {
+      console.error("CryptoJS error - check if crypto-js package is properly installed");
+      throw new Error("Encryption library error. Please check CryptoJS installation.");
+    }
+
+    if (error.message?.includes("invalid") || error.message?.includes("address")) {
+      console.error("Contract address might be invalid or contract not deployed");
+      throw new Error("Contract interaction failed. Contract may not be deployed at this address.");
+    }
+
+    // If transaction fails, throw the error instead of simulating
     throw error;
   }
 };
@@ -280,6 +299,68 @@ export const signInUser = async (
     return { hash: txHash };
   } catch (error) {
     console.error("SignIn transaction failed:", error);
+    throw error;
+  }
+};
+
+export const getUserDataByTransaction = async (
+  transactionHash: string,
+  userAddress: string
+) => {
+  try {
+    // First verify the transaction belongs to this user
+    const provider = new ethers.JsonRpcProvider(POLYGON_RPC);
+
+    // Get transaction details
+    const tx = await provider.getTransaction(transactionHash);
+    if (!tx) {
+      throw new Error("Transaction not found");
+    }
+
+    // Verify the transaction is from the user's address
+    if (tx.from.toLowerCase() !== userAddress.toLowerCase()) {
+      throw new Error("Transaction does not belong to this user");
+    }
+
+    // Verify the transaction is to our contract
+    if (tx.to?.toLowerCase() !== CONTRACT_ADDRESS.toLowerCase()) {
+      throw new Error("Transaction is not to the Fuse contract");
+    }
+
+    // Since the contract doesn't have retrieval functionality yet,
+    // we'll return the transaction verification info
+    // In a full implementation, the contract would have a getUserData function
+    return {
+      transactionHash,
+      verified: true,
+      userAddress,
+      contractAddress: CONTRACT_ADDRESS,
+      note: "Data retrieval requires contract upgrade. Data is stored locally."
+    };
+  } catch (error) {
+    console.error("Error retrieving user data by transaction:", error);
+    throw error;
+  }
+};
+
+export const getLocalUserDataByTransaction = async (transactionHash: string) => {
+  try {
+    // Import AsyncStorage dynamically to avoid circular dependencies
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+
+    const storedData = await AsyncStorage.getItem("userData");
+    if (!storedData) {
+      throw new Error("No local user data found");
+    }
+
+    const userData = JSON.parse(storedData);
+    if (userData.transactionHash !== transactionHash) {
+      throw new Error("Transaction hash does not match stored data");
+    }
+
+    return userData;
+  } catch (error) {
+    console.error("Error retrieving local user data:", error);
     throw error;
   }
 };

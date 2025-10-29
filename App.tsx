@@ -6,16 +6,12 @@ import PagerView from "react-native-pager-view";
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { WalletProvider, useWallet } from "./contexts/WalletContext";
 
-import WelcomeScreen from "./screens/WelcomeScreen";
 import WalletScreen from "./screens/WalletScreen";
 import SignInScreen from "./screens/SignInScreen";
 import SignUpScreen from "./screens/SignUpScreen";
-import LoginScreen from "./screens/LoginScreen";
 import FuseScreen from "./screens/FuseScreen";
 import AlliancesScreen from "./screens/AlliancesScreen";
 import CyberspaceScreen from "./screens/CyberspaceScreen";
-import ProfileScreen from "./screens/ProfileScreen";
-import RandomArenaScreen from "./screens/RandomArenaScreen";
 
 const Stack = createStackNavigator();
 
@@ -36,7 +32,7 @@ function MainPager() {
       {address && (
         <View style={styles.header}>
           <TouchableOpacity onPress={handleDisconnect}>
-            <Text>
+            <Text style={styles.headerText}>
               Wallet: {address.slice(0, 6)}...{address.slice(-4)}
             </Text>
           </TouchableOpacity>
@@ -125,6 +121,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   header: { padding: 10, backgroundColor: "#eee", alignItems: "center" },
+  headerText: { fontSize: 16, color: "#333" },
   tabBar: {
     flexDirection: "row",
     justifyContent: "space-around",

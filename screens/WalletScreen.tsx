@@ -8,8 +8,23 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
+import { StackNavigationProp } from "@react-navigation/stack";
 
-export default function WalletScreen({ navigation }) {
+// Define navigation types
+type RootStackParamList = {
+  Wallet: undefined;
+  SignUp: undefined;
+  SignIn: undefined;
+  Main: undefined;
+};
+
+type WalletScreenNavigationProp = StackNavigationProp<RootStackParamList, 'Wallet'>;
+
+type Props = {
+  navigation: WalletScreenNavigationProp;
+};
+
+export default function WalletScreen({ navigation }: Props) {
   const { address, connectWallet, disconnectWallet, clearAllSessions, isConnecting } = useWallet();
 
   useEffect(() => {
