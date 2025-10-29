@@ -181,7 +181,10 @@ export default function SignUpScreen({ navigation }) {
         {
           text: "Pay Gas & Create Account",
           style: "default",
-          onPress: executeSignUp,
+          onPress: () => {
+            // Execute immediately without async wrapper
+            executeSignUp();
+          },
         },
       ]
     );
@@ -190,10 +193,8 @@ export default function SignUpScreen({ navigation }) {
   const executeSignUp = async () => {
     console.log("executeSignUp called");
     try {
-      Alert.alert(
-        "Processing",
-        "Storing your encrypted data on the blockchain..."
-      );
+      // Show processing alert (non-blocking)
+      Alert.alert("Processing", "Storing your encrypted data on the blockchain...");
 
       const traitsStr = JSON.stringify({
         extroversion,
@@ -203,6 +204,7 @@ export default function SignUpScreen({ navigation }) {
         neuroticism,
       });
 
+      console.log("Calling updateUserData...");
       await updateUserData(
         firstName,
         lastName,
@@ -242,13 +244,29 @@ export default function SignUpScreen({ navigation }) {
 
       Alert.alert(
         "Success",
-        "Account created successfully! Your encrypted data has been stored on the blockchain."
+        "Account created successfully! Your encrypted data has been stored on the blockchain.",
+        [
+          {
+            text: "OK",
+            onPress: () => navigation.navigate("Main"),
+          },
+        ]
       );
-      navigation.navigate("Main");
     } catch (error) {
+      console.error("SignUp error:", error);
       Alert.alert(
         "Transaction Failed",
-        "Failed to store data on blockchain: " + (error as Error).message
+        "Failed to store data on blockchain: " + (error as Error).message,
+        [
+          {
+            text: "Try Again",
+            onPress: () => executeSignUp(),
+          },
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+        ]
       );
     }
   };

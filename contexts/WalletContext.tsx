@@ -5,7 +5,7 @@ import React, {
   ReactNode,
   useEffect,
 } from "react";
-import { Alert, Linking } from "react-native";
+import { Alert, Linking, Clipboard } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ethers } from "ethers";
 import { Core } from "@walletconnect/core";
@@ -20,6 +20,7 @@ interface WalletContextType {
   sessionTopic: string;
   isRegistered: boolean;
   isInitialized: boolean;
+  isConnecting: boolean;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => Promise<void>;
   clearAllSessions: () => Promise<void>;
@@ -57,6 +58,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const [address, setAddress] = useState("");
   const [isRegistered, setIsRegistered] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [signClient, setSignClient] = useState<any>(null);
   const [sessionTopic, setSessionTopic] = useState("");
 
@@ -154,10 +156,34 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   }, []);
 
   const connectWallet = async () => {
+    if (isConnecting) {
+      console.log("Already connecting, ignoring request");
+      return;
+    }
+
     try {
+      setIsConnecting(true);
+      console.log("Starting wallet connection...");
+
       if (!signClient) {
         Alert.alert("Error", "WalletConnect not initialized");
         return;
+      }
+
+      // Disconnect any existing session first
+      if (sessionTopic) {
+        console.log("Disconnecting existing session before connecting...");
+        try {
+          await signClient.disconnect({
+            topic: sessionTopic,
+            reason: getSdkError("USER_DISCONNECTED"),
+          });
+          setSessionTopic("");
+          setAddress("");
+        } catch (disconnectError) {
+          console.log("Error disconnecting existing session:", disconnectError);
+          // Continue anyway
+        }
       }
 
       console.log("Creating WalletConnect session...");
@@ -176,57 +202,125 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       console.log("Connection URI generated:", uri);
 
       if (uri) {
-        // Open MetaMask directly with the WalletConnect URI
-        const metamaskUrl = `metamask://wc?uri=${encodeURIComponent(uri)}`;
-        console.log("Opening MetaMask with URL:", metamaskUrl);
+        console.log("Connection URI generated:", uri);
 
-        const canOpen = await Linking.canOpenURL(metamaskUrl);
+        // Try to open MetaMask with multiple fallback methods for iOS compatibility
+        let opened = false;
 
-        if (canOpen) {
-          await Linking.openURL(metamaskUrl);
-          console.log("MetaMask opened, waiting for approval...");
+        // Method 1: iOS Universal Link (primary method for iOS)
+        const universalLink = `https://metamask.app.link/wc?uri=${encodeURIComponent(uri)}`;
+        console.log("Trying MetaMask universal link:", universalLink);
 
-          // Wait for approval with timeout
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error("Connection timeout")), 60000); // 60 second timeout
-          });
+        try {
+          const canOpenUniversal = await Linking.canOpenURL(universalLink);
+          if (canOpenUniversal) {
+            await Linking.openURL(universalLink);
+            console.log("MetaMask universal link opened successfully");
+            opened = true;
+          }
+        } catch (error) {
+          console.log("Universal link failed:", error);
+        }
+
+        // Method 2: Standard MetaMask deep link (fallback for Android/other platforms)
+        if (!opened) {
+          const metamaskUrl = `metamask://wc?uri=${encodeURIComponent(uri)}`;
+          console.log("Trying MetaMask deep link:", metamaskUrl);
 
           try {
-            const session = await Promise.race([approval(), timeoutPromise]);
-            console.log("Session established:", session);
-
-            // Extract real address from session
-            const accounts = session.namespaces.eip155.accounts;
-            if (accounts && accounts.length > 0) {
-              const address = accounts[0].split(":")[2];
-              console.log("Connected to real wallet:", address);
-              setAddress(address);
-              setSessionTopic(session.topic);
-            } else {
-              console.error("No accounts in session");
-              Alert.alert("Connection Failed", "No accounts found in session");
+            const canOpenDeepLink = await Linking.canOpenURL(metamaskUrl);
+            if (canOpenDeepLink) {
+              await Linking.openURL(metamaskUrl);
+              console.log("MetaMask deep link opened successfully");
+              opened = true;
             }
           } catch (error) {
-            console.error("Session approval failed:", error);
-            Alert.alert(
-              "Connection Failed",
-              "Session approval timed out or was rejected"
-            );
+            console.log("Deep link failed:", error);
           }
-        } else {
+        }
+
+        // Method 3: Fallback to showing connection URI if app opening failed
+        if (!opened) {
+          console.log("Could not open MetaMask app, showing manual connection option");
           Alert.alert(
-            "MetaMask Required",
-            "Please install MetaMask from the app store to connect your wallet.",
+            "MetaMask Connection",
+            "Could not open MetaMask automatically. Please copy the connection URI and paste it manually in MetaMask.",
             [
               {
-                text: "Open App Store",
-                onPress: () =>
-                  Linking.openURL("market://details?id=io.metamask"),
+                text: "Copy URI",
+                onPress: async () => {
+                  // Copy URI to clipboard for manual connection
+                  console.log("URI for manual connection:", uri);
+                  try {
+                    Clipboard.setString(uri);
+                    Alert.alert("URI Copied", "The connection URI has been copied to your clipboard. Open MetaMask and paste it in the WalletConnect section.");
+                  } catch (clipboardError) {
+                    console.error("Clipboard error:", clipboardError);
+                    Alert.alert("Copy Failed", "Please manually copy this URI and paste it in MetaMask:\n\n" + uri);
+                  }
+                },
               },
-              { text: "Cancel", style: "cancel" },
+              {
+                text: "Continue Waiting",
+                style: "default",
+              },
             ]
           );
         }
+
+        console.log("MetaMask opened, waiting for approval...");
+
+        // Wait for approval with timeout
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("Connection timeout - please try again")), 60000); // 60 second timeout
+        });
+
+        try {
+          const session = await Promise.race([approval(), timeoutPromise]);
+          console.log("Session established:", session);
+
+          // Extract real address from session
+          const accounts = session.namespaces.eip155.accounts;
+          if (accounts && accounts.length > 0) {
+            const address = accounts[0].split(":")[2];
+            console.log("Connected to real wallet:", address);
+            setAddress(address);
+            setSessionTopic(session.topic);
+            setIsConnecting(false);
+          } else {
+            console.error("No accounts in session");
+            Alert.alert("Connection Failed", "No accounts found in session");
+            setIsConnecting(false);
+          }
+        } catch (error: any) {
+          console.error("Session approval failed:", error);
+
+          let errorMessage = "Failed to connect to MetaMask";
+          if (error.message?.includes("timeout")) {
+            errorMessage = "Connection timed out. Please try again.";
+          } else if (error.message?.includes("rejected")) {
+            errorMessage = "Connection was rejected by MetaMask.";
+          } else if (error.message?.includes("network")) {
+            errorMessage = "Network error. Please check your connection.";
+          }
+
+          Alert.alert("Connection Failed", errorMessage);
+          setIsConnecting(false);
+        }
+      } else {
+        Alert.alert(
+          "MetaMask Required",
+          "Please install MetaMask from the app store to connect your wallet.",
+          [
+            {
+              text: "Open App Store",
+              onPress: () =>
+                Linking.openURL("market://details?id=io.metamask"),
+            },
+            { text: "Cancel", style: "cancel" },
+          ]
+        );
+        setIsConnecting(false);
       }
     } catch (error: any) {
       console.error("Connection error:", error);
@@ -234,6 +328,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         "Connection Failed",
         error.message || "Failed to connect to MetaMask"
       );
+      setIsConnecting(false);
     }
   };
 
@@ -358,6 +453,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         sessionTopic,
         isRegistered,
         isInitialized,
+        isConnecting,
         connectWallet,
         disconnectWallet,
         clearAllSessions,

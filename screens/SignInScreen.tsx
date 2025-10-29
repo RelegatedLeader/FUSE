@@ -30,7 +30,10 @@ export default function SignInScreen({ navigation }) {
           {
             text: "Pay Gas & Sign In",
             style: "default",
-            onPress: executeSignIn,
+            onPress: () => {
+              // Execute immediately without async wrapper
+              executeSignIn();
+            },
           },
         ]
       );
@@ -41,15 +44,38 @@ export default function SignInScreen({ navigation }) {
 
   const executeSignIn = async () => {
     try {
+      // Show processing alert (non-blocking)
       Alert.alert("Processing", "Updating your activity on the blockchain...");
+
+      console.log("Calling signIn...");
       await signIn();
+
       Alert.alert(
         "Success",
-        "Signed in successfully! Your activity has been recorded on the blockchain."
+        "Signed in successfully! Your activity has been recorded on the blockchain.",
+        [
+          {
+            text: "OK",
+            onPress: () => navigation.navigate("Main"),
+          },
+        ]
       );
-      navigation.navigate("Main");
-    } catch (error: any) {
-      Alert.alert("Error", "Failed to sign in: " + error.message);
+    } catch (error) {
+      console.error("SignIn error:", error);
+      Alert.alert(
+        "Sign In Failed",
+        "Failed to sign in: " + (error as Error).message,
+        [
+          {
+            text: "Try Again",
+            onPress: () => executeSignIn(),
+          },
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+        ]
+      );
     }
   };
 

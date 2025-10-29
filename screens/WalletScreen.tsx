@@ -10,24 +10,20 @@ import {
 import { useWallet } from "../contexts/WalletContext";
 
 export default function WalletScreen({ navigation }) {
-  const { address, connectWallet, disconnectWallet, clearAllSessions } = useWallet();
-  const [connecting, setConnecting] = useState(false);
+  const { address, connectWallet, disconnectWallet, clearAllSessions, isConnecting } = useWallet();
 
   useEffect(() => {
     if (address) {
-      setConnecting(false);
       navigation.navigate("SignIn");
     }
   }, [address, navigation]);
 
   const handleConnect = async () => {
-    setConnecting(true);
     try {
       await connectWallet();
       // Navigation will happen automatically when address is set
     } catch (error: any) {
       Alert.alert("Connection Error", error.message);
-      setConnecting(false);
     }
   };
 
@@ -64,7 +60,7 @@ export default function WalletScreen({ navigation }) {
     <View style={styles.container}>
       <Text style={styles.title}>Connect Your Wallet</Text>
       <Text>Connect MetaMask to access Fuse on Polygon.</Text>
-      {connecting ? (
+      {isConnecting ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#0000ff" />
           <Text style={styles.loadingText}>Connecting to MetaMask...</Text>

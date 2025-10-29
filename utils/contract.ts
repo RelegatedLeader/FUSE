@@ -200,12 +200,17 @@ export const updateUserData = async (
     from: address,
     to: CONTRACT_ADDRESS,
     data: data.substring(0, 100) + "...", // Log first 100 chars of data
-    gasLimit: "0x30D40",
-    gasPrice: "0x3B9ACA00",
+    gasLimit: "0x493E0",
+    gasPrice: "0x5F5E100",
   });
 
   try {
-    const txHash = await signClient.request({
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Transaction timeout - MetaMask didn't respond within 30 seconds")), 30000); // 30 second timeout
+    });
+
+    const txPromise = signClient.request({
       topic: sessionTopic,
       chainId: "eip155:137",
       request: {
@@ -220,6 +225,7 @@ export const updateUserData = async (
       },
     });
 
+    const txHash = await Promise.race([txPromise, timeoutPromise]);
     console.log("Transaction sent successfully, hash:", txHash);
     return { hash: txHash };
   } catch (error) {
@@ -249,7 +255,12 @@ export const signInUser = async (
   });
 
   try {
-    const txHash = await signClient.request({
+    // Add timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error("Sign in timeout - MetaMask didn't respond within 30 seconds")), 30000); // 30 second timeout
+    });
+
+    const txPromise = signClient.request({
       topic: sessionTopic,
       chainId: "eip155:137",
       request: {
@@ -264,6 +275,7 @@ export const signInUser = async (
       },
     });
 
+    const txHash = await Promise.race([txPromise, timeoutPromise]);
     console.log("SignIn transaction sent successfully, hash:", txHash);
     return { hash: txHash };
   } catch (error) {
