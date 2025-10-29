@@ -2,9 +2,15 @@ import "react-native-get-random-values";
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
-import PagerView from "react-native-pager-view";
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { WalletProvider, useWallet } from "./contexts/WalletContext";
+
+// Conditionally import PagerView for native platforms only
+let PagerView: any = null;
+if (Platform.OS !== 'web') {
+  PagerView = require('react-native-pager-view').default;
+}
 
 import WalletScreen from "./screens/WalletScreen";
 import SignInScreen from "./screens/SignInScreen";
@@ -49,17 +55,24 @@ function MainPager() {
           <Text>Cyberspace</Text>
         </TouchableOpacity>
       </View>
-      <PagerView style={{ flex: 1 }} initialPage={1}>
-        <View key="1">
-          <AlliancesScreen />
-        </View>
-        <View key="2">
+      {PagerView ? (
+        <PagerView style={{ flex: 1 }} initialPage={1}>
+          <View key="1">
+            <AlliancesScreen />
+          </View>
+          <View key="2">
+            <FuseScreen />
+          </View>
+          <View key="3">
+            <CyberspaceScreen />
+          </View>
+        </PagerView>
+      ) : (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text>Web version - Navigation tabs not available</Text>
           <FuseScreen />
         </View>
-        <View key="3">
-          <CyberspaceScreen />
-        </View>
-      </PagerView>
+      )}
     </View>
   );
 }
@@ -111,11 +124,13 @@ function AppNavigator() {
 
 export default function App() {
   return (
-    <WalletProvider>
-      <NavigationContainer>
-        <AppNavigator />
-      </NavigationContainer>
-    </WalletProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <WalletProvider>
+        <NavigationContainer>
+          <AppNavigator />
+        </NavigationContainer>
+      </WalletProvider>
+    </GestureHandlerRootView>
   );
 }
 

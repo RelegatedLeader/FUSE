@@ -187,7 +187,7 @@ export const updateUserData = async (
     const encryptedTraits = encryptData(traits);
     const encryptedMBTI = encryptData(mbti);
 
-    const input = {
+    const input = [
       encryptedFirstName,
       encryptedLastName,
       encryptedBirthdate,
@@ -196,7 +196,7 @@ export const updateUserData = async (
       encryptedID,
       encryptedTraits,
       encryptedMBTI,
-    };
+    ];
     console.log("Data prepared for contract");
 
     let data: string;
@@ -317,11 +317,11 @@ export const updateUserData = async (
         () =>
           reject(
             new Error(
-              "Transaction timeout - MetaMask didn't respond within 30 seconds"
+              "Transaction timeout - MetaMask didn't respond within 90 seconds"
             )
           ),
-        30000
-      ); // 30 second timeout
+        90000
+      ); // 90 second timeout (increased for Polygon network)
     });
 
     // Now try the actual contract transaction
@@ -338,8 +338,9 @@ export const updateUserData = async (
             to: CONTRACT_ADDRESS,
             data: data,
             value: "0x0", // 0 ETH
-            gasLimit: "0x249F0", // 150,000 gas (increased for contract call)
-            gasPrice: "0x3B9ACA00", // 50 gwei for Polygon (reduced from 100 gwei)
+            gasLimit: "0x493E0", // 300,000 gas (increased for contract call with buffer)
+            maxFeePerGas: "0xB2D05E00", // ~75 gwei max fee per gas (EIP-1559)
+            maxPriorityFeePerGas: "0x6F05B59D", // ~30 gwei max priority fee per gas (EIP-1559)
           },
         ],
       },
@@ -351,8 +352,9 @@ export const updateUserData = async (
       to: CONTRACT_ADDRESS,
       data: data.substring(0, 50) + "...",
       value: "0x0",
-      gasLimit: "0x249F0",
-      gasPrice: "0x3B9ACA00",
+      gasLimit: "0x493E0",
+      maxFeePerGas: "0xB2D05E00",
+      maxPriorityFeePerGas: "0x6F05B59D",
     });
 
     // FORCE OPEN METAMASK - This ensures MetaMask opens regardless of WalletConnect redirect
@@ -360,15 +362,29 @@ export const updateUserData = async (
     // Small delay to ensure transaction request is processed first
     setTimeout(async () => {
       try {
-        await Linking.openURL('https://metamask.app.link/');
-        console.log("✅ MetaMask open URL triggered");
+        // Try multiple MetaMask opening methods - prioritize direct app links
+        const urls = [
+          "metamask://wallet", // Direct wallet link (try first)
+          "metamask://", // Generic app link
+          "https://metamask.app.link/wc", // WalletConnect specific link (fallback)
+        ];
+        
+        for (const url of urls) {
+          try {
+            await Linking.openURL(url);
+            console.log("✅ MetaMask open URL triggered:", url);
+            break; // Stop after first successful attempt
+          } catch (e) {
+            console.log("⚠️ Failed to open URL:", url, (e as Error).message);
+          }
+        }
       } catch (linkError) {
         console.warn("⚠️ Could not open MetaMask URL:", linkError);
       }
-    }, 500); // 500ms delay
+    }, 500); // 500ms delay (reduced from 1000)
 
     try {
-      console.log("⏳ Waiting for MetaMask approval...");
+      console.log("⏳ Waiting for MetaMask approval (90 second timeout)...");
       const txHash = await Promise.race([txPromise, timeoutPromise]);
       console.log("✅ Transaction approved! Hash:", txHash);
       console.log("Transaction sent successfully, hash:", txHash);
@@ -427,7 +443,8 @@ export const signInUser = async (
     to: CONTRACT_ADDRESS,
     data: data,
     gasLimit: "0x30D40", // 200,000 gas
-    gasPrice: "0x3B9ACA00", // 50 gwei for Polygon
+    maxFeePerGas: "0xB2D05E00", // ~75 gwei max fee per gas (EIP-1559)
+    maxPriorityFeePerGas: "0x6F05B59D", // ~30 gwei max priority fee per gas (EIP-1559)
   });
 
   // First ensure we're on Polygon network
@@ -455,11 +472,11 @@ export const signInUser = async (
         () =>
           reject(
             new Error(
-              "Sign in timeout - MetaMask didn't respond within 30 seconds"
+              "Sign in timeout - MetaMask didn't respond within 90 seconds"
             )
           ),
-        30000
-      ); // 30 second timeout
+        90000
+      ); // 90 second timeout
     });
 
     const txPromise = signClient.request({
@@ -474,11 +491,38 @@ export const signInUser = async (
             data: data,
             value: "0x0", // 0 ETH
             gasLimit: "0x30D40", // 200,000 gas
-            gasPrice: "0x3B9ACA00", // 50 gwei for Polygon
+            maxFeePerGas: "0xB2D05E00", // ~75 gwei max fee per gas (EIP-1559)
+            maxPriorityFeePerGas: "0x6F05B59D", // ~30 gwei max priority fee per gas (EIP-1559)
           },
         ],
       },
     });
+
+    // FORCE OPEN METAMASK - This ensures MetaMask opens regardless of WalletConnect redirect
+    console.log("🔗 Force opening MetaMask app for signIn...");
+    // Small delay to ensure transaction request is processed first
+    setTimeout(async () => {
+      try {
+        // Try multiple MetaMask opening methods - prioritize direct app links
+        const urls = [
+          "metamask://wallet", // Direct wallet link (try first)
+          "metamask://", // Generic app link
+          "https://metamask.app.link/wc", // WalletConnect specific link (fallback)
+        ];
+        
+        for (const url of urls) {
+          try {
+            await Linking.openURL(url);
+            console.log("✅ MetaMask open URL triggered for signIn:", url);
+            break; // Stop after first successful attempt
+          } catch (e) {
+            console.log("⚠️ Failed to open URL:", url, (e as Error).message);
+          }
+        }
+      } catch (linkError) {
+        console.warn("⚠️ Could not open MetaMask URL for signIn:", linkError);
+      }
+    }, 500); // 500ms delay
 
     const txHash = await Promise.race([txPromise, timeoutPromise]);
     console.log("SignIn transaction sent successfully, hash:", txHash);

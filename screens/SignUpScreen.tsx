@@ -100,7 +100,7 @@ const MBTI_SUGGESTIONS = [
 ];
 
 export default function SignUpScreen({ navigation }: Props) {
-  const { address, updateUserData, isInitialized } = useWallet();
+  const { address, updateUserData, isInitialized, signIn, isRegistered, checkRegistration } = useWallet();
   console.log(
     "SignUpScreen rendered with address:",
     address,
@@ -150,7 +150,8 @@ export default function SignUpScreen({ navigation }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [faceScanned, setFaceScanned] = useState(false);
   const [isTransactionLoading, setIsTransactionLoading] = useState(false);
-  const [showManualMetaMaskPrompt, setShowManualMetaMaskPrompt] = useState(false);
+  const [showManualMetaMaskPrompt, setShowManualMetaMaskPrompt] =
+    useState(false);
   const rocketAnimation = useRef(new Animated.Value(0)).current;
 
   // Animate rocket when loading
@@ -307,6 +308,16 @@ export default function SignUpScreen({ navigation }: Props) {
       setDetectedFaceAngle("unknown");
     }
   }, [showCameraModal, scanStep]);
+
+  // Check registration status when address changes
+  useEffect(() => {
+    if (address && isInitialized) {
+      console.log("Address available, checking registration status...");
+      checkRegistration().then((registered) => {
+        console.log("Registration check result:", registered);
+      });
+    }
+  }, [address, isInitialized, checkRegistration]);
 
   const validateFaceAngle = async (
     photo: any,
@@ -580,7 +591,7 @@ export default function SignUpScreen({ navigation }: Props) {
       // Show manual MetaMask prompt after a short delay if transaction doesn't complete quickly
       // NOTE: Removed manual prompt since we now force open MetaMask automatically
 
-      // Call updateUserData - MetaMask will open automatically for confirmation
+      // Call updateUserData directly (this handles both registration and data storage for new users)
       // Note: Face scans are stored locally only due to transaction size limits
       const result = await updateUserData(
         firstName,
@@ -761,7 +772,8 @@ export default function SignUpScreen({ navigation }: Props) {
             <Text style={styles.loadingTitle}>Launching to Polygon</Text>
             <Text style={styles.loadingSubtitle}>
               Storing your encrypted profile data on the blockchain...
-              {"\n\n"}🔗 Opening MetaMask automatically to approve the transaction.
+              {"\n\n"}🔗 Opening MetaMask automatically to approve the
+              transaction.
             </Text>
           </View>
         </View>

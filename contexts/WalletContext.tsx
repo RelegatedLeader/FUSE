@@ -73,7 +73,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
           metadata: {
             name: "FUSE",
             description: "Social app on Polygon",
-            url: "https://fuse-app.com",
+            url: "https://fuse-social-app.vercel.app", // Updated to a valid demo URL
             icons: ["https://walletconnect.com/walletconnect-logo.png"],
           },
         });
@@ -429,9 +429,18 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const signIn = async () => {
     if (!signClient || !sessionTopic || !address)
       throw new Error("No wallet connected");
+    
+    console.log("SignIn called with:", { 
+      hasSignClient: !!signClient, 
+      sessionTopic: sessionTopic?.substring(0, 10) + "...",
+      address 
+    });
+    
     try {
       const { signInUser } = await import("../utils/contract");
       await signInUser(signClient, sessionTopic, address);
+      // Update registration status after successful sign in
+      await checkRegistration();
       Alert.alert("Success", "Signed in successfully!");
     } catch (error) {
       console.error("Sign in error:", error);
