@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { View, Text, Button, StyleSheet, Alert } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
+import { useTheme } from "../contexts/ThemeContext";
 import { StackNavigationProp } from "@react-navigation/stack";
 
 // Define navigation types
@@ -22,6 +23,7 @@ type Props = {
 
 export default function SignInScreen({ navigation }: Props) {
   const { address, isRegistered, signIn, checkRegistration } = useWallet();
+  const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -99,16 +101,16 @@ export default function SignInScreen({ navigation }: Props) {
 
   if (loading) {
     return (
-      <View style={styles.container}>
-        <Text>Loading...</Text>
+      <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+        <Text style={{ color: theme.textColor }}>Loading...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Welcome to Fuse</Text>
-      <Text>Wallet Address: {address}</Text>
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      <Text style={[styles.title, { color: theme.textColor }]}>Welcome to Fuse</Text>
+      <Text style={{ color: theme.textColor }}>Wallet Address: {address}</Text>
       <Button
         title={isRegistered ? "Sign In to Proceed" : "Sign Up to Proceed"}
         onPress={handleSignIn}

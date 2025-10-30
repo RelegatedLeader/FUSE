@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { View, Text, TextInput, Button, StyleSheet } from "react-native";
+import { useTheme } from "../contexts/ThemeContext";
 
 export default function AlliancesScreen() {
+  const { theme } = useTheme();
   const [search, setSearch] = useState("");
 
   const handleSearch = () => {
@@ -9,16 +11,17 @@ export default function AlliancesScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Alliances</Text>
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      <Text style={[styles.title, { color: theme.textColor }]}>Alliances</Text>
       <TextInput
-        style={styles.input}
+        style={[styles.input, { backgroundColor: theme.buttonBackground, color: theme.buttonText, borderColor: theme.textColor }]}
         placeholder="AI Search for groups"
+        placeholderTextColor={theme.textColor}
         value={search}
         onChangeText={setSearch}
       />
       <Button title="Search" onPress={handleSearch} />
-      <Text>Form alliances with 4 compatible people.</Text>
+      <Text style={{ color: theme.textColor }}>Form alliances with 4 compatible people.</Text>
     </View>
   );
 }

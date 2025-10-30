@@ -16,6 +16,7 @@ import {
 import { CameraView, useCameraPermissions } from "expo-camera";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useWallet } from "../contexts/WalletContext";
+import { useTheme } from "../contexts/ThemeContext";
 import Slider from "@react-native-community/slider";
 import CryptoJS from "crypto-js";
 import { getLocalUserDataByTransaction } from "../utils/contract";
@@ -101,6 +102,7 @@ const MBTI_SUGGESTIONS = [
 
 export default function SignUpScreen({ navigation }: Props) {
   const { address, updateUserData, isInitialized, signIn, isRegistered, checkRegistration } = useWallet();
+  const { theme } = useTheme();
   console.log(
     "SignUpScreen rendered with address:",
     address,
@@ -110,8 +112,8 @@ export default function SignUpScreen({ navigation }: Props) {
 
   if (!isInitialized) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <Text>Loading wallet...</Text>
+      <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+        <Text style={{ color: theme.textColor }}>Loading wallet...</Text>
       </View>
     );
   }
@@ -745,7 +747,7 @@ export default function SignUpScreen({ navigation }: Props) {
   const wordCount = bio.split(" ").filter((word) => word.length > 0).length;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       {/* Transaction Loading Modal with Rocket Ship */}
       <Modal
         visible={isTransactionLoading}
@@ -780,7 +782,7 @@ export default function SignUpScreen({ navigation }: Props) {
       </Modal>
       <ScrollView
         ref={scrollViewRef}
-        style={styles.scrollView}
+        style={[styles.scrollView, { backgroundColor: theme.backgroundColor }]}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={true}
       >
@@ -792,9 +794,9 @@ export default function SignUpScreen({ navigation }: Props) {
             </Text>
           </View>
         )}
-        <Text style={styles.title}>Create Your Fuse Profile</Text>
+        <Text style={[styles.title, { color: theme.textColor }]}>Create Your Fuse Profile</Text>
         {/* Basic Information */}
-        <Text style={styles.sectionTitle}>Basic Information</Text>
+        <Text style={[styles.sectionTitle, { color: theme.textColor }]}>Basic Information</Text>
         <TextInput
           style={styles.input}
           placeholder="First Name"

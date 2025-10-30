@@ -16,13 +16,13 @@ interface Theme {
 }
 
 const lightTheme: Theme = {
-  backgroundColor: '#F5F5DC', // Cute vanilla
+  backgroundColor: '#FFF8DC', // Brighter vanilla/cream
   textColor: '#000000',
   buttonBackground: '#D2B48C', // Tan
   buttonText: '#000000',
   container: {
     flex: 1,
-    backgroundColor: '#F5F5DC',
+    backgroundColor: '#FFF8DC',
     padding: 20,
   },
   title: {

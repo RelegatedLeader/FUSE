@@ -1,11 +1,13 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { useTheme } from "../contexts/ThemeContext";
 
 export default function CyberspaceScreen() {
+  const { theme } = useTheme();
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Cyberspace</Text>
-      <Text>Unlocked with alliance. Post and share ideas.</Text>
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      <Text style={[styles.title, { color: theme.textColor }]}>Cyberspace</Text>
+      <Text style={{ color: theme.textColor }}>Unlocked with alliance. Post and share ideas.</Text>
     </View>
   );
 }

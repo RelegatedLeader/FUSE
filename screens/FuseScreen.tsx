@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, Animated, Alert } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
+import { useTheme } from "../contexts/ThemeContext";
 import { getUserData } from "../utils/contract";
 
 interface User {
@@ -14,6 +15,7 @@ interface User {
 
 export default function FuseScreen() {
   const { address } = useWallet();
+  const { theme } = useTheme();
   const [users, setUsers] = useState<User[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showBio, setShowBio] = useState(false);
@@ -64,32 +66,32 @@ export default function FuseScreen() {
 
   if (!currentUser) {
     return (
-      <View style={styles.container}>
-        <Text>No more users to match with.</Text>
+      <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+        <Text style={{ color: theme.textColor }}>No more users to match with.</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.card}>
-          <TouchableOpacity onPress={() => setShowBio(!showBio)} style={styles.leftTap}>
-            <Text>Tap for Bio</Text>
+        <View style={[styles.card, { backgroundColor: theme.buttonBackground }]}>
+          <TouchableOpacity onPress={() => setShowBio(!showBio)} style={[styles.leftTap, { backgroundColor: theme.buttonBackground }]}>
+            <Text style={{ color: theme.buttonText }}>Tap for Bio</Text>
           </TouchableOpacity>
           <View style={styles.userInfo}>
-            <Text style={styles.name}>{currentUser.name}, {currentUser.age}</Text>
-            <Text>{currentUser.city}</Text>
-            {showBio && <Text style={styles.bio}>{currentUser.bio}</Text>}
+            <Text style={[styles.name, { color: theme.textColor }]}>{currentUser.name}, {currentUser.age}</Text>
+            <Text style={{ color: theme.textColor }}>{currentUser.city}</Text>
+            {showBio && <Text style={[styles.bio, { color: theme.textColor }]}>{currentUser.bio}</Text>}
           </View>
-          <TouchableOpacity onPress={handleFuse} style={styles.fuseButton}>
-            <Animated.Text style={[styles.fuseText, { transform: [{ scale: fuseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.5] }) }] }]}>
+          <TouchableOpacity onPress={handleFuse} style={[styles.fuseButton, { backgroundColor: theme.buttonBackground }]}>
+            <Animated.Text style={[styles.fuseText, { color: theme.buttonText }, { transform: [{ scale: fuseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.5] }) }] }]}>
               🚀 Fuse
             </Animated.Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
-          <Text>Skip</Text>
+        <TouchableOpacity onPress={handleSkip} style={[styles.skipButton, { backgroundColor: theme.buttonBackground }]}>
+          <Text style={{ color: theme.buttonText }}>Skip</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>

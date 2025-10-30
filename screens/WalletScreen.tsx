@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
+import { useTheme } from "../contexts/ThemeContext";
 import { StackNavigationProp } from "@react-navigation/stack";
 
 // Define navigation types
@@ -35,6 +36,7 @@ export default function WalletScreen({ navigation }: Props) {
     clearAllSessions,
     isConnecting,
   } = useWallet();
+  const { theme } = useTheme();
 
   useEffect(() => {
     if (address) {
@@ -71,8 +73,8 @@ export default function WalletScreen({ navigation }: Props) {
 
   if (address) {
     return (
-      <View style={styles.container}>
-        <Text>Connected Wallet: {address}</Text>
+      <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+        <Text style={{ color: theme.textColor }}>Connected Wallet: {address}</Text>
         <Button title="Proceed" onPress={() => navigation.navigate("SignIn")} />
         <Button title="Disconnect" onPress={handleDisconnect} />
         <Button
@@ -85,13 +87,13 @@ export default function WalletScreen({ navigation }: Props) {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Connect Your Wallet</Text>
-      <Text>Connect MetaMask to access Fuse on Polygon.</Text>
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      <Text style={[styles.title, { color: theme.textColor }]}>Connect Your Wallet</Text>
+      <Text style={{ color: theme.textColor }}>Connect MetaMask to access Fuse on Polygon.</Text>
       {isConnecting ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#0000ff" />
-          <Text style={styles.loadingText}>Connecting to MetaMask...</Text>
+          <ActivityIndicator size="large" color={theme.buttonBackground} />
+          <Text style={[styles.loadingText, { color: theme.textColor }]}>Connecting to MetaMask...</Text>
         </View>
       ) : (
         <Button title="Connect MetaMask" onPress={handleConnect} />
@@ -108,12 +110,6 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   title: { fontSize: 24, marginBottom: 20, textAlign: "center" },
-  subtitle: {
-    fontSize: 16,
-    marginBottom: 10,
-    color: "#666",
-    textAlign: "center",
-  },
   loadingContainer: { marginTop: 20, alignItems: "center" },
   loadingText: { marginTop: 10, fontSize: 16 },
 });

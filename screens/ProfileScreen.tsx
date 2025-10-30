@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Alert } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
+import { useTheme } from "../contexts/ThemeContext";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CryptoJS from "crypto-js";
@@ -8,6 +9,7 @@ import { getUserData } from "../utils/contract";
 
 export default function ProfileScreen() {
   const { address } = useWallet();
+  const { theme } = useTheme();
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
@@ -112,38 +114,38 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
-      <Text style={styles.title}>Profile</Text>
-      {loading && <Text>Loading user data...</Text>}
+    <ScrollView style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      <Text style={[styles.title, { color: theme.textColor }]}>Profile</Text>
+      {loading && <Text style={{ color: theme.textColor }}>Loading user data...</Text>}
       {userData && (
         <View style={styles.dataContainer}>
-          <Text style={styles.label}>Name: {userData.name}</Text>
-          {userData.age !== null && <Text style={styles.label}>Age: {userData.age}</Text>}
-          <Text style={styles.label}>City: {userData.city}</Text>
-          <Text style={styles.label}>MBTI: {userData.mbti}</Text>
-          <Text style={styles.label}>Gender: {userData.gender}</Text>
+          <Text style={[styles.label, { color: theme.textColor }]}>Name: {userData.name}</Text>
+          {userData.age !== null && <Text style={[styles.label, { color: theme.textColor }]}>Age: {userData.age}</Text>}
+          <Text style={[styles.label, { color: theme.textColor }]}>City: {userData.city}</Text>
+          <Text style={[styles.label, { color: theme.textColor }]}>MBTI: {userData.mbti}</Text>
+          <Text style={[styles.label, { color: theme.textColor }]}>Gender: {userData.gender}</Text>
           {userData.parsedBio && (
             <View>
-              <Text style={styles.label}>Bio:</Text>
-              <Text style={styles.bioText}>{userData.parsedBio}</Text>
+              <Text style={[styles.label, { color: theme.textColor }]}>Bio:</Text>
+              <Text style={[styles.bioText, { color: theme.textColor }]}>{userData.parsedBio}</Text>
             </View>
           )}
           {userData.personality && (
             <View>
-              <Text style={styles.label}>Personality Traits:</Text>
-              <Text>Extroversion: {userData.personality.extroversion?.toFixed(1)}%</Text>
-              <Text>Openness: {userData.personality.openness?.toFixed(1)}%</Text>
-              <Text>Conscientiousness: {userData.personality.conscientiousness?.toFixed(1)}%</Text>
-              <Text>Agreeableness: {userData.personality.agreeableness?.toFixed(1)}%</Text>
-              <Text>Neuroticism: {userData.personality.neuroticism?.toFixed(1)}%</Text>
+              <Text style={[styles.label, { color: theme.textColor }]}>Personality Traits:</Text>
+              <Text style={{ color: theme.textColor }}>Extroversion: {userData.personality.extroversion?.toFixed(1)}%</Text>
+              <Text style={{ color: theme.textColor }}>Openness: {userData.personality.openness?.toFixed(1)}%</Text>
+              <Text style={{ color: theme.textColor }}>Conscientiousness: {userData.personality.conscientiousness?.toFixed(1)}%</Text>
+              <Text style={{ color: theme.textColor }}>Agreeableness: {userData.personality.agreeableness?.toFixed(1)}%</Text>
+              <Text style={{ color: theme.textColor }}>Neuroticism: {userData.personality.neuroticism?.toFixed(1)}%</Text>
             </View>
           )}
-          <Text style={styles.immutableNote}>This data is immutable and stored on the Polygon blockchain.</Text>
+          <Text style={[styles.immutableNote, { color: 'red' }]}>This data is immutable and stored on the Polygon blockchain.</Text>
         </View>
       )}
-      {!loading && !userData && <Text>No user data found. Please sign up first.</Text>}
+      {!loading && !userData && <Text style={{ color: theme.textColor }}>No user data found. Please sign up first.</Text>}
       <View style={styles.photosContainer}>
-        <Text>Photos (up to 4):</Text>
+        <Text style={{ color: theme.textColor }}>Photos (up to 4):</Text>
         <View style={styles.photosGrid}>
           {photos.map((uri, index) => (
             <View key={index} style={styles.photoContainer}>
@@ -154,17 +156,17 @@ export default function ProfileScreen() {
             </View>
           ))}
         </View>
-        <TouchableOpacity onPress={pickImage} style={styles.addPhoto}>
-          <Text>Add Photo</Text>
+        <TouchableOpacity onPress={pickImage} style={[styles.addPhoto, { backgroundColor: theme.buttonBackground }]}>
+          <Text style={{ color: theme.buttonText }}>Add Photo</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.preferencesContainer}>
-        <Text>Preferences:</Text>
+        <Text style={{ color: theme.textColor }}>Preferences:</Text>
         <TouchableOpacity onPress={() => togglePreference('showAge')}>
-          <Text>Show Age: {preferences.showAge ? 'Yes' : 'No'}</Text>
+          <Text style={{ color: theme.textColor }}>Show Age: {preferences.showAge ? 'Yes' : 'No'}</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => togglePreference('showLocation')}>
-          <Text>Show Location: {preferences.showLocation ? 'Yes' : 'No'}</Text>
+          <Text style={{ color: theme.textColor }}>Show Location: {preferences.showLocation ? 'Yes' : 'No'}</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
