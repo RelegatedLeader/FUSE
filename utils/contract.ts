@@ -305,7 +305,7 @@ export const updateUserData = async (
     let gasLimit: string;
     let maxFeePerGas: string;
     let maxPriorityFeePerGas: string;
-    
+
     try {
       // Create a temporary transaction object for gas estimation
       const tempTx = {
@@ -314,30 +314,44 @@ export const updateUserData = async (
         data: data,
         value: "0x0",
       };
-      
+
       // Estimate gas limit
       const estimatedGas = await publicProvider.estimateGas(tempTx);
-      const gasLimitWithBuffer = estimatedGas * BigInt(120) / BigInt(100); // 20% buffer
+      const gasLimitWithBuffer = (estimatedGas * BigInt(120)) / BigInt(100); // 20% buffer
       gasLimit = "0x" + gasLimitWithBuffer.toString(16);
       console.log("📊 Estimated gas limit:", gasLimit, "(with 20% buffer)");
-      
+
       // Get current fee data
       const feeData = await publicProvider.getFeeData();
-      const baseFee = feeData.maxFeePerGas || feeData.gasPrice || ethers.parseUnits("50", "gwei");
-      const priorityFee = feeData.maxPriorityFeePerGas || ethers.parseUnits("30", "gwei");
-      
+      const baseFee =
+        feeData.maxFeePerGas ||
+        feeData.gasPrice ||
+        ethers.parseUnits("50", "gwei");
+      const priorityFee =
+        feeData.maxPriorityFeePerGas || ethers.parseUnits("30", "gwei");
+
       // Apply buffers
-      const bufferedMaxFee = baseFee * BigInt(150) / BigInt(100); // 50% buffer on base fee
-      const bufferedPriorityFee = priorityFee * BigInt(150) / BigInt(100); // 50% buffer on priority fee
-      
+      const bufferedMaxFee = (baseFee * BigInt(150)) / BigInt(100); // 50% buffer on base fee
+      const bufferedPriorityFee = (priorityFee * BigInt(150)) / BigInt(100); // 50% buffer on priority fee
+
       maxFeePerGas = "0x" + bufferedMaxFee.toString(16);
       maxPriorityFeePerGas = "0x" + bufferedPriorityFee.toString(16);
-      
-      console.log("💰 Max fee per gas:", ethers.formatUnits(bufferedMaxFee, "gwei"), "gwei");
-      console.log("⚡ Max priority fee per gas:", ethers.formatUnits(bufferedPriorityFee, "gwei"), "gwei");
-      
+
+      console.log(
+        "💰 Max fee per gas:",
+        ethers.formatUnits(bufferedMaxFee, "gwei"),
+        "gwei"
+      );
+      console.log(
+        "⚡ Max priority fee per gas:",
+        ethers.formatUnits(bufferedPriorityFee, "gwei"),
+        "gwei"
+      );
     } catch (gasError) {
-      console.warn("⚠️ Gas estimation failed, using fallback values:", gasError);
+      console.warn(
+        "⚠️ Gas estimation failed, using fallback values:",
+        gasError
+      );
       // Fallback values
       gasLimit = "0x493E0"; // 300,000
       maxFeePerGas = "0xB2D05E00"; // ~75 gwei
@@ -499,7 +513,7 @@ export const updateUserData = async (
           "metamask://", // Generic app link
           "https://metamask.app.link/wc", // WalletConnect specific link (fallback)
         ];
-        
+
         for (const url of urls) {
           try {
             await Linking.openURL(url);
@@ -572,7 +586,7 @@ export const signInUser = async (
   let gasLimit: string;
   let maxFeePerGas: string;
   let maxPriorityFeePerGas: string;
-  
+
   try {
     // Create a temporary transaction object for gas estimation
     const tempTx = {
@@ -581,30 +595,48 @@ export const signInUser = async (
       data: data,
       value: "0x0",
     };
-    
+
     // Estimate gas limit
     const estimatedGas = await publicProvider.estimateGas(tempTx);
-    const gasLimitWithBuffer = estimatedGas * BigInt(120) / BigInt(100); // 20% buffer
+    const gasLimitWithBuffer = (estimatedGas * BigInt(120)) / BigInt(100); // 20% buffer
     gasLimit = "0x" + gasLimitWithBuffer.toString(16);
-    console.log("📊 Estimated gas limit for signIn:", gasLimit, "(with 20% buffer)");
-    
+    console.log(
+      "📊 Estimated gas limit for signIn:",
+      gasLimit,
+      "(with 20% buffer)"
+    );
+
     // Get current fee data
     const feeData = await publicProvider.getFeeData();
-    const baseFee = feeData.maxFeePerGas || feeData.gasPrice || ethers.parseUnits("50", "gwei");
-    const priorityFee = feeData.maxPriorityFeePerGas || ethers.parseUnits("30", "gwei");
-    
+    const baseFee =
+      feeData.maxFeePerGas ||
+      feeData.gasPrice ||
+      ethers.parseUnits("50", "gwei");
+    const priorityFee =
+      feeData.maxPriorityFeePerGas || ethers.parseUnits("30", "gwei");
+
     // Apply buffers
-    const bufferedMaxFee = baseFee * BigInt(150) / BigInt(100); // 50% buffer on base fee
-    const bufferedPriorityFee = priorityFee * BigInt(150) / BigInt(100); // 50% buffer on priority fee
-    
+    const bufferedMaxFee = (baseFee * BigInt(150)) / BigInt(100); // 50% buffer on base fee
+    const bufferedPriorityFee = (priorityFee * BigInt(150)) / BigInt(100); // 50% buffer on priority fee
+
     maxFeePerGas = "0x" + bufferedMaxFee.toString(16);
     maxPriorityFeePerGas = "0x" + bufferedPriorityFee.toString(16);
-    
-    console.log("💰 Max fee per gas for signIn:", ethers.formatUnits(bufferedMaxFee, "gwei"), "gwei");
-    console.log("⚡ Max priority fee per gas for signIn:", ethers.formatUnits(bufferedPriorityFee, "gwei"), "gwei");
-    
+
+    console.log(
+      "💰 Max fee per gas for signIn:",
+      ethers.formatUnits(bufferedMaxFee, "gwei"),
+      "gwei"
+    );
+    console.log(
+      "⚡ Max priority fee per gas for signIn:",
+      ethers.formatUnits(bufferedPriorityFee, "gwei"),
+      "gwei"
+    );
   } catch (gasError) {
-    console.warn("⚠️ Gas estimation failed for signIn, using fallback values:", gasError);
+    console.warn(
+      "⚠️ Gas estimation failed for signIn, using fallback values:",
+      gasError
+    );
     // Fallback values
     gasLimit = "0x30D40"; // 200,000
     maxFeePerGas = "0xB2D05E00"; // ~75 gwei
@@ -684,7 +716,7 @@ export const signInUser = async (
           "metamask://", // Generic app link
           "https://metamask.app.link/wc", // WalletConnect specific link (fallback)
         ];
-        
+
         for (const url of urls) {
           try {
             await Linking.openURL(url);
@@ -806,8 +838,12 @@ export const getUserData = async (userAddress: string) => {
     if (decrypted.birthdate) {
       try {
         // Parse MM/DD/YYYY
-        const [month, day, year] = decrypted.birthdate.split('/');
-        const birthDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        const [month, day, year] = decrypted.birthdate.split("/");
+        const birthDate = new Date(
+          parseInt(year),
+          parseInt(month) - 1,
+          parseInt(day)
+        );
         if (!isNaN(birthDate.getTime())) {
           const currentYear = new Date().getFullYear();
           age = currentYear - birthDate.getFullYear();
@@ -834,28 +870,28 @@ export const getUserData = async (userAddress: string) => {
 //   try {
 //     // Initialize Bundlr with MATIC
 //     const bundlr = new Bundlr("https://node2.bundlr.network", "matic", provider);
-    
+
 //     // Fund the bundlr account if needed (user pays with MATIC)
 //     const balance = await bundlr.getLoadedBalance();
 //     const dataSize = Buffer.byteLength(data, 'utf8');
 //     const cost = await bundlr.getPrice(dataSize);
-    
+
 //     if (balance.lt(cost)) {
 //       // Fund with MATIC
 //       const fundTx = await bundlr.fund(cost);
 //       console.log("Funded Bundlr:", fundTx);
 //     }
-    
+
 //     // Upload the data
 //     const tx = bundlr.createTransaction(data);
 //     await tx.sign();
 //     const result = await tx.upload();
-    
+
 //     console.log("Uploaded to Arweave:", result.id);
-    
+
 //     // Update Polygon contract with the TX ID
 //     await updateArweaveTxId(provider, userAddress, result.id);
-    
+
 //     return result.id;
 //   } catch (error) {
 //     console.error("Arweave upload error:", error);
@@ -866,7 +902,7 @@ export const getUserData = async (userAddress: string) => {
 // const updateArweaveTxId = async (provider: any, userAddress: string, txId: string) => {
 //   const contract = getContract(provider);
 //   const encryptedTxId = CryptoJS.AES.encrypt(txId, userAddress).toString();
-  
+
 //   const tx = await contract.updateData({
 //     encryptedFirstName: "",
 //     encryptedLastName: "",
@@ -878,7 +914,7 @@ export const getUserData = async (userAddress: string) => {
 //     encryptedMBTI: "",
 //     arweaveTxId: encryptedTxId,
 //   });
-  
+
 //   await tx.wait();
 //   console.log("Updated Arweave TX ID on Polygon");
 // };

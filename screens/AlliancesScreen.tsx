@@ -1,5 +1,12 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity } from "react-native";
+import {
+  View,
+  Text,
+  TextInput,
+  Button,
+  StyleSheet,
+  TouchableOpacity,
+} from "react-native";
 import { useTheme } from "../contexts/ThemeContext";
 
 export default function AlliancesScreen() {
@@ -11,10 +18,19 @@ export default function AlliancesScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+    >
       <Text style={theme.title}>Alliances</Text>
       <Text style={theme.subtitle}>Form powerful network connections</Text>
-      <Text style={{ color: theme.textColor, textAlign: 'center', marginBottom: 20, fontSize: 16 }}>
+      <Text
+        style={{
+          color: theme.textColor,
+          textAlign: "center",
+          marginBottom: 20,
+          fontSize: 16,
+        }}
+      >
         🤝 Connect with 4 compatible pieces to unlock alliance powers
       </Text>
       <TextInput
@@ -27,7 +43,14 @@ export default function AlliancesScreen() {
       <TouchableOpacity style={theme.button} onPress={handleSearch}>
         <Text style={theme.buttonTextStyle}>🔍 Search & Connect</Text>
       </TouchableOpacity>
-      <Text style={{ color: theme.textColor, textAlign: 'center', marginTop: 20, fontSize: 16 }}>
+      <Text
+        style={{
+          color: theme.textColor,
+          textAlign: "center",
+          marginTop: 20,
+          fontSize: 16,
+        }}
+      >
         Build your alliance network and unlock new social dimensions!
       </Text>
     </View>

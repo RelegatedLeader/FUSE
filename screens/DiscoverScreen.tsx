@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+} from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 
@@ -74,40 +81,72 @@ export default function DiscoverScreen() {
 
   if (!currentUser) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-        <Text style={{ color: theme.textColor, textAlign: 'center', fontSize: 18 }}>
-          🔍 No more discoveries right now.{'\n'}Check back later for new connections!
+      <View
+        style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+      >
+        <Text
+          style={{ color: theme.textColor, textAlign: "center", fontSize: 18 }}
+        >
+          🔍 No more discoveries right now.{"\n"}Check back later for new
+          connections!
         </Text>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+    >
       <Text style={theme.title}>Discover</Text>
       <Text style={theme.subtitle}>Find your perfect connections</Text>
 
       <View style={theme.card}>
-        <Text style={[styles.name, { color: theme.textColor }]}>{currentUser.name}, {currentUser.age}</Text>
-        <Text style={{ color: theme.textColor, fontSize: 16 }}>📍 {currentUser.city}</Text>
+        <Text style={[styles.name, { color: theme.textColor }]}>
+          {currentUser.name}, {currentUser.age}
+        </Text>
+        <Text style={{ color: theme.textColor, fontSize: 16 }}>
+          📍 {currentUser.city}
+        </Text>
 
         <View style={styles.interestsContainer}>
           {currentUser.interests.map((interest, index) => (
-            <View key={index} style={[styles.interestTag, { backgroundColor: theme.buttonBackground }]}>
-              <Text style={{ color: theme.buttonText, fontSize: 12 }}>{interest}</Text>
+            <View
+              key={index}
+              style={[
+                styles.interestTag,
+                { backgroundColor: theme.buttonBackground },
+              ]}
+            >
+              <Text style={{ color: theme.buttonText, fontSize: 12 }}>
+                {interest}
+              </Text>
             </View>
           ))}
         </View>
 
-        <Text style={[styles.bio, { color: theme.textColor }]}>{currentUser.bio}</Text>
+        <Text style={[styles.bio, { color: theme.textColor }]}>
+          {currentUser.bio}
+        </Text>
 
         <View style={styles.actionButtons}>
-          <TouchableOpacity onPress={handlePass} style={[styles.passButton, { backgroundColor: '#666' }]}>
-            <Text style={[styles.buttonText, { color: '#fff' }]}>❌ Pass</Text>
+          <TouchableOpacity
+            onPress={handlePass}
+            style={[styles.passButton, { backgroundColor: "#666" }]}
+          >
+            <Text style={[styles.buttonText, { color: "#fff" }]}>❌ Pass</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity onPress={handleLike} style={[styles.likeButton, { backgroundColor: theme.buttonBackground }]}>
-            <Text style={[styles.buttonText, { color: theme.buttonText }]}>💚 Like</Text>
+          <TouchableOpacity
+            onPress={handleLike}
+            style={[
+              styles.likeButton,
+              { backgroundColor: theme.buttonBackground },
+            ]}
+          >
+            <Text style={[styles.buttonText, { color: theme.buttonText }]}>
+              💚 Like
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -122,12 +161,12 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 8,
   },
   interestsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     marginVertical: 10,
   },
   interestTag: {
@@ -142,24 +181,24 @@ const styles = StyleSheet.create({
     marginVertical: 15,
   },
   actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
     marginTop: 20,
   },
   passButton: {
     padding: 15,
     borderRadius: 25,
     minWidth: 100,
-    alignItems: 'center',
+    alignItems: "center",
   },
   likeButton: {
     padding: 15,
     borderRadius: 25,
     minWidth: 100,
-    alignItems: 'center',
+    alignItems: "center",
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
 });

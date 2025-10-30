@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Animated,
+} from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 
@@ -17,7 +24,9 @@ export default function FusersScreen() {
   const { theme } = useTheme();
   const [requests, setRequests] = useState<ConnectionRequest[]>([]);
   const [animatingIndex, setAnimatingIndex] = useState<number | null>(null);
-  const [animationType, setAnimationType] = useState<'rocket' | 'blackhole' | null>(null);
+  const [animationType, setAnimationType] = useState<
+    "rocket" | "blackhole" | null
+  >(null);
   const rocketAnim = useRef(new Animated.Value(0)).current;
   const blackHoleAnim = useRef(new Animated.Value(0)).current;
 
@@ -46,7 +55,7 @@ export default function FusersScreen() {
 
   const handleFuse = (index: number) => {
     setAnimatingIndex(index);
-    setAnimationType('rocket');
+    setAnimationType("rocket");
     // Rocket launch animation
     Animated.sequence([
       Animated.timing(rocketAnim, {
@@ -69,7 +78,7 @@ export default function FusersScreen() {
 
   const handleReject = (index: number) => {
     setAnimatingIndex(index);
-    setAnimationType('blackhole');
+    setAnimationType("blackhole");
     // Black hole animation
     Animated.sequence([
       Animated.timing(blackHoleAnim, {
@@ -111,15 +120,24 @@ export default function FusersScreen() {
   });
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+    >
       <Text style={theme.title}>Fusers</Text>
       <Text style={theme.subtitle}>Connection requests waiting for you</Text>
 
       <ScrollView style={styles.requestsContainer}>
         {requests.length === 0 ? (
           <View style={theme.card}>
-            <Text style={{ color: theme.textColor, textAlign: 'center', fontSize: 16 }}>
-              🚀 No connection requests yet.{'\n'}Keep fusing to attract more connections!
+            <Text
+              style={{
+                color: theme.textColor,
+                textAlign: "center",
+                fontSize: 16,
+              }}
+            >
+              🚀 No connection requests yet.{"\n"}Keep fusing to attract more
+              connections!
             </Text>
           </View>
         ) : (
@@ -127,7 +145,7 @@ export default function FusersScreen() {
             <View key={index} style={theme.card}>
               {animatingIndex === index && (
                 <View style={styles.animationOverlay}>
-                  {animationType === 'rocket' ? (
+                  {animationType === "rocket" ? (
                     <Animated.Text
                       style={[
                         styles.rocket,
@@ -141,7 +159,7 @@ export default function FusersScreen() {
                     >
                       🚀
                     </Animated.Text>
-                  ) : animationType === 'blackhole' ? (
+                  ) : animationType === "blackhole" ? (
                     <Animated.View
                       style={[
                         styles.blackHole,
@@ -157,25 +175,40 @@ export default function FusersScreen() {
                 </View>
               )}
 
-              <Text style={[styles.name, { color: theme.textColor }]}>{request.name}, {request.age}</Text>
-              <Text style={{ color: theme.textColor, fontSize: 16 }}>📍 {request.city}</Text>
-              <Text style={[styles.bio, { color: theme.textColor }]}>{request.bio}</Text>
+              <Text style={[styles.name, { color: theme.textColor }]}>
+                {request.name}, {request.age}
+              </Text>
+              <Text style={{ color: theme.textColor, fontSize: 16 }}>
+                📍 {request.city}
+              </Text>
+              <Text style={[styles.bio, { color: theme.textColor }]}>
+                {request.bio}
+              </Text>
 
               <View style={styles.actionButtons}>
                 <TouchableOpacity
                   onPress={() => handleReject(index)}
-                  style={[styles.rejectButton, { backgroundColor: '#dc3545' }]}
+                  style={[styles.rejectButton, { backgroundColor: "#dc3545" }]}
                   disabled={animatingIndex !== null}
                 >
-                  <Text style={[styles.buttonText, { color: '#fff' }]}>🕳️ Reject</Text>
+                  <Text style={[styles.buttonText, { color: "#fff" }]}>
+                    🕳️ Reject
+                  </Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
                   onPress={() => handleFuse(index)}
-                  style={[styles.fuseButton, { backgroundColor: theme.buttonBackground }]}
+                  style={[
+                    styles.fuseButton,
+                    { backgroundColor: theme.buttonBackground },
+                  ]}
                   disabled={animatingIndex !== null}
                 >
-                  <Text style={[styles.buttonText, { color: theme.buttonText }]}>🚀 Fuse</Text>
+                  <Text
+                    style={[styles.buttonText, { color: theme.buttonText }]}
+                  >
+                    🚀 Fuse
+                  </Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -196,7 +229,7 @@ const styles = StyleSheet.create({
   },
   name: {
     fontSize: 22,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 8,
   },
   bio: {
@@ -205,35 +238,35 @@ const styles = StyleSheet.create({
     marginVertical: 15,
   },
   actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexDirection: "row",
+    justifyContent: "space-around",
     marginTop: 20,
   },
   rejectButton: {
     padding: 15,
     borderRadius: 25,
     minWidth: 100,
-    alignItems: 'center',
+    alignItems: "center",
   },
   fuseButton: {
     padding: 15,
     borderRadius: 25,
     minWidth: 100,
-    alignItems: 'center',
+    alignItems: "center",
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   animationOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
     zIndex: 10,
     borderRadius: 15,
   },
@@ -241,8 +274,8 @@ const styles = StyleSheet.create({
     fontSize: 60,
   },
   blackHole: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   blackHoleEmoji: {
     fontSize: 60,

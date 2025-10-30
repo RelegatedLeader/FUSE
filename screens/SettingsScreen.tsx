@@ -1,5 +1,11 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { useWallet } from "../contexts/WalletContext";
@@ -29,7 +35,7 @@ export default function SettingsScreen() {
       await disconnectWallet();
       navigation.reset({
         index: 0,
-        routes: [{ name: 'Wallet' }],
+        routes: [{ name: "Wallet" }],
       });
     } catch (error) {
       console.error(error);
@@ -40,15 +46,20 @@ export default function SettingsScreen() {
     <ScrollView style={theme.container}>
       <Text style={theme.title}>Settings</Text>
       <Text style={theme.subtitle}>Customize your network experience</Text>
-      
+
       <TouchableOpacity onPress={toggleTheme} style={theme.button}>
         <Text style={theme.buttonTextStyle}>
-          🎨 Switch to {themeType === 'light' ? 'Dark' : 'Light'} Mode
+          🎨 Switch to {themeType === "light" ? "Dark" : "Light"} Mode
         </Text>
       </TouchableOpacity>
-      
-      <TouchableOpacity onPress={handleLogout} style={[theme.button, { backgroundColor: '#dc3545' }]}>
-        <Text style={[theme.buttonTextStyle, { color: '#fff' }]}>🚪 Logout & Disconnect</Text>
+
+      <TouchableOpacity
+        onPress={handleLogout}
+        style={[theme.button, { backgroundColor: "#dc3545" }]}
+      >
+        <Text style={[theme.buttonTextStyle, { color: "#fff" }]}>
+          🚪 Logout & Disconnect
+        </Text>
       </TouchableOpacity>
     </ScrollView>
   );

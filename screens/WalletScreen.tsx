@@ -75,58 +75,85 @@ export default function WalletScreen({ navigation }: Props) {
 
   if (address) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      <View
+        style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+      >
         {/* Logo */}
         <Image
-          source={require('../assets/puzzle_rocket_no_background.png')}
+          source={require("../assets/puzzle_rocket_no_background.png")}
           style={styles.logo}
           resizeMode="contain"
         />
-        
+
         {/* Title */}
         <Text style={theme.title}>Fuse</Text>
-        
+
         {/* Gimmick */}
         <Text style={theme.subtitle}>Connected & Ready to Launch</Text>
-        
-        <Text style={{ color: theme.textColor, textAlign: 'center', marginBottom: 30 }}>
+
+        <Text
+          style={{
+            color: theme.textColor,
+            textAlign: "center",
+            marginBottom: 30,
+          }}
+        >
           Wallet: {address.slice(0, 6)}...{address.slice(-4)}
         </Text>
-        
-        <TouchableOpacity style={theme.button} onPress={() => navigation.navigate("SignIn")}>
+
+        <TouchableOpacity
+          style={theme.button}
+          onPress={() => navigation.navigate("SignIn")}
+        >
           <Text style={theme.buttonTextStyle}>🚀 Proceed to Fuse</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity style={[theme.button, { backgroundColor: 'red', marginTop: 10 }]} onPress={handleDisconnect}>
-          <Text style={[theme.buttonTextStyle, { color: 'white' }]}>Disconnect</Text>
+
+        <TouchableOpacity
+          style={[theme.button, { backgroundColor: "red", marginTop: 10 }]}
+          onPress={handleDisconnect}
+        >
+          <Text style={[theme.buttonTextStyle, { color: "white" }]}>
+            Disconnect
+          </Text>
         </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+    >
       {/* Logo */}
       <Image
-        source={require('../assets/puzzle_rocket_no_background.png')}
+        source={require("../assets/puzzle_rocket_no_background.png")}
         style={styles.logo}
         resizeMode="contain"
       />
-      
+
       {/* Title */}
       <Text style={theme.title}>Fuse</Text>
-      
+
       {/* Gimmick */}
       <Text style={theme.subtitle}>Connect your network pieces</Text>
-      
-      <Text style={{ color: theme.textColor, textAlign: 'center', marginBottom: 30, fontSize: 16 }}>
+
+      <Text
+        style={{
+          color: theme.textColor,
+          textAlign: "center",
+          marginBottom: 30,
+          fontSize: 16,
+        }}
+      >
         Piece together connections that launch your social network into orbit
       </Text>
-      
+
       {isConnecting ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.buttonBackground} />
-          <Text style={[styles.loadingText, { color: theme.textColor }]}>Connecting to MetaMask...</Text>
+          <Text style={[styles.loadingText, { color: theme.textColor }]}>
+            Connecting to MetaMask...
+          </Text>
         </View>
       ) : (
         <TouchableOpacity style={theme.button} onPress={handleConnect}>

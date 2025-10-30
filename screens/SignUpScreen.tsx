@@ -101,7 +101,14 @@ const MBTI_SUGGESTIONS = [
 ];
 
 export default function SignUpScreen({ navigation }: Props) {
-  const { address, updateUserData, isInitialized, signIn, isRegistered, checkRegistration } = useWallet();
+  const {
+    address,
+    updateUserData,
+    isInitialized,
+    signIn,
+    isRegistered,
+    checkRegistration,
+  } = useWallet();
   const { theme } = useTheme();
   console.log(
     "SignUpScreen rendered with address:",
@@ -112,7 +119,9 @@ export default function SignUpScreen({ navigation }: Props) {
 
   if (!isInitialized) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      <View
+        style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+      >
         <Text style={{ color: theme.textColor }}>Loading wallet...</Text>
       </View>
     );
@@ -747,7 +756,9 @@ export default function SignUpScreen({ navigation }: Props) {
   const wordCount = bio.split(" ").filter((word) => word.length > 0).length;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+    >
       {/* Transaction Loading Modal with Rocket Ship */}
       <Modal
         visible={isTransactionLoading}
@@ -794,9 +805,13 @@ export default function SignUpScreen({ navigation }: Props) {
             </Text>
           </View>
         )}
-        <Text style={[styles.title, { color: theme.textColor }]}>Create Your Fuse Profile</Text>
+        <Text style={[styles.title, { color: theme.textColor }]}>
+          Create Your Fuse Profile
+        </Text>
         {/* Basic Information */}
-        <Text style={[styles.sectionTitle, { color: theme.textColor }]}>Basic Information</Text>
+        <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
+          Basic Information
+        </Text>
         <TextInput
           style={styles.input}
           placeholder="First Name"

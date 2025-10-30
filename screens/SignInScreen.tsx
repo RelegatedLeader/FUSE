@@ -1,5 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Button, StyleSheet, Alert, TouchableOpacity } from "react-native";
+import {
+  View,
+  Text,
+  Button,
+  StyleSheet,
+  Alert,
+  TouchableOpacity,
+} from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { StackNavigationProp } from "@react-navigation/stack";
@@ -101,17 +108,27 @@ export default function SignInScreen({ navigation }: Props) {
 
   if (loading) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      <View
+        style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+      >
         <Text style={{ color: theme.textColor }}>Loading...</Text>
       </View>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+    >
       <Text style={theme.title}>Welcome to Fuse</Text>
       <Text style={theme.subtitle}>Piece together your social network</Text>
-      <Text style={{ color: theme.textColor, textAlign: 'center', marginBottom: 30 }}>
+      <Text
+        style={{
+          color: theme.textColor,
+          textAlign: "center",
+          marginBottom: 30,
+        }}
+      >
         Wallet: {address?.slice(0, 6)}...{address?.slice(-4)}
       </Text>
       <TouchableOpacity style={theme.button} onPress={handleSignIn}>

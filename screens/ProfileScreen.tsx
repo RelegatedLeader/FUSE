@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Image, ScrollView, Alert } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  ScrollView,
+  Alert,
+} from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import * as ImagePicker from "expo-image-picker";
@@ -31,7 +39,7 @@ export default function ProfileScreen() {
     try {
       const data: any = await getUserData(address);
       // Parse bio if it's JSON
-      if (data.bio && data.bio.startsWith('{')) {
+      if (data.bio && data.bio.startsWith("{")) {
         try {
           const bioObj = JSON.parse(data.bio);
           data.parsedBio = bioObj.bio || data.bio;
@@ -45,7 +53,10 @@ export default function ProfileScreen() {
       setUserData(data);
     } catch (error) {
       console.error("Error loading user data:", error);
-      Alert.alert("Error", "Failed to load user data: " + (error as Error).message);
+      Alert.alert(
+        "Error",
+        "Failed to load user data: " + (error as Error).message
+      );
     } finally {
       setLoading(false);
     }
@@ -55,7 +66,9 @@ export default function ProfileScreen() {
     try {
       const stored = await AsyncStorage.getItem(`photos_${address}`);
       if (stored) {
-        const decrypted = CryptoJS.AES.decrypt(stored, address).toString(CryptoJS.enc.Utf8);
+        const decrypted = CryptoJS.AES.decrypt(stored, address).toString(
+          CryptoJS.enc.Utf8
+        );
         setPhotos(JSON.parse(decrypted));
       }
     } catch (error) {
@@ -65,7 +78,10 @@ export default function ProfileScreen() {
 
   const savePhotos = async (newPhotos: string[]) => {
     try {
-      const encrypted = CryptoJS.AES.encrypt(JSON.stringify(newPhotos), address).toString();
+      const encrypted = CryptoJS.AES.encrypt(
+        JSON.stringify(newPhotos),
+        address
+      ).toString();
       await AsyncStorage.setItem(`photos_${address}`, encrypted);
     } catch (error) {
       console.error("Error saving photos:", error);
@@ -92,21 +108,17 @@ export default function ProfileScreen() {
   };
 
   const deletePhoto = async (index: number) => {
-    Alert.alert(
-      "Delete Photo",
-      "Are you sure you want to delete this photo?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          onPress: async () => {
-            const newPhotos = photos.filter((_, i) => i !== index);
-            setPhotos(newPhotos);
-            await savePhotos(newPhotos);
-          },
+    Alert.alert("Delete Photo", "Are you sure you want to delete this photo?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        onPress: async () => {
+          const newPhotos = photos.filter((_, i) => i !== index);
+          setPhotos(newPhotos);
+          await savePhotos(newPhotos);
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const togglePreference = (key: string) => {
@@ -114,59 +126,134 @@ export default function ProfileScreen() {
   };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+    >
       <Text style={theme.title}>Your Profile</Text>
-      {loading && <Text style={{ color: theme.textColor }}>Loading your network data...</Text>}
+      {loading && (
+        <Text style={{ color: theme.textColor }}>
+          Loading your network data...
+        </Text>
+      )}
       {userData && (
         <View style={theme.card}>
-          <Text style={[styles.label, { color: theme.textColor }]}>👤 Name: {userData.name}</Text>
-          {userData.age !== null && <Text style={[styles.label, { color: theme.textColor }]}>🎂 Age: {userData.age}</Text>}
-          <Text style={[styles.label, { color: theme.textColor }]}>📍 City: {userData.city}</Text>
-          <Text style={[styles.label, { color: theme.textColor }]}>🧠 MBTI: {userData.mbti}</Text>
-          <Text style={[styles.label, { color: theme.textColor }]}>⚧️ Gender: {userData.gender}</Text>
+          <Text style={[styles.label, { color: theme.textColor }]}>
+            👤 Name: {userData.name}
+          </Text>
+          {userData.age !== null && (
+            <Text style={[styles.label, { color: theme.textColor }]}>
+              🎂 Age: {userData.age}
+            </Text>
+          )}
+          <Text style={[styles.label, { color: theme.textColor }]}>
+            📍 City: {userData.city}
+          </Text>
+          <Text style={[styles.label, { color: theme.textColor }]}>
+            🧠 MBTI: {userData.mbti}
+          </Text>
+          <Text style={[styles.label, { color: theme.textColor }]}>
+            ⚧️ Gender: {userData.gender}
+          </Text>
           {userData.parsedBio && (
             <View>
-              <Text style={[styles.label, { color: theme.textColor }]}>📝 Bio:</Text>
-              <Text style={[styles.bioText, { color: theme.textColor }]}>{userData.parsedBio}</Text>
+              <Text style={[styles.label, { color: theme.textColor }]}>
+                📝 Bio:
+              </Text>
+              <Text style={[styles.bioText, { color: theme.textColor }]}>
+                {userData.parsedBio}
+              </Text>
             </View>
           )}
           {userData.personality && (
             <View>
-              <Text style={[styles.label, { color: theme.textColor }]}>🧩 Personality Traits:</Text>
-              <Text style={{ color: theme.textColor }}>Extroversion: {userData.personality.extroversion?.toFixed(1)}%</Text>
-              <Text style={{ color: theme.textColor }}>Openness: {userData.personality.openness?.toFixed(1)}%</Text>
-              <Text style={{ color: theme.textColor }}>Conscientiousness: {userData.personality.conscientiousness?.toFixed(1)}%</Text>
-              <Text style={{ color: theme.textColor }}>Agreeableness: {userData.personality.agreeableness?.toFixed(1)}%</Text>
-              <Text style={{ color: theme.textColor }}>Neuroticism: {userData.personality.neuroticism?.toFixed(1)}%</Text>
+              <Text style={[styles.label, { color: theme.textColor }]}>
+                🧩 Personality Traits:
+              </Text>
+              <Text style={{ color: theme.textColor }}>
+                Extroversion: {userData.personality.extroversion?.toFixed(1)}%
+              </Text>
+              <Text style={{ color: theme.textColor }}>
+                Openness: {userData.personality.openness?.toFixed(1)}%
+              </Text>
+              <Text style={{ color: theme.textColor }}>
+                Conscientiousness:{" "}
+                {userData.personality.conscientiousness?.toFixed(1)}%
+              </Text>
+              <Text style={{ color: theme.textColor }}>
+                Agreeableness: {userData.personality.agreeableness?.toFixed(1)}%
+              </Text>
+              <Text style={{ color: theme.textColor }}>
+                Neuroticism: {userData.personality.neuroticism?.toFixed(1)}%
+              </Text>
             </View>
           )}
-          <Text style={[styles.immutableNote, { color: 'red' }]}>🔒 This data is immutable and stored on the Polygon blockchain.</Text>
+          <Text style={[styles.immutableNote, { color: "red" }]}>
+            🔒 This data is immutable and stored on the Polygon blockchain.
+          </Text>
         </View>
       )}
-      {!loading && !userData && <Text style={{ color: theme.textColor }}>No profile data found. Complete sign-up to connect your pieces!</Text>}
+      {!loading && !userData && (
+        <Text style={{ color: theme.textColor }}>
+          No profile data found. Complete sign-up to connect your pieces!
+        </Text>
+      )}
       <View style={styles.photosContainer}>
-        <Text style={{ color: theme.textColor, fontSize: 18, fontWeight: 'bold', marginBottom: 10 }}>📸 Your Photos (up to 4 pieces)</Text>
+        <Text
+          style={{
+            color: theme.textColor,
+            fontSize: 18,
+            fontWeight: "bold",
+            marginBottom: 10,
+          }}
+        >
+          📸 Your Photos (up to 4 pieces)
+        </Text>
         <View style={styles.photosGrid}>
           {photos.map((uri, index) => (
             <View key={index} style={styles.photoContainer}>
               <Image source={{ uri }} style={styles.photo} />
-              <TouchableOpacity style={styles.deleteButton} onPress={() => deletePhoto(index)}>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => deletePhoto(index)}
+              >
                 <Text style={styles.deleteText}>❌</Text>
               </TouchableOpacity>
             </View>
           ))}
         </View>
-        <TouchableOpacity onPress={pickImage} style={[theme.button, { marginTop: 10 }]}>
+        <TouchableOpacity
+          onPress={pickImage}
+          style={[theme.button, { marginTop: 10 }]}
+        >
           <Text style={theme.buttonTextStyle}>📷 Add Photo Piece</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.preferencesContainer}>
-        <Text style={{ color: theme.textColor, fontSize: 18, fontWeight: 'bold', marginBottom: 10 }}>⚙️ Connection Preferences</Text>
-        <TouchableOpacity onPress={() => togglePreference('showAge')} style={[theme.button, { padding: 12 }]}>
-          <Text style={theme.buttonTextStyle}>Show Age: {preferences.showAge ? 'Yes' : 'No'}</Text>
+        <Text
+          style={{
+            color: theme.textColor,
+            fontSize: 18,
+            fontWeight: "bold",
+            marginBottom: 10,
+          }}
+        >
+          ⚙️ Connection Preferences
+        </Text>
+        <TouchableOpacity
+          onPress={() => togglePreference("showAge")}
+          style={[theme.button, { padding: 12 }]}
+        >
+          <Text style={theme.buttonTextStyle}>
+            Show Age: {preferences.showAge ? "Yes" : "No"}
+          </Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => togglePreference('showLocation')} style={[theme.button, { padding: 12 }]}>
-          <Text style={theme.buttonTextStyle}>Show Location: {preferences.showLocation ? 'Yes' : 'No'}</Text>
+        <TouchableOpacity
+          onPress={() => togglePreference("showLocation")}
+          style={[theme.button, { padding: 12 }]}
+        >
+          <Text style={theme.buttonTextStyle}>
+            Show Location: {preferences.showLocation ? "Yes" : "No"}
+          </Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -177,15 +264,24 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: 20 },
   title: { fontSize: 24, marginBottom: 20 },
   dataContainer: { marginBottom: 20 },
-  label: { fontSize: 16, fontWeight: 'bold', marginBottom: 5 },
+  label: { fontSize: 16, fontWeight: "bold", marginBottom: 5 },
   bioText: { fontSize: 14, marginBottom: 10 },
-  immutableNote: { fontStyle: 'italic', color: 'red' },
+  immutableNote: { fontStyle: "italic", color: "red" },
   photosContainer: { marginBottom: 20 },
-  photosGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  photoContainer: { position: 'relative', margin: 5 },
+  photosGrid: { flexDirection: "row", flexWrap: "wrap" },
+  photoContainer: { position: "relative", margin: 5 },
   photo: { width: 100, height: 100 },
-  deleteButton: { position: 'absolute', top: 0, right: 0, backgroundColor: 'red', width: 20, height: 20, justifyContent: 'center', alignItems: 'center' },
-  deleteText: { color: 'white', fontSize: 12 },
-  addPhoto: { padding: 10, backgroundColor: 'lightblue', margin: 5 },
+  deleteButton: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    backgroundColor: "red",
+    width: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  deleteText: { color: "white", fontSize: 12 },
+  addPhoto: { padding: 10, backgroundColor: "lightblue", margin: 5 },
   preferencesContainer: { marginBottom: 20 },
 });
