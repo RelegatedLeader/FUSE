@@ -98,6 +98,80 @@ const ABI = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+    ],
+    name: "userData",
+    outputs: [
+      {
+        internalType: "string",
+        name: "encryptedFirstName",
+        type: "string",
+      },
+      {
+        internalType: "string",
+        name: "encryptedLastName",
+        type: "string",
+      },
+      {
+        internalType: "string",
+        name: "encryptedBirthdate",
+        type: "string",
+      },
+      {
+        internalType: "string",
+        name: "encryptedGender",
+        type: "string",
+      },
+      {
+        internalType: "string",
+        name: "encryptedLocation",
+        type: "string",
+      },
+      {
+        internalType: "string",
+        name: "encryptedID",
+        type: "string",
+      },
+      {
+        internalType: "string",
+        name: "encryptedTraits",
+        type: "string",
+      },
+      {
+        internalType: "string",
+        name: "encryptedMBTI",
+        type: "string",
+      },
+      {
+        internalType: "uint256",
+        name: "lastUpdate",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "interactionCount",
+        type: "uint256",
+      },
+      {
+        internalType: "bool",
+        name: "isVerified",
+        type: "bool",
+      },
+      {
+        internalType: "bool",
+        name: "isRegistered",
+        type: "bool",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     anonymous: false,
     inputs: [
       {
@@ -145,8 +219,14 @@ export const encryptData = (data: string): string => {
 };
 
 export const decryptData = (encryptedData: string): string => {
-  const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
-  return bytes.toString(CryptoJS.enc.Utf8);
+  if (!encryptedData) return "";
+  try {
+    const bytes = CryptoJS.AES.decrypt(encryptedData, ENCRYPTION_KEY);
+    return bytes.toString(CryptoJS.enc.Utf8);
+  } catch (error) {
+    console.error("Decryption failed:", error);
+    return "";
+  }
 };
 
 export const getContract = (
@@ -699,35 +779,54 @@ export const isUserRegistered = async (provider: any, userAddress: string) => {
 };
 
 export const getUserData = async (userAddress: string) => {
+  console.log("Getting user data for:", userAddress);
   const contract = getContract(publicProvider, undefined, true);
-  const data = await contract.userData(userAddress);
-  // Decrypt the data
-  const decrypted = {
-    firstName: CryptoJS.AES.decrypt(data.encryptedFirstName, userAddress).toString(CryptoJS.enc.Utf8),
-    lastName: CryptoJS.AES.decrypt(data.encryptedLastName, userAddress).toString(CryptoJS.enc.Utf8),
-    birthdate: CryptoJS.AES.decrypt(data.encryptedBirthdate, userAddress).toString(CryptoJS.enc.Utf8),
-    gender: CryptoJS.AES.decrypt(data.encryptedGender, userAddress).toString(CryptoJS.enc.Utf8),
-    location: CryptoJS.AES.decrypt(data.encryptedLocation, userAddress).toString(CryptoJS.enc.Utf8),
-    id: CryptoJS.AES.decrypt(data.encryptedID, userAddress).toString(CryptoJS.enc.Utf8),
-    traits: CryptoJS.AES.decrypt(data.encryptedTraits, userAddress).toString(CryptoJS.enc.Utf8),
-    mbti: CryptoJS.AES.decrypt(data.encryptedMBTI, userAddress).toString(CryptoJS.enc.Utf8),
-    arweaveTxId: data.arweaveTxId,
-    lastUpdate: data.lastUpdate,
-    interactionCount: data.interactionCount,
-    isVerified: data.isVerified,
-    isRegistered: data.isRegistered,
-  };
-  // Calculate age from birthdate
-  const birthYear = new Date(decrypted.birthdate).getFullYear();
-  const currentYear = new Date().getFullYear();
-  const age = currentYear - birthYear;
-  return {
-    name: `${decrypted.firstName} ${decrypted.lastName}`,
-    age,
-    city: decrypted.location,
-    bio: decrypted.traits,
-    ...decrypted,
-  };
+  console.log("Contract:", contract.address);
+  try {
+    const data = await contract.userData(userAddress);
+    console.log("Raw data from contract:", data);
+    // Decrypt the data
+    const decrypted = {
+      firstName: decryptData(data.encryptedFirstName),
+      lastName: decryptData(data.encryptedLastName),
+      birthdate: decryptData(data.encryptedBirthdate),
+      gender: decryptData(data.encryptedGender),
+      location: decryptData(data.encryptedLocation),
+      id: decryptData(data.encryptedID),
+      traits: decryptData(data.encryptedTraits),
+      mbti: decryptData(data.encryptedMBTI),
+      lastUpdate: data.lastUpdate,
+      interactionCount: data.interactionCount,
+      isVerified: data.isVerified,
+      isRegistered: data.isRegistered,
+    };
+    console.log("Decrypted data:", decrypted);
+    // Calculate age from birthdate
+    let age = null;
+    if (decrypted.birthdate) {
+      try {
+        // Parse MM/DD/YYYY
+        const [month, day, year] = decrypted.birthdate.split('/');
+        const birthDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        if (!isNaN(birthDate.getTime())) {
+          const currentYear = new Date().getFullYear();
+          age = currentYear - birthDate.getFullYear();
+        }
+      } catch (error) {
+        console.error("Error parsing birthdate:", error);
+      }
+    }
+    return {
+      name: `${decrypted.firstName} ${decrypted.lastName}`,
+      age,
+      city: decrypted.location,
+      bio: decrypted.traits,
+      ...decrypted,
+    };
+  } catch (error) {
+    console.error("Error in getUserData:", error);
+    throw error;
+  }
 };
 
 // Arweave upload function using Bundlr with MATIC
