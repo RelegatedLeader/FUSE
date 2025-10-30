@@ -11,63 +11,142 @@ interface Theme {
   buttonText: string;
   container: ViewStyle;
   title: TextStyle;
+  subtitle: TextStyle;
   button: ViewStyle;
   buttonTextStyle: TextStyle;
+  card: ViewStyle;
+  input: ViewStyle;
 }
 
 const lightTheme: Theme = {
-  backgroundColor: '#FFF8DC', // Brighter vanilla/cream
-  textColor: '#000000',
-  buttonBackground: '#D2B48C', // Tan
-  buttonText: '#000000',
+  backgroundColor: '#bfcafd', // Light blue theme
+  textColor: '#1b1a36',
+  buttonBackground: '#8b9dc3',
+  buttonText: '#ffffff',
   container: {
     flex: 1,
-    backgroundColor: '#FFF8DC',
+    backgroundColor: '#bfcafd',
     padding: 20,
   },
   title: {
-    fontSize: 24,
-    color: '#000000',
+    fontSize: 32,
+    color: '#1b1a36',
+    marginBottom: 10,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontFamily: 'System', // Will use default but can be customized
+  },
+  subtitle: {
+    fontSize: 18,
+    color: '#1b1a36',
     marginBottom: 20,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    opacity: 0.8,
   },
   button: {
     padding: 15,
-    backgroundColor: '#D2B48C',
-    borderRadius: 5,
+    backgroundColor: '#8b9dc3',
+    borderRadius: 25,
     marginBottom: 10,
     alignItems: 'center',
+    shadowColor: '#1b1a36',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   buttonTextStyle: {
-    color: '#000000',
+    color: '#ffffff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  card: {
+    backgroundColor: '#ffffff',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 15,
+    shadowColor: '#1b1a36',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  input: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 15,
+    borderWidth: 2,
+    borderColor: '#8b9dc3',
+    fontSize: 16,
+    color: '#1b1a36',
   },
 };
 
 const darkTheme: Theme = {
-  backgroundColor: '#2C2C2C', // Cool gray
-  textColor: '#FFFFFF',
-  buttonBackground: '#555555',
-  buttonText: '#FFFFFF',
+  backgroundColor: '#1b1a36', // Dark blue/purple theme
+  textColor: '#bfcafd',
+  buttonBackground: '#3d4a6b',
+  buttonText: '#bfcafd',
   container: {
     flex: 1,
-    backgroundColor: '#2C2C2C',
+    backgroundColor: '#1b1a36',
     padding: 20,
   },
   title: {
-    fontSize: 24,
-    color: '#FFFFFF',
+    fontSize: 32,
+    color: '#bfcafd',
+    marginBottom: 10,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    fontFamily: 'System',
+  },
+  subtitle: {
+    fontSize: 18,
+    color: '#bfcafd',
     marginBottom: 20,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    opacity: 0.8,
   },
   button: {
     padding: 15,
-    backgroundColor: '#555555',
-    borderRadius: 5,
+    backgroundColor: '#3d4a6b',
+    borderRadius: 25,
     marginBottom: 10,
     alignItems: 'center',
+    shadowColor: '#bfcafd',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
   buttonTextStyle: {
-    color: '#FFFFFF',
+    color: '#bfcafd',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  card: {
+    backgroundColor: '#2a2847',
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 15,
+    shadowColor: '#bfcafd',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  input: {
+    backgroundColor: '#2a2847',
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 15,
+    borderWidth: 2,
+    borderColor: '#3d4a6b',
+    fontSize: 16,
+    color: '#bfcafd',
   },
 };
 

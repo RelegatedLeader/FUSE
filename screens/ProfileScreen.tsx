@@ -115,24 +115,24 @@ export default function ProfileScreen() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      <Text style={[styles.title, { color: theme.textColor }]}>Profile</Text>
-      {loading && <Text style={{ color: theme.textColor }}>Loading user data...</Text>}
+      <Text style={theme.title}>Your Profile</Text>
+      {loading && <Text style={{ color: theme.textColor }}>Loading your network data...</Text>}
       {userData && (
-        <View style={styles.dataContainer}>
-          <Text style={[styles.label, { color: theme.textColor }]}>Name: {userData.name}</Text>
-          {userData.age !== null && <Text style={[styles.label, { color: theme.textColor }]}>Age: {userData.age}</Text>}
-          <Text style={[styles.label, { color: theme.textColor }]}>City: {userData.city}</Text>
-          <Text style={[styles.label, { color: theme.textColor }]}>MBTI: {userData.mbti}</Text>
-          <Text style={[styles.label, { color: theme.textColor }]}>Gender: {userData.gender}</Text>
+        <View style={theme.card}>
+          <Text style={[styles.label, { color: theme.textColor }]}>👤 Name: {userData.name}</Text>
+          {userData.age !== null && <Text style={[styles.label, { color: theme.textColor }]}>🎂 Age: {userData.age}</Text>}
+          <Text style={[styles.label, { color: theme.textColor }]}>📍 City: {userData.city}</Text>
+          <Text style={[styles.label, { color: theme.textColor }]}>🧠 MBTI: {userData.mbti}</Text>
+          <Text style={[styles.label, { color: theme.textColor }]}>⚧️ Gender: {userData.gender}</Text>
           {userData.parsedBio && (
             <View>
-              <Text style={[styles.label, { color: theme.textColor }]}>Bio:</Text>
+              <Text style={[styles.label, { color: theme.textColor }]}>📝 Bio:</Text>
               <Text style={[styles.bioText, { color: theme.textColor }]}>{userData.parsedBio}</Text>
             </View>
           )}
           {userData.personality && (
             <View>
-              <Text style={[styles.label, { color: theme.textColor }]}>Personality Traits:</Text>
+              <Text style={[styles.label, { color: theme.textColor }]}>🧩 Personality Traits:</Text>
               <Text style={{ color: theme.textColor }}>Extroversion: {userData.personality.extroversion?.toFixed(1)}%</Text>
               <Text style={{ color: theme.textColor }}>Openness: {userData.personality.openness?.toFixed(1)}%</Text>
               <Text style={{ color: theme.textColor }}>Conscientiousness: {userData.personality.conscientiousness?.toFixed(1)}%</Text>
@@ -140,33 +140,33 @@ export default function ProfileScreen() {
               <Text style={{ color: theme.textColor }}>Neuroticism: {userData.personality.neuroticism?.toFixed(1)}%</Text>
             </View>
           )}
-          <Text style={[styles.immutableNote, { color: 'red' }]}>This data is immutable and stored on the Polygon blockchain.</Text>
+          <Text style={[styles.immutableNote, { color: 'red' }]}>🔒 This data is immutable and stored on the Polygon blockchain.</Text>
         </View>
       )}
-      {!loading && !userData && <Text style={{ color: theme.textColor }}>No user data found. Please sign up first.</Text>}
+      {!loading && !userData && <Text style={{ color: theme.textColor }}>No profile data found. Complete sign-up to connect your pieces!</Text>}
       <View style={styles.photosContainer}>
-        <Text style={{ color: theme.textColor }}>Photos (up to 4):</Text>
+        <Text style={{ color: theme.textColor, fontSize: 18, fontWeight: 'bold', marginBottom: 10 }}>📸 Your Photos (up to 4 pieces)</Text>
         <View style={styles.photosGrid}>
           {photos.map((uri, index) => (
             <View key={index} style={styles.photoContainer}>
               <Image source={{ uri }} style={styles.photo} />
               <TouchableOpacity style={styles.deleteButton} onPress={() => deletePhoto(index)}>
-                <Text style={styles.deleteText}>X</Text>
+                <Text style={styles.deleteText}>❌</Text>
               </TouchableOpacity>
             </View>
           ))}
         </View>
-        <TouchableOpacity onPress={pickImage} style={[styles.addPhoto, { backgroundColor: theme.buttonBackground }]}>
-          <Text style={{ color: theme.buttonText }}>Add Photo</Text>
+        <TouchableOpacity onPress={pickImage} style={[theme.button, { marginTop: 10 }]}>
+          <Text style={theme.buttonTextStyle}>📷 Add Photo Piece</Text>
         </TouchableOpacity>
       </View>
       <View style={styles.preferencesContainer}>
-        <Text style={{ color: theme.textColor }}>Preferences:</Text>
-        <TouchableOpacity onPress={() => togglePreference('showAge')}>
-          <Text style={{ color: theme.textColor }}>Show Age: {preferences.showAge ? 'Yes' : 'No'}</Text>
+        <Text style={{ color: theme.textColor, fontSize: 18, fontWeight: 'bold', marginBottom: 10 }}>⚙️ Connection Preferences</Text>
+        <TouchableOpacity onPress={() => togglePreference('showAge')} style={[theme.button, { padding: 12 }]}>
+          <Text style={theme.buttonTextStyle}>Show Age: {preferences.showAge ? 'Yes' : 'No'}</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => togglePreference('showLocation')}>
-          <Text style={{ color: theme.textColor }}>Show Location: {preferences.showLocation ? 'Yes' : 'No'}</Text>
+        <TouchableOpacity onPress={() => togglePreference('showLocation')} style={[theme.button, { padding: 12 }]}>
+          <Text style={theme.buttonTextStyle}>Show Location: {preferences.showLocation ? 'Yes' : 'No'}</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

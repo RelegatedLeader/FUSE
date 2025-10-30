@@ -39,15 +39,16 @@ export default function SettingsScreen() {
   return (
     <ScrollView style={theme.container}>
       <Text style={theme.title}>Settings</Text>
+      <Text style={theme.subtitle}>Customize your network experience</Text>
       
       <TouchableOpacity onPress={toggleTheme} style={theme.button}>
         <Text style={theme.buttonTextStyle}>
-          Switch to {themeType === 'light' ? 'Dark' : 'Light'} Theme
+          🎨 Switch to {themeType === 'light' ? 'Dark' : 'Light'} Mode
         </Text>
       </TouchableOpacity>
       
-      <TouchableOpacity onPress={handleLogout} style={[theme.button, { backgroundColor: 'red' }]}>
-        <Text style={[theme.buttonTextStyle, { color: 'white' }]}>Logout</Text>
+      <TouchableOpacity onPress={handleLogout} style={[theme.button, { backgroundColor: '#dc3545' }]}>
+        <Text style={[theme.buttonTextStyle, { color: '#fff' }]}>🚪 Logout & Disconnect</Text>
       </TouchableOpacity>
     </ScrollView>
   );

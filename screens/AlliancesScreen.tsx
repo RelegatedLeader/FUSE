@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, TextInput, Button, StyleSheet } from "react-native";
+import { View, Text, TextInput, Button, StyleSheet, TouchableOpacity } from "react-native";
 import { useTheme } from "../contexts/ThemeContext";
 
 export default function AlliancesScreen() {
@@ -12,16 +12,24 @@ export default function AlliancesScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      <Text style={[styles.title, { color: theme.textColor }]}>Alliances</Text>
+      <Text style={theme.title}>Alliances</Text>
+      <Text style={theme.subtitle}>Form powerful network connections</Text>
+      <Text style={{ color: theme.textColor, textAlign: 'center', marginBottom: 20, fontSize: 16 }}>
+        🤝 Connect with 4 compatible pieces to unlock alliance powers
+      </Text>
       <TextInput
-        style={[styles.input, { backgroundColor: theme.buttonBackground, color: theme.buttonText, borderColor: theme.textColor }]}
-        placeholder="AI Search for groups"
+        style={theme.input}
+        placeholder="🔍 AI Search for alliance partners"
         placeholderTextColor={theme.textColor}
         value={search}
         onChangeText={setSearch}
       />
-      <Button title="Search" onPress={handleSearch} />
-      <Text style={{ color: theme.textColor }}>Form alliances with 4 compatible people.</Text>
+      <TouchableOpacity style={theme.button} onPress={handleSearch}>
+        <Text style={theme.buttonTextStyle}>🔍 Search & Connect</Text>
+      </TouchableOpacity>
+      <Text style={{ color: theme.textColor, textAlign: 'center', marginTop: 20, fontSize: 16 }}>
+        Build your alliance network and unlock new social dimensions!
+      </Text>
     </View>
   );
 }

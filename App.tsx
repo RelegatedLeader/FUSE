@@ -73,19 +73,19 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
         <View style={[styles.header, { backgroundColor: theme.backgroundColor }]}>
           <TouchableOpacity onPress={() => setMenuOpen(!menuOpen)} style={styles.menuButton}>
             <Text style={[styles.headerText, { color: theme.textColor }]}>
-              Wallet: {address.slice(0, 6)}...{address.slice(-4)} ▼
+              🔗 {address.slice(0, 6)}...{address.slice(-4)} ▼
             </Text>
           </TouchableOpacity>
           {menuOpen && (
-            <View style={[styles.dropdown, { backgroundColor: theme.backgroundColor }]}>
+            <View style={[styles.dropdown, { backgroundColor: theme.card.backgroundColor, borderColor: theme.buttonBackground }]}>
               <TouchableOpacity onPress={navigateToProfile} style={[styles.dropdownItem, { borderBottomColor: theme.buttonBackground }]}>
-                <Text style={{ color: theme.textColor }}>Profile</Text>
+                <Text style={{ color: theme.textColor }}>👤 Profile</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={openSettings} style={[styles.dropdownItem, { borderBottomColor: theme.buttonBackground }]}>
-                <Text style={{ color: theme.textColor }}>Settings</Text>
+                <Text style={{ color: theme.textColor }}>⚙️ Settings</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handleDisconnect} style={[styles.dropdownItem, { borderBottomColor: theme.buttonBackground }]}>
-                <Text style={{ color: theme.textColor }}>Logout</Text>
+                <Text style={{ color: theme.textColor }}>🚪 Logout</Text>
               </TouchableOpacity>
             </View>
           )}

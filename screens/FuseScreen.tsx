@@ -67,7 +67,9 @@ export default function FuseScreen() {
   if (!currentUser) {
     return (
       <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-        <Text style={{ color: theme.textColor }}>No more users to match with.</Text>
+        <Text style={{ color: theme.textColor, textAlign: 'center', fontSize: 18 }}>
+          🔍 No more pieces to connect with right now.{'\n'}Check back later to expand your network!
+        </Text>
       </View>
     );
   }
@@ -75,23 +77,23 @@ export default function FuseScreen() {
   return (
     <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={[styles.card, { backgroundColor: theme.buttonBackground }]}>
+        <View style={theme.card}>
           <TouchableOpacity onPress={() => setShowBio(!showBio)} style={[styles.leftTap, { backgroundColor: theme.buttonBackground }]}>
-            <Text style={{ color: theme.buttonText }}>Tap for Bio</Text>
+            <Text style={{ color: theme.buttonText, fontSize: 14 }}>🔍 View Bio</Text>
           </TouchableOpacity>
           <View style={styles.userInfo}>
             <Text style={[styles.name, { color: theme.textColor }]}>{currentUser.name}, {currentUser.age}</Text>
-            <Text style={{ color: theme.textColor }}>{currentUser.city}</Text>
+            <Text style={{ color: theme.textColor, fontSize: 16 }}>📍 {currentUser.city}</Text>
             {showBio && <Text style={[styles.bio, { color: theme.textColor }]}>{currentUser.bio}</Text>}
           </View>
-          <TouchableOpacity onPress={handleFuse} style={[styles.fuseButton, { backgroundColor: theme.buttonBackground }]}>
-            <Animated.Text style={[styles.fuseText, { color: theme.buttonText }, { transform: [{ scale: fuseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.5] }) }] }]}>
-              🚀 Fuse
+          <TouchableOpacity onPress={handleFuse} style={[theme.button, { marginTop: 20 }]}>
+            <Animated.Text style={[theme.buttonTextStyle, { transform: [{ scale: fuseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 1.5] }) }] }]}>
+              🚀 Fuse & Connect
             </Animated.Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={handleSkip} style={[styles.skipButton, { backgroundColor: theme.buttonBackground }]}>
-          <Text style={{ color: theme.buttonText }}>Skip</Text>
+        <TouchableOpacity onPress={handleSkip} style={[theme.button, { backgroundColor: '#666' }]}>
+          <Text style={[theme.buttonTextStyle, { color: '#fff' }]}>⏭️ Skip for Now</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
