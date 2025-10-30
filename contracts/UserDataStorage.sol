@@ -11,6 +11,7 @@ contract UserDataStorage {
         string encryptedID;
         string encryptedTraits;
         string encryptedMBTI;
+        string arweaveTxId;
         uint256 lastUpdate;
         uint256 interactionCount;
         bool isVerified;
@@ -26,6 +27,7 @@ contract UserDataStorage {
         string encryptedID;
         string encryptedTraits;
         string encryptedMBTI;
+        string arweaveTxId;
     }
 
     mapping(address => UserData) public userData;
@@ -49,6 +51,9 @@ contract UserDataStorage {
             user.isVerified = true;
         }
         user.encryptedTraits = input.encryptedTraits;
+        if (bytes(input.arweaveTxId).length > 0) {
+            user.arweaveTxId = input.arweaveTxId;
+        }
         user.lastUpdate = block.timestamp;
         user.interactionCount += 1;
         emit DataUpdated(msg.sender, block.timestamp);

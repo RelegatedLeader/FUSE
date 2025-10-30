@@ -429,13 +429,13 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const signIn = async () => {
     if (!signClient || !sessionTopic || !address)
       throw new Error("No wallet connected");
-    
-    console.log("SignIn called with:", { 
-      hasSignClient: !!signClient, 
+
+    console.log("SignIn called with:", {
+      hasSignClient: !!signClient,
       sessionTopic: sessionTopic?.substring(0, 10) + "...",
-      address 
+      address,
     });
-    
+
     try {
       const { signInUser } = await import("../utils/contract");
       await signInUser(signClient, sessionTopic, address);

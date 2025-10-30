@@ -922,7 +922,8 @@ export default function SignUpScreen({ navigation }: Props) {
         <Text style={styles.bioHint}>
           Write a genuine bio about yourself. This helps our AI understand you
           better for matching. Minimum 200 words required. Current: {wordCount}{" "}
-          words
+          words. Note: This bio is immutable and will be stored on the Polygon
+          blockchain permanently.
         </Text>
         <TextInput
           style={[styles.input, styles.bioInput]}

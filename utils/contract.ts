@@ -1,6 +1,8 @@
 import { ethers } from "ethers";
 import CryptoJS from "crypto-js";
 import { Alert, Linking } from "react-native";
+// import Arweave from "arweave";
+// import { default as Bundlr } from "@bundlr-network/client";
 
 // Placeholder contract address - replace after deployment
 const CONTRACT_ADDRESS = "0xE4fC636D0da367f402b33e413442b43B1b103c01"; // Deployed on Polygon mainnet
@@ -51,6 +53,11 @@ const ABI = [
           {
             internalType: "string",
             name: "encryptedMBTI",
+            type: "string",
+          },
+          {
+            internalType: "string",
+            name: "arweaveTxId",
             type: "string",
           },
         ],
@@ -690,3 +697,89 @@ export const isUserRegistered = async (provider: any, userAddress: string) => {
   const contract = getContract(provider, undefined, true);
   return await contract.isUserRegistered(userAddress);
 };
+
+export const getUserData = async (userAddress: string) => {
+  const contract = getContract(publicProvider, undefined, true);
+  const data = await contract.userData(userAddress);
+  // Decrypt the data
+  const decrypted = {
+    firstName: CryptoJS.AES.decrypt(data.encryptedFirstName, userAddress).toString(CryptoJS.enc.Utf8),
+    lastName: CryptoJS.AES.decrypt(data.encryptedLastName, userAddress).toString(CryptoJS.enc.Utf8),
+    birthdate: CryptoJS.AES.decrypt(data.encryptedBirthdate, userAddress).toString(CryptoJS.enc.Utf8),
+    gender: CryptoJS.AES.decrypt(data.encryptedGender, userAddress).toString(CryptoJS.enc.Utf8),
+    location: CryptoJS.AES.decrypt(data.encryptedLocation, userAddress).toString(CryptoJS.enc.Utf8),
+    id: CryptoJS.AES.decrypt(data.encryptedID, userAddress).toString(CryptoJS.enc.Utf8),
+    traits: CryptoJS.AES.decrypt(data.encryptedTraits, userAddress).toString(CryptoJS.enc.Utf8),
+    mbti: CryptoJS.AES.decrypt(data.encryptedMBTI, userAddress).toString(CryptoJS.enc.Utf8),
+    arweaveTxId: data.arweaveTxId,
+    lastUpdate: data.lastUpdate,
+    interactionCount: data.interactionCount,
+    isVerified: data.isVerified,
+    isRegistered: data.isRegistered,
+  };
+  // Calculate age from birthdate
+  const birthYear = new Date(decrypted.birthdate).getFullYear();
+  const currentYear = new Date().getFullYear();
+  const age = currentYear - birthYear;
+  return {
+    name: `${decrypted.firstName} ${decrypted.lastName}`,
+    age,
+    city: decrypted.location,
+    bio: decrypted.traits,
+    ...decrypted,
+  };
+};
+
+// Arweave upload function using Bundlr with MATIC
+// export const uploadToArweave = async (data: string, provider: any, userAddress: string) => {
+//   try {
+//     // Initialize Bundlr with MATIC
+//     const bundlr = new Bundlr("https://node2.bundlr.network", "matic", provider);
+    
+//     // Fund the bundlr account if needed (user pays with MATIC)
+//     const balance = await bundlr.getLoadedBalance();
+//     const dataSize = Buffer.byteLength(data, 'utf8');
+//     const cost = await bundlr.getPrice(dataSize);
+    
+//     if (balance.lt(cost)) {
+//       // Fund with MATIC
+//       const fundTx = await bundlr.fund(cost);
+//       console.log("Funded Bundlr:", fundTx);
+//     }
+    
+//     // Upload the data
+//     const tx = bundlr.createTransaction(data);
+//     await tx.sign();
+//     const result = await tx.upload();
+    
+//     console.log("Uploaded to Arweave:", result.id);
+    
+//     // Update Polygon contract with the TX ID
+//     await updateArweaveTxId(provider, userAddress, result.id);
+    
+//     return result.id;
+//   } catch (error) {
+//     console.error("Arweave upload error:", error);
+//     throw error;
+//   }
+// };
+
+// const updateArweaveTxId = async (provider: any, userAddress: string, txId: string) => {
+//   const contract = getContract(provider);
+//   const encryptedTxId = CryptoJS.AES.encrypt(txId, userAddress).toString();
+  
+//   const tx = await contract.updateData({
+//     encryptedFirstName: "",
+//     encryptedLastName: "",
+//     encryptedBirthdate: "",
+//     encryptedGender: "",
+//     encryptedLocation: "",
+//     encryptedID: "",
+//     encryptedTraits: "",
+//     encryptedMBTI: "",
+//     arweaveTxId: encryptedTxId,
+//   });
+  
+//   await tx.wait();
+//   console.log("Updated Arweave TX ID on Polygon");
+// };
