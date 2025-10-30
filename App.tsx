@@ -1,7 +1,7 @@
 import "react-native-get-random-values";
 import React, { useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
-import { createStackNavigator } from "@react-navigation/stack";
+import { createStackNavigator, StackNavigationProp } from "@react-navigation/stack";
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { WalletProvider, useWallet } from "./contexts/WalletContext";
@@ -18,10 +18,27 @@ import SignUpScreen from "./screens/SignUpScreen";
 import FuseScreen from "./screens/FuseScreen";
 import AlliancesScreen from "./screens/AlliancesScreen";
 import CyberspaceScreen from "./screens/CyberspaceScreen";
+import SettingsScreen from "./screens/SettingsScreen";
+import ProfileScreen from "./screens/ProfileScreen";
 
 const Stack = createStackNavigator();
 
-function MainPager() {
+// Define navigation types
+type RootStackParamList = {
+  Wallet: undefined;
+  SignUp: undefined;
+  SignIn: undefined;
+  Main: undefined;
+  Settings: undefined;
+  Profile: undefined;
+};
+
+type MainPagerNavigationProp = StackNavigationProp<
+  RootStackParamList,
+  "Main"
+>;
+
+function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
   const { address, disconnectWallet } = useWallet();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -35,13 +52,12 @@ function MainPager() {
   };
 
   const navigateToProfile = () => {
-    // For now, since no navigation, alert
-    Alert.alert("Profile", "Navigate to profile screen");
+    navigation.navigate("Profile");
     setMenuOpen(false);
   };
 
   const openSettings = () => {
-    Alert.alert("Settings", "Settings screen");
+    navigation.navigate("Settings");
     setMenuOpen(false);
   };
 
@@ -69,17 +85,6 @@ function MainPager() {
           )}
         </View>
       )}
-      <View style={styles.tabBar}>
-        <TouchableOpacity style={styles.tab}>
-          <Text>Alliances</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tab}>
-          <Text>Fuse</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.tab}>
-          <Text>Cyberspace</Text>
-        </TouchableOpacity>
-      </View>
       {PagerView ? (
         <PagerView style={{ flex: 1 }} initialPage={1}>
           <View key="1">
@@ -143,6 +148,8 @@ function AppNavigator() {
       <Stack.Screen name="SignUp" component={SignUpScreen} />
       <Stack.Screen name="SignIn" component={SignInScreen} />
       <Stack.Screen name="Main" component={MainPager} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="Profile" component={ProfileScreen} />
     </Stack.Navigator>
   );
 }
@@ -165,11 +172,4 @@ const styles = StyleSheet.create({
   menuButton: { padding: 5 },
   dropdown: { position: "absolute", top: 40, right: 10, backgroundColor: "white", borderRadius: 5, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 5, zIndex: 1 },
   dropdownItem: { padding: 10, borderBottomWidth: 1, borderBottomColor: "#eee" },
-  tabBar: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    padding: 10,
-    backgroundColor: "#f0f0f0",
-  },
-  tab: { padding: 10 },
 });
