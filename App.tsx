@@ -1,5 +1,5 @@
 import "react-native-get-random-values";
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator, StackNavigationProp } from "@react-navigation/stack";
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform, Image } from "react-native";
@@ -56,6 +56,13 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
   const [fuseTab, setFuseTab] = useState('FuseHome');
   const [cyberspaceTab, setCyberspaceTab] = useState('CyberspaceMain');
 
+  const pagerRef = useRef<any>(null);
+
+  const goToFuse = () => {
+    pagerRef.current?.setPage(1);
+    setFuseTab('FuseHome');
+  };
+
   const handleDisconnect = async () => {
     try {
       await disconnectWallet();
@@ -104,16 +111,20 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
       {address && (
         <View style={[styles.header, { backgroundColor: theme.backgroundColor }]}>
           <View style={styles.headerLeft} />
-          <Image
-            source={require('./assets/puzzle_rocket_no_background.png')}
-            style={styles.logo}
-            resizeMode="contain"
-          />
-          <TouchableOpacity onPress={() => setMenuOpen(!menuOpen)} style={styles.menuButton}>
-            <Text style={[styles.headerText, { color: theme.textColor }]}>
-              🔗 {address.slice(0, 6)}...{address.slice(-4)} ▼
-            </Text>
+          <TouchableOpacity onPress={goToFuse} style={styles.logoContainer}>
+            <Image
+              source={require('./assets/puzzle_rocket_no_background.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </TouchableOpacity>
+          <View style={styles.headerRight}>
+            <TouchableOpacity onPress={() => setMenuOpen(!menuOpen)} style={styles.menuButton}>
+              <Text style={[styles.headerText, { color: theme.textColor }]}>
+                🔗 {address.slice(0, 6)}...{address.slice(-4)} ▼
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
       {menuOpen && address && (
@@ -133,7 +144,7 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
         </View>
       )}
       {PagerView ? (
-        <PagerView style={{ flex: 1 }} initialPage={1}>
+        <PagerView style={{ flex: 1 }} initialPage={1} ref={pagerRef}>
           <View key="0" style={{ flex: 1 }}>
             <View style={{ flex: 1 }}>
               {renderAlliancesContent()}
@@ -281,9 +292,17 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === 'ios' ? 50 : 10, // Account for status bar on iOS
   },
   headerLeft: { flex: 1 },
+  logoContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  headerRight: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
   logo: {
-    width: 40,
-    height: 40,
+    width: 60,
+    height: 60,
   },
   headerText: { fontSize: 16, color: "#333" },
   menuButton: { padding: 5 },
