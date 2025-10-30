@@ -71,24 +71,28 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
     <View style={{ flex: 1 }}>
       {address && (
         <View style={[styles.header, { backgroundColor: theme.backgroundColor }]}>
+          <View style={styles.headerLeft} />
           <TouchableOpacity onPress={() => setMenuOpen(!menuOpen)} style={styles.menuButton}>
             <Text style={[styles.headerText, { color: theme.textColor }]}>
               🔗 {address.slice(0, 6)}...{address.slice(-4)} ▼
             </Text>
           </TouchableOpacity>
-          {menuOpen && (
-            <View style={[styles.dropdown, { backgroundColor: theme.card.backgroundColor, borderColor: theme.buttonBackground }]}>
-              <TouchableOpacity onPress={navigateToProfile} style={[styles.dropdownItem, { borderBottomColor: theme.buttonBackground }]}>
-                <Text style={{ color: theme.textColor }}>👤 Profile</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={openSettings} style={[styles.dropdownItem, { borderBottomColor: theme.buttonBackground }]}>
-                <Text style={{ color: theme.textColor }}>⚙️ Settings</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleDisconnect} style={[styles.dropdownItem, { borderBottomColor: theme.buttonBackground }]}>
-                <Text style={{ color: theme.textColor }}>🚪 Logout</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+        </View>
+      )}
+      {menuOpen && address && (
+        <View style={styles.dropdownOverlay}>
+          <TouchableOpacity style={styles.dropdownBackdrop} onPress={() => setMenuOpen(false)} />
+          <View style={[styles.dropdown, { backgroundColor: theme.card.backgroundColor, borderColor: theme.buttonBackground }]}>
+            <TouchableOpacity onPress={navigateToProfile} style={[styles.dropdownItem, { borderBottomColor: theme.buttonBackground }]}>
+              <Text style={{ color: theme.textColor }}>👤 Profile</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={openSettings} style={[styles.dropdownItem, { borderBottomColor: theme.buttonBackground }]}>
+              <Text style={{ color: theme.textColor }}>⚙️ Settings</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleDisconnect} style={[styles.dropdownItem, { borderBottomColor: theme.buttonBackground }]}>
+              <Text style={{ color: theme.textColor }}>🚪 Logout</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
       {PagerView ? (
@@ -175,9 +179,50 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  header: { padding: 10, backgroundColor: "#eee", alignItems: "center" },
+  header: { 
+    padding: 10, 
+    backgroundColor: "#eee", 
+    flexDirection: "row", 
+    justifyContent: "space-between", 
+    alignItems: "center",
+    paddingTop: Platform.OS === 'ios' ? 50 : 10, // Account for status bar on iOS
+  },
+  headerLeft: { flex: 1 },
   headerText: { fontSize: 16, color: "#333" },
   menuButton: { padding: 5 },
-  dropdown: { position: "absolute", top: 40, right: 10, backgroundColor: "white", borderRadius: 5, shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 5, zIndex: 1 },
-  dropdownItem: { padding: 10, borderBottomWidth: 1, borderBottomColor: "#eee" },
+  dropdownOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1000,
+  },
+  dropdownBackdrop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  dropdown: { 
+    position: "absolute", 
+    top: Platform.OS === 'ios' ? 90 : 50, // Adjust for header height
+    right: 10, 
+    backgroundColor: "white", 
+    borderRadius: 8, 
+    shadowColor: "#000", 
+    shadowOpacity: 0.2, 
+    shadowRadius: 8, 
+    elevation: 5,
+    minWidth: 150,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  dropdownItem: { 
+    padding: 15, 
+    borderBottomWidth: 1, 
+    borderBottomColor: "#eee",
+    alignItems: "center",
+  },
 });
