@@ -45,7 +45,11 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
   const handleDisconnect = async () => {
     try {
       await disconnectWallet();
-      Alert.alert("Disconnected", "Wallet disconnected successfully.");
+      setMenuOpen(false);
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Wallet' }],
+      });
     } catch (error: any) {
       Alert.alert("Error", error.message);
     }
@@ -79,7 +83,7 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
                 <Text>Settings</Text>
               </TouchableOpacity>
               <TouchableOpacity onPress={handleDisconnect} style={styles.dropdownItem}>
-                <Text>Disconnect</Text>
+                <Text>Logout</Text>
               </TouchableOpacity>
             </View>
           )}
