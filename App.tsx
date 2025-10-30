@@ -5,6 +5,7 @@ import { createStackNavigator, StackNavigationProp } from "@react-navigation/sta
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { WalletProvider, useWallet } from "./contexts/WalletContext";
+import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 
 // Conditionally import PagerView for native platforms only
 let PagerView: any = null;
@@ -40,6 +41,7 @@ type MainPagerNavigationProp = StackNavigationProp<
 
 function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
   const { address, disconnectWallet } = useWallet();
+  const { theme } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const handleDisconnect = async () => {
@@ -68,22 +70,22 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
   return (
     <View style={{ flex: 1 }}>
       {address && (
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: theme.backgroundColor }]}>
           <TouchableOpacity onPress={() => setMenuOpen(!menuOpen)} style={styles.menuButton}>
-            <Text style={styles.headerText}>
+            <Text style={[styles.headerText, { color: theme.textColor }]}>
               Wallet: {address.slice(0, 6)}...{address.slice(-4)} ▼
             </Text>
           </TouchableOpacity>
           {menuOpen && (
-            <View style={styles.dropdown}>
-              <TouchableOpacity onPress={navigateToProfile} style={styles.dropdownItem}>
-                <Text>Profile</Text>
+            <View style={[styles.dropdown, { backgroundColor: theme.backgroundColor }]}>
+              <TouchableOpacity onPress={navigateToProfile} style={[styles.dropdownItem, { borderBottomColor: theme.buttonBackground }]}>
+                <Text style={{ color: theme.textColor }}>Profile</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={openSettings} style={styles.dropdownItem}>
-                <Text>Settings</Text>
+              <TouchableOpacity onPress={openSettings} style={[styles.dropdownItem, { borderBottomColor: theme.buttonBackground }]}>
+                <Text style={{ color: theme.textColor }}>Settings</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleDisconnect} style={styles.dropdownItem}>
-                <Text>Logout</Text>
+              <TouchableOpacity onPress={handleDisconnect} style={[styles.dropdownItem, { borderBottomColor: theme.buttonBackground }]}>
+                <Text style={{ color: theme.textColor }}>Logout</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -161,11 +163,13 @@ function AppNavigator() {
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <WalletProvider>
-        <NavigationContainer>
-          <AppNavigator />
-        </NavigationContainer>
-      </WalletProvider>
+      <ThemeProvider>
+        <WalletProvider>
+          <NavigationContainer>
+            <AppNavigator />
+          </NavigationContainer>
+        </WalletProvider>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }
