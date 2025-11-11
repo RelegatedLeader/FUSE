@@ -15,7 +15,7 @@ interface Theme {
   button: ViewStyle;
   buttonTextStyle: TextStyle;
   card: ViewStyle;
-  input: ViewStyle;
+  input: TextStyle;
 }
 
 const lightTheme: Theme = {
