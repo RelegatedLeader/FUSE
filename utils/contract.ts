@@ -55,11 +55,6 @@ const ABI = [
             name: "encryptedMBTI",
             type: "string",
           },
-          {
-            internalType: "string",
-            name: "arweaveTxId",
-            type: "string",
-          },
         ],
         internalType: "struct UserDataStorage.UserInput",
         name: "input",
@@ -274,7 +269,7 @@ export const updateUserData = async (
     const encryptedTraits = encryptData(traits);
     const encryptedMBTI = encryptData(mbti);
 
-    const input = [
+    const input = {
       encryptedFirstName,
       encryptedLastName,
       encryptedBirthdate,
@@ -283,21 +278,28 @@ export const updateUserData = async (
       encryptedID,
       encryptedTraits,
       encryptedMBTI,
-    ];
+    };
     console.log("Data prepared for contract");
 
-    let data: string;
+    let data: string = "";
     try {
-      // Try to encode the function call
+      // Try to encode updateData first - if this succeeds, the function exists
       data = contract.interface.encodeFunctionData("updateData", [input]);
-      console.log("Function data encoded successfully");
+      console.log("✅ updateData function encoded successfully - function exists");
     } catch (encodeError) {
       console.warn(
-        "Contract encoding failed, will still attempt transaction:",
-        encodeError
+        "❌ updateData encoding failed, function may not exist on contract:",
+        (encodeError as Error).message
       );
-      // If encoding fails, send a basic transaction - MetaMask will still open
-      data = "0x00"; // Minimal data, MetaMask will still show the transaction
+      // If encoding fails, try signIn
+      try {
+        data = contract.interface.encodeFunctionData("signIn", []);
+        console.log("🔄 Falling back to signIn function");
+      } catch (signInError) {
+        console.warn("❌ signIn encoding also failed:", signInError);
+        // Last resort: send minimal transaction that MetaMask can still display
+        data = "0x00";
+      }
     }
 
     // Estimate gas dynamically

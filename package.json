@@ -1,6 +1,7 @@
 {
   "name": "fuse",
   "version": "1.0.0",
+  "type": "module",
   "main": "index.ts",
   "scripts": {
     "start": "expo start",
@@ -48,8 +49,11 @@
   },
   "devDependencies": {
     "@expo/cli": "^54.0.13",
+    "@nomicfoundation/hardhat-ethers": "^4.0.3",
     "@types/crypto-js": "^4.2.2",
     "@types/react": "~19.1.0",
+    "hardhat": "^3.0.12",
+    "solc": "^0.8.30",
     "typescript": "~5.9.2"
   },
   "private": true

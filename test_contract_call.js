@@ -1,4 +1,4 @@
-const { ethers } = require('ethers');
+import { ethers } from 'ethers';
 
 const CONTRACT_ADDRESS = "0xE4fC636D0da367f402b33e413442b43B1b103c01";
 const POLYGON_RPC = "https://polygon-rpc.com";

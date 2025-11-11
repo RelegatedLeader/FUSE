@@ -1,4 +1,4 @@
-const { ethers } = require('ethers');
+import { ethers } from 'ethers';
 
 const CONTRACT_ADDRESS = "0xE4fC636D0da367f402b33e413442b43B1b103c01";
 const POLYGON_RPC = "https://polygon-rpc.com";
@@ -51,6 +51,10 @@ async function checkContract() {
     try {
       const functionData = contract.interface.getFunction("updateData");
       console.log("✅ updateData function exists:", functionData);
+      console.log("Function inputs:", functionData.inputs);
+      if (functionData.inputs[0] && functionData.inputs[0].components) {
+        console.log("Tuple components:", functionData.inputs[0].components);
+      }
     } catch (error) {
       console.log("❌ updateData function not found:", error.message);
     }
