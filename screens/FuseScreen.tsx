@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
-import { getUserData } from "../utils/contract";
+import { MatchingEngine } from "../utils/matchingEngine";
 
 interface User {
   address: string;
@@ -20,6 +20,7 @@ interface User {
   city: string;
   bio: string;
   photos: string[];
+  compatibilityScore?: number;
 }
 
 export default function FuseScreen() {
@@ -31,27 +32,35 @@ export default function FuseScreen() {
   const fuseAnim = useState(new Animated.Value(0))[0];
 
   useEffect(() => {
-    // Mock users for now - in real app, fetch from algorithm
-    const mockUsers: User[] = [
-      {
-        address: "0x123",
-        name: "Alice",
-        age: 25,
-        city: "New York",
-        bio: "Loves hiking and coding.",
-        photos: [],
-      },
-      {
-        address: "0x456",
-        name: "Bob",
-        age: 30,
-        city: "San Francisco",
-        bio: "Enjoys music and travel.",
-        photos: [],
-      },
-    ];
-    setUsers(mockUsers);
-  }, []);
+    const fetchMatches = async () => {
+      if (!address) return;
+
+      try {
+        console.log("Fetching matches for user:", address);
+        const matches = await MatchingEngine.findMatchesForUser(address);
+        console.log("Found matches:", matches.length);
+
+        // Convert MatchResult to User format
+        const formattedUsers: User[] = matches.map((match) => ({
+          address: match.address,
+          name: match.profile?.name || "Unknown User",
+          age: match.profile?.age || 25,
+          city: match.profile?.location || "Unknown",
+          bio: match.profile?.bio || match.profile?.traits || "No bio available",
+          photos: match.profile?.photos || [],
+          compatibilityScore: match.compatibilityScore,
+        }));
+
+        setUsers(formattedUsers);
+      } catch (error) {
+        console.error("Error fetching matches:", error);
+        Alert.alert("Error", "Failed to load potential matches. Please try again.");
+        setUsers([]);
+      }
+    };
+
+    fetchMatches();
+  }, [address]);
 
   const handleFuse = () => {
     // Animate fusing
@@ -89,8 +98,7 @@ export default function FuseScreen() {
         <Text
           style={{ color: theme.textColor, textAlign: "center", fontSize: 18 }}
         >
-          🔍 No more pieces to connect with right now.{"\n"}Check back later to
-          expand your network!
+          🎯 No more potential matches right now.{"\n"}Check back later or invite friends to join!
         </Text>
       </View>
     );
@@ -120,6 +128,11 @@ export default function FuseScreen() {
             <Text style={{ color: theme.textColor, fontSize: 16 }}>
               📍 {currentUser.city}
             </Text>
+            {currentUser.compatibilityScore && (
+              <Text style={[styles.compatibility, { color: theme.textColor }]}>
+                💫 Compatibility: {Math.round(currentUser.compatibilityScore)}%
+              </Text>
+            )}
             {showBio && (
               <Text style={[styles.bio, { color: theme.textColor }]}>
                 {currentUser.bio}
@@ -185,6 +198,7 @@ const styles = StyleSheet.create({
   },
   userInfo: { alignItems: "center" },
   name: { fontSize: 24, fontWeight: "bold" },
+  compatibility: { fontSize: 16, fontWeight: "600", marginTop: 5 },
   bio: { marginTop: 10, fontStyle: "italic" },
   fuseButton: {
     marginTop: 20,
