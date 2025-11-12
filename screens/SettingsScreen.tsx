@@ -52,7 +52,7 @@ export default function SettingsScreen() {
 
   // Check if user needs migration (has local data but not in Firebase)
   useEffect(() => {
-    const checkMigrationNeeded = async () => {
+    const checkAndMigrate = async () => {
       if (!address) {
         console.log("Settings: No address, skipping migration check");
         return;
@@ -92,11 +92,14 @@ export default function SettingsScreen() {
         const firebaseData = await FirebaseService.getUserProfile(address);
         console.log("Settings: Firebase data exists:", !!firebaseData);
 
-        // If Firebase data doesn't exist (regardless of local data), migration is needed
-        // This allows migration even if local data is in an unexpected location
-        const needsMigration = !firebaseData || !firebaseData.matchingData;
-        console.log("Settings: Needs migration:", needsMigration);
-        setNeedsMigration(needsMigration);
+        // If Firebase data doesn't exist or is incomplete (missing bio), perform automatic migration
+        const needsMigration = !firebaseData || !firebaseData.bio || firebaseData.bio.trim() === "";
+        console.log("Settings: Needs migration:", needsMigration, "hasFirebaseData:", !!firebaseData, "hasBio:", firebaseData?.bio ? "yes" : "no");
+
+        if (needsMigration && localData) {
+          console.log("Settings: Performing automatic migration...");
+          await performAutomaticMigration(localData, dataSource);
+        }
 
         // Check if user has Firebase profile but missing bio (needs bio migration)
         if (
@@ -132,25 +135,16 @@ export default function SettingsScreen() {
           }
 
           if (hasBioToMigrate) {
-            console.log("Settings: Bio migration available");
-            setNeedsBioMigration(true);
-          } else {
-            console.log("Settings: No bio found to migrate");
+            console.log("Settings: Performing automatic bio migration...");
+            await performAutomaticBioMigration();
           }
-        } else {
-          console.log(
-            "Settings: Bio migration not needed - Firebase bio exists:",
-            firebaseData?.bio
-          );
         }
       } catch (error) {
-        console.error("Error checking migration status:", error);
-        // If we can't check Firebase, assume migration might be needed
-        setNeedsMigration(true);
+        console.error("Error during automatic migration check:", error);
       }
     };
 
-    checkMigrationNeeded();
+    checkAndMigrate();
   }, [address]);
 
   const handleVerifyDataIntegrity = async () => {
@@ -292,13 +286,73 @@ export default function SettingsScreen() {
     }
   };
 
-  const handleMigrateBio = async () => {
-    if (!address || isBioMigrating) return;
-
-    setIsBioMigrating(true);
+  const performAutomaticMigration = async (localDataString: string, dataSource: string) => {
     try {
-      console.log("Bio migration: Starting for address:", address);
+      // If data was from old key, validate it belongs to current wallet and migrate it
+      if (dataSource === "old-key") {
+        const localData = JSON.parse(localDataString);
+        // Check if the data contains wallet address and matches current wallet
+        if (
+          localData.walletAddress &&
+          localData.walletAddress.toLowerCase() === address.toLowerCase()
+        ) {
+          await AsyncStorage.setItem(`userData_${address}`, localDataString);
+          await AsyncStorage.removeItem("userData");
+          console.log(
+            "Migration: Migrated validated data from old key to wallet-specific key"
+          );
+        } else {
+          console.log("Migration: Data doesn't belong to current wallet, skipping");
+          return;
+        }
+      }
 
+      // If data was from blockchain, store it locally
+      if (dataSource === "blockchain") {
+        await AsyncStorage.setItem(`userData_${address}`, localDataString);
+        console.log("Migration: Stored blockchain data locally");
+      }
+
+      const localData = JSON.parse(localDataString);
+
+      // Prepare profile data for Firebase (this will be properly encrypted by FirebaseService)
+      const profileData = {
+        firstName: localData.firstName,
+        lastName: localData.lastName,
+        email: localData.email,
+        dob: localData.dob,
+        gender: localData.gender,
+        sexuality: localData.sexuality || "", // Add sexuality field
+        location: localData.location,
+        occupation: localData.occupation,
+        careerAspiration: localData.careerAspiration,
+        mbti: localData.mbti,
+        bio: localData.bio,
+        id: localData.id,
+        openEnded: localData.openEnded,
+        personalityTraits: localData.personalityTraits,
+        transactionHash: localData.transactionHash,
+        walletAddress: address,
+      };
+
+      // Initialize Firebase Auth first
+      const { initializeFirebaseAuth } = await import("../utils/firebase");
+      await initializeFirebaseAuth();
+
+      // Initialize Firebase for this user
+      await FirebaseService.initializeUser(address);
+
+      // Store in Firebase using the proper service (this handles encryption)
+      await FirebaseService.storeUserProfile(address, profileData);
+
+      console.log("Automatic migration: Successfully migrated profile to Firebase");
+    } catch (error) {
+      console.error("Automatic migration failed:", error);
+    }
+  };
+
+  const performAutomaticBioMigration = async () => {
+    try {
       let bioToMigrate = "";
       let localDataString = null;
 
@@ -328,10 +382,7 @@ export default function SettingsScreen() {
       }
 
       if (!bioToMigrate.trim()) {
-        Alert.alert(
-          "Info",
-          "No bio found in local storage to migrate. Make sure you've completed the signup process."
-        );
+        console.log("Bio migration: No bio to migrate");
         return;
       }
 
@@ -368,6 +419,7 @@ export default function SettingsScreen() {
             email: localData.email || "",
             dob: localData.dob || "",
             gender: localData.gender || "",
+            sexuality: localData.sexuality || "",
             location: localData.location || "",
             occupation: localData.occupation || "",
             careerAspiration: localData.careerAspiration || "",
@@ -388,6 +440,7 @@ export default function SettingsScreen() {
             email: "",
             dob: "",
             gender: "",
+            sexuality: "",
             location: "",
             occupation: "",
             careerAspiration: "",
@@ -409,189 +462,8 @@ export default function SettingsScreen() {
         "Bio migration: Successfully stored profile with bio:",
         profileData.bio
       );
-      console.log("Bio migration: Full profile data:", profileData);
-
-      // Verify the profile was stored correctly
-      const verifyProfile = await FirebaseService.getUserProfile(address);
-      console.log(
-        "Bio migration: Verification - retrieved profile:",
-        verifyProfile
-      );
-      console.log(
-        "Bio migration: Verification - bio in profile:",
-        verifyProfile?.bio
-      );
-
-      Alert.alert(
-        "Success",
-        "Bio migrated successfully! Your profile is now visible in the matching system."
-      );
-      setNeedsBioMigration(false);
     } catch (error) {
-      console.error("Bio migration error:", error);
-      Alert.alert("Error", "Failed to migrate bio. Please try again.");
-    } finally {
-      setIsBioMigrating(false);
-    }
-  };
-
-  const handleMigrateProfile = async () => {
-    if (!address || isMigrating) return;
-
-    setIsMigrating(true);
-    try {
-      // Get local user data (check both keys)
-      let localDataString = await AsyncStorage.getItem(`userData_${address}`);
-      let dataSource = "wallet-specific";
-
-      if (!localDataString) {
-        localDataString = await AsyncStorage.getItem("userData");
-        if (localDataString) {
-          dataSource = "old-key";
-        }
-      }
-
-      if (!localDataString) {
-        // If no local data found, try to get data from blockchain as fallback
-        console.log(
-          "Migration: No local data found, attempting to fetch from blockchain"
-        );
-        try {
-          const { getUserData } = await import("../utils/contract");
-          const blockchainData = await getUserData(address);
-          if (blockchainData && blockchainData.firstName) {
-            // Parse traits if it's a JSON string
-            let traits: any = {};
-            if (blockchainData.traits) {
-              try {
-                traits =
-                  typeof blockchainData.traits === "string"
-                    ? JSON.parse(blockchainData.traits)
-                    : blockchainData.traits;
-              } catch (e) {
-                console.log(
-                  "Migration: Could not parse traits, using empty object"
-                );
-              }
-            }
-
-            // Convert blockchain data to local format
-            localDataString = JSON.stringify({
-              firstName: blockchainData.firstName,
-              lastName: blockchainData.lastName,
-              email: "", // Not stored on blockchain
-              dob: blockchainData.birthdate,
-              gender: blockchainData.gender,
-              location: blockchainData.location,
-              occupation: "", // Not stored on blockchain
-              careerAspiration: "", // Not stored on blockchain
-              mbti: blockchainData.mbti,
-              bio: traits.bio || blockchainData.bio || "",
-              id: blockchainData.id,
-              openEnded: traits.openEnded || "",
-              personalityTraits:
-                traits.personalityTraits ||
-                (blockchainData as any).personalityTraits ||
-                {},
-              transactionHash: "", // Will be set during migration
-              walletAddress: address,
-            });
-            dataSource = "blockchain";
-            console.log(
-              "Migration: Retrieved data from blockchain, bio:",
-              traits.bio || blockchainData.bio || "none"
-            );
-          }
-        } catch (blockchainError) {
-          console.error(
-            "Migration: Failed to fetch from blockchain:",
-            blockchainError
-          );
-        }
-      }
-
-      if (!localDataString) {
-        Alert.alert(
-          "Error",
-          "No profile data found to migrate. Please ensure you have completed the sign-up process."
-        );
-        return;
-      }
-
-      // If data was from old key, validate it belongs to current wallet and migrate it
-      if (dataSource === "old-key") {
-        const localData = JSON.parse(localDataString);
-        // Check if the data contains wallet address and matches current wallet
-        if (
-          localData.walletAddress &&
-          localData.walletAddress.toLowerCase() === address.toLowerCase()
-        ) {
-          await AsyncStorage.setItem(`userData_${address}`, localDataString);
-          await AsyncStorage.removeItem("userData");
-          console.log(
-            "Migration: Migrated validated data from old key to wallet-specific key"
-          );
-        } else {
-          Alert.alert(
-            "Error",
-            "The stored profile data doesn't match your current wallet address. Please ensure you're using the correct wallet."
-          );
-          return;
-        }
-      }
-
-      // If data was from blockchain, store it locally
-      if (dataSource === "blockchain") {
-        await AsyncStorage.setItem(`userData_${address}`, localDataString);
-        console.log("Migration: Stored blockchain data locally");
-      }
-
-      const localData = JSON.parse(localDataString);
-
-      // Initialize Firebase Auth first
-      const { initializeFirebaseAuth } = await import("../utils/firebase");
-      await initializeFirebaseAuth();
-
-      // Initialize Firebase for this user
-      await FirebaseService.initializeUser(address);
-
-      // Prepare profile data for Firebase (exclude faceScans as they're not needed for matching)
-      const profileData = {
-        firstName: localData.firstName,
-        lastName: localData.lastName,
-        email: localData.email,
-        dob: localData.dob,
-        gender: localData.gender,
-        location: localData.location,
-        occupation: localData.occupation,
-        careerAspiration: localData.careerAspiration,
-        mbti: localData.mbti,
-        bio: localData.bio,
-        id: localData.id,
-        openEnded: localData.openEnded,
-        personalityTraits: localData.personalityTraits,
-        transactionHash: localData.transactionHash,
-        walletAddress: address,
-      };
-
-      // Store in Firebase
-      await FirebaseService.storeUserProfile(address, profileData);
-
-      // Mark migration as complete
-      setNeedsMigration(false);
-
-      Alert.alert(
-        "Migration Complete",
-        "Your profile has been migrated to Firebase and updated to the latest format. You will now appear in the matching system!"
-      );
-    } catch (error) {
-      console.error("Migration failed:", error);
-      Alert.alert(
-        "Migration Failed",
-        "Failed to migrate your profile. Please try again or contact support."
-      );
-    } finally {
-      setIsMigrating(false);
+      console.error("Automatic bio migration failed:", error);
     }
   };
 
@@ -605,34 +477,6 @@ export default function SettingsScreen() {
           🎨 Switch to {themeType === "light" ? "Dark" : "Light"} Mode
         </Text>
       </TouchableOpacity>
-
-      {needsMigration && (
-        <TouchableOpacity
-          onPress={handleMigrateProfile}
-          disabled={isMigrating}
-          style={[theme.button, { backgroundColor: "#28a745" }]}
-        >
-          <Text style={[theme.buttonTextStyle, { color: "#fff" }]}>
-            {isMigrating
-              ? "🔄 Migrating Profile..."
-              : "📤 Migrate Profile to Matching"}
-          </Text>
-        </TouchableOpacity>
-      )}
-
-      {needsBioMigration && (
-        <TouchableOpacity
-          onPress={handleMigrateBio}
-          disabled={isBioMigrating}
-          style={[theme.button, { backgroundColor: "#17a2b8" }]}
-        >
-          <Text style={[theme.buttonTextStyle, { color: "#fff" }]}>
-            {isBioMigrating
-              ? "🔄 Migrating Bio..."
-              : "📝 Migrate Bio from Polygon"}
-          </Text>
-        </TouchableOpacity>
-      )}
 
       <TouchableOpacity
         onPress={() =>

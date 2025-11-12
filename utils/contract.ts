@@ -367,9 +367,10 @@ export const updateUserData = async (
     console.log("Transaction to:", CONTRACT_ADDRESS);
 
     // Check current network before switching
+    let currentChainId: string;
     try {
       console.log("🔍 Checking current network...");
-      const currentChainId = await signClient.request({
+      const chainIdResponse = await signClient.request({
         topic: sessionTopic,
         chainId: "eip155:1", // Use a default chainId for the request
         request: {
@@ -377,58 +378,71 @@ export const updateUserData = async (
           params: [],
         },
       });
+      currentChainId = chainIdResponse as string;
       console.log("📡 Current chain ID:", currentChainId);
-      if (currentChainId !== "0x89" && currentChainId !== "89") {
-        console.log("🔄 Not on Polygon, need to switch network");
-      } else {
+
+      // Normalize chain ID to hex format for comparison
+      const normalizedChainId = currentChainId.startsWith('0x')
+        ? currentChainId.toLowerCase()
+        : '0x' + parseInt(currentChainId).toString(16);
+
+      if (normalizedChainId === "0x89") {
         console.log("✅ Already on Polygon network");
+      } else {
+        console.log("🔄 Not on Polygon, need to switch network");
       }
     } catch (chainError) {
       console.log("❌ Could not get current chain ID:", chainError);
-      // Continue anyway, try to switch
+      currentChainId = "unknown";
     }
 
-    // First ensure we're on Polygon network
-    try {
-      console.log("🚀 Attempting to switch to Polygon network...");
-      await signClient.request({
-        topic: sessionTopic,
-        chainId: "eip155:137",
-        request: {
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: "0x89" }], // Polygon mainnet chainId in hex
-        },
-      });
-      console.log("✅ Successfully switched to Polygon network");
-    } catch (switchError: any) {
-      console.log("❌ Network switch failed:", switchError);
-      // If network doesn't exist, try to add it
-      if (
-        switchError.code === 4902 ||
-        switchError.message?.includes("Unrecognized chain")
-      ) {
-        console.log("📥 Adding Polygon network to MetaMask...");
-        try {
-          await signClient.request({
-            topic: sessionTopic,
-            chainId: "eip155:137",
-            request: {
-              method: "wallet_addEthereumChain",
-              params: [
-                {
-                  chainId: "0x89",
-                  chainName: "Polygon Mainnet",
-                  nativeCurrency: {
-                    name: "MATIC",
-                    symbol: "MATIC",
-                    decimals: 18,
+    // Only switch network if not already on Polygon
+    const normalizedCurrentChainId = currentChainId.startsWith('0x')
+      ? currentChainId.toLowerCase()
+      : currentChainId !== "unknown" ? '0x' + parseInt(currentChainId).toString(16) : "unknown";
+
+    if (normalizedCurrentChainId !== "0x89") {
+      // First ensure we're on Polygon network
+      try {
+        console.log("🚀 Attempting to switch to Polygon network...");
+        await signClient.request({
+          topic: sessionTopic,
+          chainId: "eip155:137",
+          request: {
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: "0x89" }], // Polygon mainnet chainId in hex
+          },
+        });
+        console.log("✅ Successfully switched to Polygon network");
+      } catch (switchError: any) {
+        console.log("❌ Network switch failed:", switchError);
+        // If network doesn't exist, try to add it
+        if (
+          switchError.code === 4902 ||
+          switchError.message?.includes("Unrecognized chain")
+        ) {
+          console.log("📥 Adding Polygon network to MetaMask...");
+          try {
+            await signClient.request({
+              topic: sessionTopic,
+              chainId: "eip155:137",
+              request: {
+                method: "wallet_addEthereumChain",
+                params: [
+                  {
+                    chainId: "0x89",
+                    chainName: "Polygon Mainnet",
+                    nativeCurrency: {
+                      name: "MATIC",
+                      symbol: "MATIC",
+                      decimals: 18,
+                    },
+                    rpcUrls: ["https://polygon-rpc.com/"],
+                    blockExplorerUrls: ["https://polygonscan.com/"],
                   },
-                  rpcUrls: ["https://polygon-rpc.com/"],
-                  blockExplorerUrls: ["https://polygonscan.com/"],
-                },
-              ],
-            },
-          });
+                ],
+              },
+            });
           console.log("✅ Added Polygon network, now switching...");
           // Try switching again
           await signClient.request({
@@ -451,14 +465,36 @@ export const updateUserData = async (
           "❌ Network switch failed with different error:",
           switchError
         );
-        // Continue anyway - maybe already on Polygon
+        // For other errors, still try to continue - user might already be on Polygon
+        console.log("⚠️ Continuing anyway - user might already be on Polygon");
+      }
+
+      // Verify we're actually on Polygon after the switch attempt
+      try {
+        console.log("🔍 Verifying network switch...");
+        await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait for switch to complete
+
+        const verifyChainIdResponse = await signClient.request({
+          topic: sessionTopic,
+          chainId: "eip155:137", // Now use Polygon chainId for verification
+          request: {
+            method: "eth_chainId",
+            params: [],
+          },
+        });
+        const verifyChainId = (verifyChainIdResponse as string).toLowerCase();
+
+        if (verifyChainId === "0x89") {
+          console.log("✅ Verified: Successfully on Polygon network");
+        } else {
+          console.warn("⚠️ Warning: Still not on Polygon network after switch attempt. Chain ID:", verifyChainId);
+          throw new Error(`Please switch to Polygon network manually. Current chain: ${verifyChainId}`);
+        }
+      } catch (verifyError) {
+        console.error("❌ Network verification failed:", verifyError);
+        throw verifyError;
       }
     }
-
-    // Small delay to ensure network switch is processed
-    console.log("⏳ Waiting for network switch to complete...");
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    console.log("▶️ Proceeding with transaction...");
 
     // Add timeout to prevent hanging
     const timeoutPromise = new Promise((_, reject) => {
@@ -541,6 +577,7 @@ export const updateUserData = async (
     } catch (txError) {
       console.error("❌ Transaction failed or timed out:", txError);
       throw txError;
+    }
     }
   } catch (error: any) {
     console.error("Transaction failed:", error);

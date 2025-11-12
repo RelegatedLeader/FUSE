@@ -43,6 +43,7 @@ const { width, height } = Dimensions.get("window");
 
 // Sample data for suggestions
 const GENDER_OPTIONS = ["Male", "Female"];
+const SEXUALITY_OPTIONS = ["Straight", "Gay"];
 const LOCATION_SUGGESTIONS = [
   "New York, NY",
   "Los Angeles, CA",
@@ -129,6 +130,7 @@ export default function SignUpScreen({ navigation }: Props) {
   const [email, setEmail] = useState("");
   const [dob, setDob] = useState("");
   const [gender, setGender] = useState("");
+  const [sexuality, setSexuality] = useState("");
   const [userLocation, setUserLocation] = useState("");
   const [occupation, setOccupation] = useState("");
   const [careerAspiration, setCareerAspiration] = useState("");
@@ -146,6 +148,7 @@ export default function SignUpScreen({ navigation }: Props) {
 
   // UI states
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
+  const [showSexualityDropdown, setShowSexualityDropdown] = useState(false);
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
   const [showOccupationSuggestions, setShowOccupationSuggestions] =
     useState(false);
@@ -200,6 +203,9 @@ export default function SignUpScreen({ navigation }: Props) {
   const cameraRef = useRef<any>(null);
   const scrollViewRef = useRef<ScrollView>(null);
 
+  // Validation state
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
   useEffect(() => {
     if (!permission) {
       requestPermission();
@@ -222,6 +228,7 @@ export default function SignUpScreen({ navigation }: Props) {
           setEmail(parsedData.email || "");
           setDob(parsedData.dob || "");
           setGender(parsedData.gender || "");
+          setSexuality(parsedData.sexuality || "");
           setUserLocation(parsedData.userLocation || "");
           setOccupation(parsedData.occupation || "");
           setCareerAspiration(parsedData.careerAspiration || "");
@@ -252,6 +259,7 @@ export default function SignUpScreen({ navigation }: Props) {
         email,
         dob,
         gender,
+        sexuality,
         userLocation,
         occupation,
         careerAspiration,
@@ -281,6 +289,7 @@ export default function SignUpScreen({ navigation }: Props) {
     email,
     dob,
     gender,
+    sexuality,
     userLocation,
     occupation,
     careerAspiration,
@@ -327,6 +336,53 @@ export default function SignUpScreen({ navigation }: Props) {
       });
     }
   }, [address, isInitialized, checkRegistration]);
+
+  // Real-time validation
+  const updateValidationErrors = () => {
+    const errors: string[] = [];
+    const currentWordCount = bio.split(" ").filter((word) => word.length > 0).length;
+
+    if (!firstName.trim()) errors.push("First name is required");
+    if (!lastName.trim()) errors.push("Last name is required");
+    if (!email.trim()) errors.push("Email is required");
+    if (!dob.trim()) errors.push("Date of birth is required");
+    if (!gender) errors.push("Gender selection is required");
+    if (!sexuality) errors.push("Sexuality selection is required");
+    if (!userLocation.trim()) errors.push("Location is required");
+    if (!occupation.trim()) errors.push("Occupation is required");
+    if (!careerAspiration.trim()) errors.push("Career aspiration is required");
+    if (!mbti.trim()) errors.push("MBTI type is required");
+    if (currentWordCount < 100) errors.push(`Bio must be at least 100 words (currently ${currentWordCount})`);
+    if (!faceScanned) errors.push("Face verification is required");
+
+    // Validate date format
+    if (dob.trim()) {
+      const dateRegex = /^(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])\/\d{4}$/;
+      if (!dateRegex.test(dob)) {
+        errors.push("Date must be in MM/DD/YYYY format");
+      }
+    }
+
+    setValidationErrors(errors);
+  };
+
+  // Update validation on any change
+  useEffect(() => {
+    updateValidationErrors();
+  }, [
+    firstName,
+    lastName,
+    email,
+    dob,
+    gender,
+    sexuality,
+    userLocation,
+    occupation,
+    careerAspiration,
+    mbti,
+    bio,
+    faceScanned,
+  ]);
 
   const validateFaceAngle = async (
     photo: any,
@@ -535,21 +591,11 @@ export default function SignUpScreen({ navigation }: Props) {
       return;
     }
 
-    if (
-      !firstName ||
-      !lastName ||
-      !email ||
-      !dob ||
-      !gender ||
-      !userLocation ||
-      !occupation ||
-      !careerAspiration ||
-      !mbti ||
-      bio.split(" ").length < 200
-    ) {
+    // Check for validation errors
+    if (validationErrors.length > 0) {
       Alert.alert(
-        "Error",
-        "Please fill all required fields. Bio must be at least 200 words."
+        "Missing Requirements",
+        "Please complete the following:\n\n" + validationErrors.map(error => "• " + error).join("\n")
       );
       return;
     }
@@ -595,6 +641,7 @@ export default function SignUpScreen({ navigation }: Props) {
         },
         bio,
         openEnded,
+        sexuality,
       };
 
       // Show manual MetaMask prompt after a short delay if transaction doesn't complete quickly
@@ -621,6 +668,7 @@ export default function SignUpScreen({ navigation }: Props) {
           email,
           dob,
           gender,
+          sexuality,
           location: userLocation,
           occupation,
           careerAspiration,
@@ -662,6 +710,7 @@ export default function SignUpScreen({ navigation }: Props) {
           email,
           dob,
           gender,
+          sexuality,
           location: userLocation,
           occupation,
           careerAspiration,
@@ -841,6 +890,26 @@ export default function SignUpScreen({ navigation }: Props) {
         <Text style={[styles.title, { color: theme.textColor }]}>
           Create Your Fuse Profile
         </Text>
+        
+        {/* Data Immutability Warning */}
+        <View style={styles.warningContainer}>
+          <Text style={styles.warningIcon}>⚠️</Text>
+          <Text style={styles.warningText}>
+            <Text style={styles.warningTitle}>IMPORTANT:</Text> All information you provide will be stored encrypted on the Polygon blockchain and become your permanent digital profile. This data is immutable and cannot be changed once submitted. It will help match you with the best possible beings out there. Please ensure all information is 100% accurate as it represents your real digital identity.
+          </Text>
+        </View>
+        
+        {/* Validation Errors */}
+        {validationErrors.length > 0 && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorIcon}>❌</Text>
+            <Text style={styles.errorText}>
+              <Text style={styles.errorTitle}>MISSING REQUIREMENTS:</Text>
+              {"\n"}{validationErrors.join("\n• ")}
+            </Text>
+          </View>
+        )}
+        
         {/* Basic Information */}
         <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
           Basic Information
@@ -872,6 +941,7 @@ export default function SignUpScreen({ navigation }: Props) {
           onChangeText={setDob}
         />
         {renderDropdown(GENDER_OPTIONS, gender, setGender, "Select Gender")}
+        {renderDropdown(SEXUALITY_OPTIONS, sexuality, setSexuality, "Select Sexuality")}
         {/* Location & Career */}
         <Text style={styles.sectionTitle}>Location & Career</Text>
         {renderSuggestions(
@@ -969,9 +1039,9 @@ export default function SignUpScreen({ navigation }: Props) {
         )}
         {/* Bio */}
         <Text style={styles.sectionTitle}>Personal Bio</Text>
-        <Text style={styles.bioHint}>
+        <Text style={[styles.bioHint, { color: wordCount >= 100 ? '#28a745' : '#dc3545' }]}>
           Write a genuine bio about yourself. This helps our AI understand you
-          better for matching. Minimum 200 words required. Current: {wordCount}{" "}
+          better for matching. Minimum 100 words required. Current: {wordCount}{" "}
           words. Note: This bio is immutable and will be stored on the Polygon
           blockchain permanently.
         </Text>
@@ -1187,33 +1257,10 @@ export default function SignUpScreen({ navigation }: Props) {
         <TouchableOpacity
           style={[
             styles.signUpButton,
-            (!firstName ||
-              !lastName ||
-              !email ||
-              !dob ||
-              !gender ||
-              !userLocation ||
-              !occupation ||
-              !careerAspiration ||
-              !mbti ||
-              wordCount < 200 ||
-              !faceScanned) &&
-              styles.signUpButtonDisabled,
+            (validationErrors.length > 0) && styles.signUpButtonDisabled,
           ]}
           onPress={handleSignUp}
-          disabled={
-            !firstName ||
-            !lastName ||
-            !email ||
-            !dob ||
-            !gender ||
-            !userLocation ||
-            !occupation ||
-            !careerAspiration ||
-            !mbti ||
-            wordCount < 200 ||
-            !faceScanned
-          }
+          disabled={validationErrors.length > 0}
         >
           <Text style={styles.signUpButtonText}>Create Account</Text>
         </TouchableOpacity>
@@ -1553,5 +1600,56 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  warningContainer: {
+    backgroundColor: "#fff3cd",
+    borderColor: "#ffeaa7",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  warningIcon: {
+    fontSize: 24,
+    marginRight: 12,
+    marginTop: 2,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#856404",
+    lineHeight: 20,
+  },
+  warningTitle: {
+    fontWeight: "bold",
+    fontSize: 14,
+  },
+  errorContainer: {
+    backgroundColor: "#f8d7da",
+    borderColor: "#f5c6cb",
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 20,
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  errorIcon: {
+    fontSize: 24,
+    marginRight: 12,
+    marginTop: 2,
+    color: "#721c24",
+  },
+  errorText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#721c24",
+    lineHeight: 20,
+  },
+  errorTitle: {
+    fontWeight: "bold",
+    fontSize: 14,
   },
 });

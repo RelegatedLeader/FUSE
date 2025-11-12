@@ -7,11 +7,13 @@ import {
   ScrollView,
   TextInput,
   Image,
+  Alert,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CryptoJS from "crypto-js";
+import { MessagingService } from "../utils/messagingService";
 
 interface Message {
   id: string;
@@ -43,38 +45,24 @@ export default function MessagesScreen() {
   const [newMessage, setNewMessage] = useState("");
 
   useEffect(() => {
+    const initializeMessaging = async () => {
+      if (address) {
+        try {
+          await MessagingService.initialize(address);
+          console.log("Messaging initialized for:", address);
+        } catch (error) {
+          console.error("Failed to initialize messaging:", error);
+        }
+      }
+    };
+
+    initializeMessaging();
     loadMatchedUsers();
-    // Mock messages for now
-    const mockMessages: Message[] = [
-      {
-        id: "1",
-        from: "0x123",
-        fromName: "Alex",
-        message:
-          "Hey! I saw we both love indie rock. Want to chat about new albums?",
-        timestamp: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-        isRead: false,
-      },
-      {
-        id: "2",
-        from: "0x456",
-        fromName: "Jordan",
-        message: "Thanks for fusing! What's your favorite jazz artist?",
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-        isRead: true,
-      },
-      {
-        id: "3",
-        from: "0x789",
-        fromName: "Taylor",
-        message:
-          "The live music scene in Austin is amazing! Have you been to any good shows lately?",
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24), // 1 day ago
-        isRead: true,
-      },
-    ];
-    setMessages(mockMessages);
   }, [address]);
+
+  useEffect(() => {
+    loadMessages();
+  }, [selectedConversation]);
 
   const loadMatchedUsers = async () => {
     if (!address) return;
@@ -94,10 +82,55 @@ export default function MessagesScreen() {
     }
   };
 
-  const handleSendMessage = () => {
-    if (newMessage.trim() && selectedConversation) {
-      // TODO: Send message via Arweave/blockchain
+  const loadMessages = async () => {
+    if (!address || !selectedConversation) return;
+
+    try {
+      const messages = await MessagingService.getConversationMessages(
+        selectedConversation
+      );
+      setMessages(
+        messages.map((msg) => ({
+          id: msg.id,
+          from: msg.senderAddress,
+          fromName: msg.senderAddress === address ? "You" : "Them", // TODO: Get real names
+          message:
+            typeof msg.message === "string"
+              ? msg.message
+              : JSON.parse(msg.message).content,
+          timestamp: msg.timestamp,
+          isRead: true, // TODO: Implement read status
+        }))
+      );
+    } catch (error) {
+      console.error("Error loading messages:", error);
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedConversation || !address) return;
+
+    try {
+      await MessagingService.sendMessage(selectedConversation, newMessage.trim());
+
+      // Add the message to local state immediately for UI feedback
+      const newMsg: Message = {
+        id: `temp_${Date.now()}`,
+        from: address,
+        fromName: "You",
+        message: newMessage.trim(),
+        timestamp: new Date(),
+        isRead: true,
+      };
+
+      setMessages((prev) => [...prev, newMsg]);
       setNewMessage("");
+
+      // Reload messages to get the real one from Firebase
+      setTimeout(() => loadMessages(), 1000);
+    } catch (error) {
+      console.error("Error sending message:", error);
+      Alert.alert("Error", "Failed to send message. Please try again.");
     }
   };
 

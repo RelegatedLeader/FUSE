@@ -482,7 +482,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
     id: string,
     traits: string,
     mbti: string
-  ) => {
+  ): Promise<{ hash: any; note?: string }> => {
     console.log("updateUserData called with:", {
       signClient: !!signClient,
       sessionTopic,
@@ -506,6 +506,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
         traits,
         mbti
       );
+      if (!result) {
+        throw new Error("Transaction failed - no hash returned");
+      }
       return result; // Return transaction hash
     } catch (error) {
       console.error("Update user data error:", error);

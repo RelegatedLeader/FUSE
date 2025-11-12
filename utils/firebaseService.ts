@@ -67,6 +67,7 @@ export class FirebaseService {
         firstName: profileData.firstName,
         lastName: profileData.lastName,
         gender: profileData.gender,
+        sexuality: profileData.sexuality,
       };
 
       const sensitiveData = {
@@ -139,6 +140,7 @@ export class FirebaseService {
         return {
           ...data!.matchingData,
           ...decryptedSensitiveData,
+          bio: data!.matchingData?.bio || decryptedSensitiveData?.bio || "",
           traits: {
             personalityTraits: data!.matchingData?.personalityTraits,
             bio: data!.matchingData?.bio || decryptedSensitiveData?.bio || "",

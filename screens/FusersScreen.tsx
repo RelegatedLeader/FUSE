@@ -14,12 +14,14 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import CryptoJS from "crypto-js";
 
 interface ConnectionRequest {
-  address: string;
+  address: string; // The requester's address
   name: string;
   age: number;
   city: string;
   bio: string;
   timestamp: Date;
+  requesterAddress?: string; // Optional for backward compatibility
+  targetAddress?: string; // Optional for backward compatibility
 }
 
 interface MatchedUser {
@@ -359,7 +361,7 @@ export default function FusersScreen() {
                 No connection requests at the moment. Keep swiping!
               </Text>
             ) : (
-              requests.map((request, index) => (
+              requests.map((request, index) => 
                 <Animated.View
                   key={request.address}
                   style={[
@@ -400,7 +402,7 @@ export default function FusersScreen() {
                     </TouchableOpacity>
                   </View>
                 </Animated.View>
-              ))
+              )
             )}
           </ScrollView>
         </View>
@@ -413,7 +415,7 @@ export default function FusersScreen() {
                 No matches yet. Start fusing to connect with people!
               </Text>
             ) : (
-              matchedUsers.map((user) => (
+              matchedUsers.map((user) => 
                 <View key={user.address} style={styles.matchedUserCard}>
                   <View style={styles.matchedUserInfo}>
                     <Text style={styles.matchedUserName}>
@@ -427,14 +429,14 @@ export default function FusersScreen() {
                   <TouchableOpacity
                     style={styles.messageButton}
                     onPress={() => {
-                      // Navigate to messages with this user
-                      // This will be implemented when we add navigation
+                      // TODO: Navigate to MessagesScreen with this user selected
+                      // For now, users can manually go to Messages tab
                     }}
                   >
                     <Text style={styles.buttonText}>Message</Text>
                   </TouchableOpacity>
                 </View>
-              ))
+              )
             )}
           </ScrollView>
         </View>
