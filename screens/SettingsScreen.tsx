@@ -111,14 +111,19 @@ export default function SettingsScreen() {
           let hasBioToMigrate = false;
 
           try {
-            let localDataString = await AsyncStorage.getItem(`userData_${address}`);
+            let localDataString = await AsyncStorage.getItem(
+              `userData_${address}`
+            );
             if (!localDataString) {
               localDataString = await AsyncStorage.getItem("userData");
             }
             if (localDataString) {
               const localData = JSON.parse(localDataString);
               if (localData.bio && localData.bio.trim()) {
-                console.log("Settings: Found bio in local data:", localData.bio.substring(0, 50) + "...");
+                console.log(
+                  "Settings: Found bio in local data:",
+                  localData.bio.substring(0, 50) + "..."
+                );
                 hasBioToMigrate = true;
               }
             }
@@ -308,7 +313,10 @@ export default function SettingsScreen() {
           const localData = JSON.parse(localDataString);
           if (localData.bio && localData.bio.trim()) {
             bioToMigrate = localData.bio.trim();
-            console.log("Bio migration: Found bio in local data:", `"${bioToMigrate}"`);
+            console.log(
+              "Bio migration: Found bio in local data:",
+              `"${bioToMigrate}"`
+            );
           } else {
             console.log("Bio migration: No bio found in local data");
           }
@@ -347,7 +355,9 @@ export default function SettingsScreen() {
         console.log("Bio migration: Updated existing profile with bio");
       } else {
         // Create new complete profile from local data
-        console.log("Bio migration: No existing Firebase profile, creating complete profile");
+        console.log(
+          "Bio migration: No existing Firebase profile, creating complete profile"
+        );
 
         if (localDataString) {
           // Use local data as base
@@ -395,13 +405,22 @@ export default function SettingsScreen() {
 
       await FirebaseService.storeUserProfile(address, profileData);
 
-      console.log("Bio migration: Successfully stored profile with bio:", profileData.bio);
+      console.log(
+        "Bio migration: Successfully stored profile with bio:",
+        profileData.bio
+      );
       console.log("Bio migration: Full profile data:", profileData);
 
       // Verify the profile was stored correctly
       const verifyProfile = await FirebaseService.getUserProfile(address);
-      console.log("Bio migration: Verification - retrieved profile:", verifyProfile);
-      console.log("Bio migration: Verification - bio in profile:", verifyProfile?.bio);
+      console.log(
+        "Bio migration: Verification - retrieved profile:",
+        verifyProfile
+      );
+      console.log(
+        "Bio migration: Verification - bio in profile:",
+        verifyProfile?.bio
+      );
 
       Alert.alert(
         "Success",

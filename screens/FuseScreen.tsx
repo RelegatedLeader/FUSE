@@ -273,12 +273,13 @@ export default function FuseScreen() {
                 onScroll={handleScroll}
                 scrollEventThrottle={16}
                 style={styles.photoScrollView}
+                contentContainerStyle={{ alignItems: 'center' }}
               >
                 {user.photos.map((photo, index) => (
                   <Image
                     key={index}
                     source={{ uri: photo }}
-                    style={styles.userImage}
+                    style={styles.photoImage}
                   />
                 ))}
               </ScrollView>
@@ -440,8 +441,7 @@ const styles = StyleSheet.create({
   card: {
     width: Dimensions.get("window").width * 0.85,
     maxWidth: 350,
-    minHeight: Dimensions.get("window").height * 0.5,
-    maxHeight: Dimensions.get("window").height * 0.7,
+    height: 350, // Fixed height that works on tablets
     backgroundColor: "white",
     borderRadius: 15,
     padding: 15,
@@ -450,7 +450,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
-    justifyContent: "space-between",
+    flexDirection: 'column',
+    alignItems: 'stretch',
   },
   leftTap: {
     position: "absolute",
@@ -460,7 +461,12 @@ const styles = StyleSheet.create({
     padding: 5,
     borderRadius: 5,
   },
-  userInfo: { alignItems: "center" },
+  userInfo: { 
+    flex: 1, // Take remaining space
+    justifyContent: 'center',
+    alignItems: "center",
+    paddingVertical: 5,
+  },
   name: { fontSize: 24, fontWeight: "bold", textAlign: "center" },
   compatibility: {
     fontSize: 16,
@@ -490,23 +496,25 @@ const styles = StyleSheet.create({
   },
   // New styles for card-based UI
   imageContainer: {
+    height: 120, // Fixed height for image
     alignItems: "center",
-    marginBottom: 15,
+    justifyContent: 'center',
+    marginBottom: 10,
   },
   userImage: {
-    width: Dimensions.get("window").width * 0.4,
-    height: Dimensions.get("window").width * 0.4,
-    maxWidth: 200,
-    maxHeight: 200,
+    width: Dimensions.get("window").width * 0.25,
+    height: Dimensions.get("window").width * 0.25,
+    maxWidth: 150,
+    maxHeight: 150,
     borderRadius: 0, // Square instead of circular
     borderWidth: 3,
     borderColor: "#e1e5e9",
   },
   placeholderImage: {
-    width: Dimensions.get("window").width * 0.4,
-    height: Dimensions.get("window").width * 0.4,
-    maxWidth: 200,
-    maxHeight: 200,
+    width: Dimensions.get("window").width * 0.25,
+    height: Dimensions.get("window").width * 0.25,
+    maxWidth: 150,
+    maxHeight: 150,
     borderRadius: 0, // Square instead of circular
     justifyContent: "center",
     alignItems: "center",
@@ -514,7 +522,7 @@ const styles = StyleSheet.create({
     borderColor: "#e1e5e9",
   },
   placeholderEmoji: {
-    fontSize: Dimensions.get("window").width * 0.15,
+    fontSize: Dimensions.get("window").width * 0.1,
   },
   location: {
     fontSize: 16,
@@ -522,9 +530,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   actionButtons: {
+    height: 50, // Fixed height for buttons
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 20,
+    alignItems: 'center',
+    marginTop: 5,
   },
   buttonText: {
     color: "white",
@@ -567,8 +577,15 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   photoScrollView: {
-    width: Dimensions.get("window").width * 0.4,
-    height: Dimensions.get("window").width * 0.4,
+    width: Dimensions.get('window').width * 0.25,
+    height: Dimensions.get('window').width * 0.25,
+  },
+  photoImage: {
+    width: Dimensions.get('window').width * 0.25,
+    height: Dimensions.get('window').width * 0.25,
+    borderRadius: 0,
+    borderWidth: 3,
+    borderColor: '#e1e5e9',
   },
   photoIndicators: {
     position: "absolute",
