@@ -82,7 +82,9 @@ export default function FuseScreen() {
 
         // Convert MatchResult to User format
         const formattedUsers: User[] = [];
-        for (const match of matches.filter((match) => !skippedUsers.has(match.address))) {
+        for (const match of matches.filter(
+          (match) => !skippedUsers.has(match.address)
+        )) {
           console.log("Processing match:", match.address, match.profile);
 
           // Calculate age from birthdate
@@ -91,11 +93,18 @@ export default function FuseScreen() {
             try {
               // Handle MM/DD/YYYY format
               const [month, day, year] = match.profile.birthdate.split("/");
-              const birthDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+              const birthDate = new Date(
+                parseInt(year),
+                parseInt(month) - 1,
+                parseInt(day)
+              );
               const today = new Date();
               age = today.getFullYear() - birthDate.getFullYear();
               const monthDiff = today.getMonth() - birthDate.getMonth();
-              if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+              if (
+                monthDiff < 0 ||
+                (monthDiff === 0 && today.getDate() < birthDate.getDate())
+              ) {
                 age--;
               }
             } catch (error) {
@@ -104,9 +113,12 @@ export default function FuseScreen() {
           }
 
           // Format name from firstName and lastName
-          const name = match.profile?.firstName && match.profile?.lastName
-            ? `${match.profile.firstName} ${match.profile.lastName}`
-            : match.profile?.firstName || match.profile?.lastName || "Unknown User";
+          const name =
+            match.profile?.firstName && match.profile?.lastName
+              ? `${match.profile.firstName} ${match.profile.lastName}`
+              : match.profile?.firstName ||
+                match.profile?.lastName ||
+                "Unknown User";
 
           // Load photos from local storage
           const photos = await loadUserPhotos(match.address);
@@ -116,7 +128,10 @@ export default function FuseScreen() {
             name: name,
             age: age,
             city: match.profile?.location || "Unknown",
-            bio: match.profile?.bio || match.profile?.traits?.bio || "This user hasn't written a bio yet",
+            bio:
+              match.profile?.bio ||
+              match.profile?.traits?.bio ||
+              "This user hasn't written a bio yet",
             photos: photos,
             compatibilityScore: match.compatibilityScore,
             skipped: false,
@@ -156,167 +171,216 @@ export default function FuseScreen() {
     ]).start(() => {
       Alert.alert("Fused!", "You have matched with this user!");
       // Remove this user from the list (they've been matched)
-      setUsers(prev => prev.filter(user => user.address !== userAddress));
+      setUsers((prev) => prev.filter((user) => user.address !== userAddress));
     });
   };
 
   const handleSkip = (userAddress: string) => {
     // Mark user as skipped
-    setSkippedUsers(prev => new Set(Array.from(prev).concat(userAddress)));
+    setSkippedUsers((prev) => new Set(Array.from(prev).concat(userAddress)));
     // Remove from current list
-    setUsers(prev => prev.filter(user => user.address !== userAddress));
+    setUsers((prev) => prev.filter((user) => user.address !== userAddress));
   };
 
-interface UserCardProps {
-  user: User;
-  onFuse: (address: string) => void;
-  onSkip: (address: string) => void;
-  theme: any;
-  fuseAnim: Animated.Value;
-}
+  interface UserCardProps {
+    user: User;
+    onFuse: (address: string) => void;
+    onSkip: (address: string) => void;
+    theme: any;
+    fuseAnim: Animated.Value;
+  }
 
-const UserCard: React.FC<UserCardProps> = ({ user, onFuse, onSkip, theme, fuseAnim }) => {
-  const pan = useRef(new Animated.ValueXY()).current;
-  const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+  const UserCard: React.FC<UserCardProps> = ({
+    user,
+    onFuse,
+    onSkip,
+    theme,
+    fuseAnim,
+  }) => {
+    const pan = useRef(new Animated.ValueXY()).current;
+    const scrollViewRef = useRef<ScrollView>(null);
+    const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 
-  const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
-      useNativeDriver: false,
-    }),
-    onPanResponderRelease: (evt, gestureState) => {
-      if (Math.abs(gestureState.dx) > 120) {
-        // Swipe threshold
-        const direction = gestureState.dx > 0 ? 'right' : 'left';
-        Animated.spring(pan, {
-          toValue: { x: direction === 'right' ? 500 : -500, y: gestureState.dy },
-          useNativeDriver: false,
-        }).start(() => {
-          if (direction === 'right') {
-            onFuse(user.address);
-          } else {
-            onSkip(user.address);
-          }
-          pan.setValue({ x: 0, y: 0 });
+    const panResponder = PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
+        useNativeDriver: false,
+      }),
+      onPanResponderRelease: (evt, gestureState) => {
+        if (Math.abs(gestureState.dx) > 120) {
+          // Swipe threshold
+          const direction = gestureState.dx > 0 ? "right" : "left";
+          Animated.spring(pan, {
+            toValue: {
+              x: direction === "right" ? 500 : -500,
+              y: gestureState.dy,
+            },
+            useNativeDriver: false,
+          }).start(() => {
+            if (direction === "right") {
+              onFuse(user.address);
+            } else {
+              onSkip(user.address);
+            }
+            pan.setValue({ x: 0, y: 0 });
+          });
+        } else {
+          // Return to center
+          Animated.spring(pan, {
+            toValue: { x: 0, y: 0 },
+            useNativeDriver: false,
+          }).start();
+        }
+      },
+    });
+
+    const handleScroll = (event: any) => {
+      const slideSize = Dimensions.get("window").width * 0.4;
+      const index = Math.round(event.nativeEvent.contentOffset.x / slideSize);
+      setCurrentPhotoIndex(index);
+    };
+
+    const scrollToPhoto = (index: number) => {
+      if (scrollViewRef.current) {
+        const slideSize = Dimensions.get("window").width * 0.4;
+        scrollViewRef.current.scrollTo({
+          x: index * slideSize,
+          animated: true,
         });
-      } else {
-        // Return to center
-        Animated.spring(pan, {
-          toValue: { x: 0, y: 0 },
-          useNativeDriver: false,
-        }).start();
       }
-    },
-  });
+    };
 
-  return (
-    <Animated.View
-      style={[
-        styles.card,
-        { backgroundColor: theme?.card?.backgroundColor || '#ffffff' },
-        {
-          transform: [{ translateX: pan.x }, { translateY: pan.y }],
-        },
-      ]}
-      {...panResponder.panHandlers}
-    >
-      {/* User Image */}
-      <View style={styles.imageContainer}>
-        {user.photos && user.photos.length > 0 ? (
-          <View style={styles.photoCarousel}>
-            <Image 
-              source={{ uri: user.photos[currentPhotoIndex] }} 
-              style={styles.userImage} 
-            />
-            {user.photos.length > 1 && (
-              <View style={styles.photoIndicators}>
-                {user.photos.map((_, index) => (
-                  <View 
-                    key={index} 
-                    style={[
-                      styles.photoIndicator, 
-                      { backgroundColor: index === currentPhotoIndex ? '#007AFF' : '#ccc' }
-                    ]} 
+    return (
+      <Animated.View
+        style={[
+          styles.card,
+          { backgroundColor: theme?.card?.backgroundColor || "#ffffff" },
+          {
+            transform: [{ translateX: pan.x }, { translateY: pan.y }],
+          },
+        ]}
+        {...panResponder.panHandlers}
+      >
+        {/* User Image */}
+        <View style={styles.imageContainer}>
+          {user.photos && user.photos.length > 0 ? (
+            <View style={styles.photoCarousel}>
+              <ScrollView
+                ref={scrollViewRef}
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onScroll={handleScroll}
+                scrollEventThrottle={16}
+                style={styles.photoScrollView}
+              >
+                {user.photos.map((photo, index) => (
+                  <Image
+                    key={index}
+                    source={{ uri: photo }}
+                    style={styles.userImage}
                   />
                 ))}
-              </View>
-            )}
-            {user.photos.length > 1 && (
-              <>
-                <TouchableOpacity 
-                  style={[styles.photoNavButton, styles.leftNavButton]}
-                  onPress={() => setCurrentPhotoIndex(prev => prev > 0 ? prev - 1 : user.photos.length - 1)}
-                >
-                  <Text style={styles.navButtonText}>{String('‹')}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.photoNavButton, styles.rightNavButton]}
-                  onPress={() => setCurrentPhotoIndex(prev => prev < user.photos.length - 1 ? prev + 1 : 0)}
-                >
-                  <Text style={styles.navButtonText}>{String('›')}</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
-        ) : (
-          <View style={[styles.placeholderImage, { backgroundColor: theme?.buttonBackground || '#8b9dc3' }]}>
-            <Text style={[{ color: theme?.textColor || '#333' }, styles.placeholderEmoji]}>
-              {String('👤')}
-            </Text>
-          </View>
-        )}
-      </View>
+              </ScrollView>
+              {user.photos.length > 1 && (
+                <View style={styles.photoIndicators}>
+                  {user.photos.map((_, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.photoIndicator,
+                        {
+                          backgroundColor:
+                            index === currentPhotoIndex ? "#007AFF" : "#ccc",
+                        },
+                      ]}
+                      onPress={() => scrollToPhoto(index)}
+                    />
+                  ))}
+                </View>
+              )}
+            </View>
+          ) : (
+            <View
+              style={[
+                styles.placeholderImage,
+                { backgroundColor: theme?.buttonBackground || "#8b9dc3" },
+              ]}
+            >
+              <Text
+                style={[
+                  { color: theme?.textColor || "#333" },
+                  styles.placeholderEmoji,
+                ]}
+              >
+                {String("👤")}
+              </Text>
+            </View>
+          )}
+        </View>
 
-      {/* User Info */}
-      <View style={styles.userInfo}>
-        <Text style={[{ color: theme?.textColor || '#333' }, styles.name]}>
-          {String(user.name || 'Unknown User')}, {String(user.age || 'N/A')}
-        </Text>
-        <Text style={[{ color: theme?.textColor || '#666' }, styles.location]}>
-          {String('Location: ' + (user.city || 'Unknown Location'))}
-        </Text>
-        {user.compatibilityScore !== undefined && user.compatibilityScore !== null && (
-          <Text style={[{ color: theme?.textColor || '#666' }, styles.compatibility]}>
-            {String('Compatibility: ' + Math.round(user.compatibilityScore) + '%')}
+        {/* User Info */}
+        <View style={styles.userInfo}>
+          <Text style={[{ color: theme?.textColor || "#333" }, styles.name]}>
+            {String(user.name || "Unknown User")}, {String(user.age || "N/A")}
           </Text>
-        )}
-        <Text style={[{ color: theme?.textColor || '#666' }, styles.bio]}>
-          {String(user.bio || 'No bio available')}
-        </Text>
-      </View>
-
-      {/* Action Buttons */}
-      <View style={styles.actionButtons}>
-        <TouchableOpacity
-          onPress={() => onFuse(user.address)}
-          style={[styles.fuseButton, { backgroundColor: '#28a745' }]}
-        >
-          <Animated.Text
-            style={[
-              styles.buttonText,
-              {
-                transform: [
-                  {
-                    scale: fuseAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1, 1.2],
-                    }),
-                  },
-                ],
-              },
-            ]}
+          <Text
+            style={[{ color: theme?.textColor || "#666" }, styles.location]}
           >
-            Fuse & Connect
-          </Animated.Text>
-        </TouchableOpacity>
-      </View>
-    </Animated.View>
-  );
-};
+            {String("Location: " + (user.city || "Unknown Location"))}
+          </Text>
+          {user.compatibilityScore !== undefined &&
+            user.compatibilityScore !== null && (
+              <Text
+                style={[
+                  { color: theme?.textColor || "#666" },
+                  styles.compatibility,
+                ]}
+              >
+                {String(
+                  "Compatibility: " + Math.round(user.compatibilityScore) + "%"
+                )}
+              </Text>
+            )}
+          <Text style={[{ color: theme?.textColor || "#666" }, styles.bio]}>
+            {String(user.bio || "No bio available")}
+          </Text>
+        </View>
+
+        {/* Action Buttons */}
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            onPress={() => onFuse(user.address)}
+            style={[styles.fuseButton, { backgroundColor: "#28a745" }]}
+          >
+            <Animated.Text
+              style={[
+                styles.buttonText,
+                {
+                  transform: [
+                    {
+                      scale: fuseAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 1.2],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              Fuse & Connect
+            </Animated.Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    );
+  };
 
   if (!address) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      <View
+        style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+      >
         <Text style={[styles.centerText, { color: theme.textColor }]}>
           Please connect your wallet to start matching!
         </Text>
@@ -325,17 +389,24 @@ const UserCard: React.FC<UserCardProps> = ({ user, onFuse, onSkip, theme, fuseAn
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme?.backgroundColor || '#bfcafd' }]}>
-      <Text style={[styles.title, { color: theme?.textColor || '#333' }]}>Find Your Fuse</Text>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: theme?.backgroundColor || "#bfcafd" },
+      ]}
+    >
+      <Text style={[styles.title, { color: theme?.textColor || "#333" }]}>
+        Find Your Fuse
+      </Text>
 
       {users.length === 0 ? (
         <View style={styles.centerContainer}>
-          <Text style={[styles.centerText, { color: theme?.textColor || '#333' }]}>
-            {address ? (
-              'No potential matches yet.\nMake sure you\'ve migrated your profile in Settings first!\n\nOnce migrated, you\'ll start seeing other users.'
-            ) : (
-              'No more potential matches right now.\nCheck back later or invite friends to join!'
-            )}
+          <Text
+            style={[styles.centerText, { color: theme?.textColor || "#333" }]}
+          >
+            {address
+              ? "No potential matches yet.\nMake sure you've migrated your profile in Settings first!\n\nOnce migrated, you'll start seeing other users."
+              : "No more potential matches right now.\nCheck back later or invite friends to join!"}
           </Text>
         </View>
       ) : (
@@ -367,16 +438,19 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContainer: { alignItems: "center", padding: 20 },
   card: {
-    width: Dimensions.get('window').width * 0.9,
-    maxWidth: 400,
+    width: Dimensions.get("window").width * 0.85,
+    maxWidth: 350,
+    minHeight: Dimensions.get("window").height * 0.5,
+    maxHeight: Dimensions.get("window").height * 0.7,
     backgroundColor: "white",
     borderRadius: 15,
-    padding: 20,
-    marginBottom: 20,
+    padding: 15,
+    marginBottom: 15,
     shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
+    justifyContent: "space-between",
   },
   leftTap: {
     position: "absolute",
@@ -387,9 +461,19 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   userInfo: { alignItems: "center" },
-  name: { fontSize: 24, fontWeight: "bold", textAlign: 'center' },
-  compatibility: { fontSize: 16, fontWeight: "600", marginTop: 5, textAlign: 'center' },
-  bio: { marginTop: 10, fontStyle: "italic", textAlign: 'center', lineHeight: 20 },
+  name: { fontSize: 24, fontWeight: "bold", textAlign: "center" },
+  compatibility: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginTop: 5,
+    textAlign: "center",
+  },
+  bio: {
+    marginTop: 10,
+    fontStyle: "italic",
+    textAlign: "center",
+    lineHeight: 20,
+  },
   fuseButton: {
     marginTop: 20,
     backgroundColor: "blue",
@@ -397,93 +481,103 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   fuseText: { color: "white", fontSize: 18 },
-  skipButton: { padding: 15, backgroundColor: "gray", borderRadius: 10, flex: 1, marginRight: 10 },
+  skipButton: {
+    padding: 15,
+    backgroundColor: "gray",
+    borderRadius: 10,
+    flex: 1,
+    marginRight: 10,
+  },
   // New styles for card-based UI
   imageContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 15,
   },
   userImage: {
-    width: Dimensions.get('window').width * 0.25,
-    height: Dimensions.get('window').width * 0.25,
-    maxWidth: 120,
-    maxHeight: 120,
-    borderRadius: (Dimensions.get('window').width * 0.25) / 2,
+    width: Dimensions.get("window").width * 0.4,
+    height: Dimensions.get("window").width * 0.4,
+    maxWidth: 200,
+    maxHeight: 200,
+    borderRadius: 0, // Square instead of circular
     borderWidth: 3,
-    borderColor: '#e1e5e9',
+    borderColor: "#e1e5e9",
   },
   placeholderImage: {
-    width: Dimensions.get('window').width * 0.25,
-    height: Dimensions.get('window').width * 0.25,
-    maxWidth: 120,
-    maxHeight: 120,
-    borderRadius: (Dimensions.get('window').width * 0.25) / 2,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: Dimensions.get("window").width * 0.4,
+    height: Dimensions.get("window").width * 0.4,
+    maxWidth: 200,
+    maxHeight: 200,
+    borderRadius: 0, // Square instead of circular
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 3,
-    borderColor: '#e1e5e9',
+    borderColor: "#e1e5e9",
   },
   placeholderEmoji: {
-    fontSize: Dimensions.get('window').width * 0.15,
+    fontSize: Dimensions.get("window").width * 0.15,
   },
   location: {
     fontSize: 16,
     marginTop: 5,
-    textAlign: 'center',
+    textAlign: "center",
   },
   actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     marginTop: 20,
   },
   buttonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
   },
   centerText: {
     fontSize: 18,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 24,
   },
   debugText: {
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 10,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
     marginVertical: 20,
   },
   centerContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 20,
   },
   listContainer: {
     paddingVertical: 20,
     paddingHorizontal: 10,
-    alignItems: 'center',
+    alignItems: "center",
   },
   separator: {
     height: 15,
   },
   photoCarousel: {
-    position: 'relative',
+    position: "relative",
+  },
+  photoScrollView: {
+    width: Dimensions.get("window").width * 0.4,
+    height: Dimensions.get("window").width * 0.4,
   },
   photoIndicators: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 10,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
   },
   photoIndicator: {
     width: 8,
@@ -492,15 +586,15 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   photoNavButton: {
-    position: 'absolute',
-    top: '50%',
+    position: "absolute",
+    top: "50%",
     transform: [{ translateY: -15 }],
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   leftNavButton: {
     left: 10,
@@ -509,8 +603,8 @@ const styles = StyleSheet.create({
     right: 10,
   },
   navButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
 });

@@ -67,13 +67,13 @@ export class FirebaseService {
         firstName: profileData.firstName,
         lastName: profileData.lastName,
         gender: profileData.gender,
+        bio: profileData.bio, // Bio should be visible to other users for matching
       };
 
       const sensitiveData = {
         email: profileData.email,
         occupation: profileData.occupation,
         careerAspiration: profileData.careerAspiration,
-        bio: profileData.bio,
         id: profileData.id,
         openEnded: profileData.openEnded,
         transactionHash: profileData.transactionHash,
@@ -141,7 +141,7 @@ export class FirebaseService {
           ...decryptedSensitiveData,
           traits: {
             personalityTraits: data!.matchingData?.personalityTraits,
-            bio: decryptedSensitiveData?.bio || "",
+            bio: data!.matchingData?.bio || decryptedSensitiveData?.bio || "",
           },
         };
       } else if (data!.encryptedProfile) {

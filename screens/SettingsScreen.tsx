@@ -70,11 +70,18 @@ export default function SettingsScreen() {
           localData = await AsyncStorage.getItem("userData");
           if (localData) {
             dataSource = "old-key";
-            console.log("Settings: Found data under old key - will validate ownership during migration");
+            console.log(
+              "Settings: Found data under old key - will validate ownership during migration"
+            );
           }
         }
 
-        console.log("Settings: Local data exists:", !!localData, "source:", dataSource);
+        console.log(
+          "Settings: Local data exists:",
+          !!localData,
+          "source:",
+          dataSource
+        );
 
         // Initialize Firebase Auth first
         const { initializeFirebaseAuth } = await import("../utils/firebase");
@@ -92,52 +99,31 @@ export default function SettingsScreen() {
         setNeedsMigration(needsMigration);
 
         // Check if user has Firebase profile but missing bio (needs bio migration)
-        if (firebaseData && (!firebaseData.bio || firebaseData.bio.trim() === "")) {
-          console.log("Settings: Firebase profile exists but bio is missing or empty:", firebaseData.bio);
-          // Check if there's bio data on Polygon or local storage that could be migrated
+        if (
+          firebaseData &&
+          (!firebaseData.bio || firebaseData.bio.trim() === "")
+        ) {
+          console.log(
+            "Settings: Firebase profile exists but bio is missing or empty:",
+            firebaseData.bio
+          );
+          // Check if there's bio data in local storage that could be migrated
           let hasBioToMigrate = false;
 
           try {
-            const { getUserData } = await import("../utils/contract");
-            const blockchainData = await getUserData(address);
-            if (blockchainData) {
-              let traits: any = {};
-              if (blockchainData.traits) {
-                try {
-                  traits = typeof blockchainData.traits === 'string'
-                    ? JSON.parse(blockchainData.traits)
-                    : blockchainData.traits;
-                } catch (e) {
-                  console.log("Bio check: Could not parse traits");
-                }
-              }
-              const polygonBio = traits.bio || blockchainData.bio || "";
-              console.log("Settings: Polygon bio available:", polygonBio);
-              if (polygonBio.trim() !== "") {
+            let localDataString = await AsyncStorage.getItem(`userData_${address}`);
+            if (!localDataString) {
+              localDataString = await AsyncStorage.getItem("userData");
+            }
+            if (localDataString) {
+              const localData = JSON.parse(localDataString);
+              if (localData.bio && localData.bio.trim()) {
+                console.log("Settings: Found bio in local data:", localData.bio.substring(0, 50) + "...");
                 hasBioToMigrate = true;
               }
             }
           } catch (error) {
-            console.log("Settings: Could not check Polygon for bio:", error);
-          }
-
-          // If no bio on Polygon, check local data
-          if (!hasBioToMigrate) {
-            try {
-              let localDataString = await AsyncStorage.getItem(`userData_${address}`);
-              if (!localDataString) {
-                localDataString = await AsyncStorage.getItem("userData");
-              }
-              if (localDataString) {
-                const localData = JSON.parse(localDataString);
-                if (localData.bio && localData.bio.trim()) {
-                  console.log("Settings: Found bio in local data");
-                  hasBioToMigrate = true;
-                }
-              }
-            } catch (error) {
-              console.log("Settings: Could not check local data for bio:", error);
-            }
+            console.log("Settings: Could not check local data for bio:", error);
           }
 
           if (hasBioToMigrate) {
@@ -147,7 +133,10 @@ export default function SettingsScreen() {
             console.log("Settings: No bio found to migrate");
           }
         } else {
-          console.log("Settings: Bio migration not needed - Firebase bio exists:", firebaseData?.bio);
+          console.log(
+            "Settings: Bio migration not needed - Firebase bio exists:",
+            firebaseData?.bio
+          );
         }
       } catch (error) {
         console.error("Error checking migration status:", error);
@@ -182,7 +171,10 @@ export default function SettingsScreen() {
       const polygonData = await getUserData(address);
 
       if (!polygonData) {
-        Alert.alert("Error", "Could not retrieve Polygon data for verification.");
+        Alert.alert(
+          "Error",
+          "Could not retrieve Polygon data for verification."
+        );
         return;
       }
 
@@ -190,9 +182,10 @@ export default function SettingsScreen() {
       let polygonTraits: any = {};
       if (polygonData.traits) {
         try {
-          polygonTraits = typeof polygonData.traits === 'string'
-            ? JSON.parse(polygonData.traits)
-            : polygonData.traits;
+          polygonTraits =
+            typeof polygonData.traits === "string"
+              ? JSON.parse(polygonData.traits)
+              : polygonData.traits;
         } catch (e) {
           console.log("Could not parse Polygon traits");
         }
@@ -202,22 +195,34 @@ export default function SettingsScreen() {
       const mismatches: string[] = [];
 
       if (firebaseData.firstName !== polygonData.firstName) {
-        mismatches.push(`First Name: Firebase="${firebaseData.firstName}" vs Polygon="${polygonData.firstName}"`);
+        mismatches.push(
+          `First Name: Firebase="${firebaseData.firstName}" vs Polygon="${polygonData.firstName}"`
+        );
       }
       if (firebaseData.lastName !== polygonData.lastName) {
-        mismatches.push(`Last Name: Firebase="${firebaseData.lastName}" vs Polygon="${polygonData.lastName}"`);
+        mismatches.push(
+          `Last Name: Firebase="${firebaseData.lastName}" vs Polygon="${polygonData.lastName}"`
+        );
       }
       if (firebaseData.birthdate !== polygonData.birthdate) {
-        mismatches.push(`Birthdate: Firebase="${firebaseData.birthdate}" vs Polygon="${polygonData.birthdate}"`);
+        mismatches.push(
+          `Birthdate: Firebase="${firebaseData.birthdate}" vs Polygon="${polygonData.birthdate}"`
+        );
       }
       if (firebaseData.gender !== polygonData.gender) {
-        mismatches.push(`Gender: Firebase="${firebaseData.gender}" vs Polygon="${polygonData.gender}"`);
+        mismatches.push(
+          `Gender: Firebase="${firebaseData.gender}" vs Polygon="${polygonData.gender}"`
+        );
       }
       if (firebaseData.location !== polygonData.location) {
-        mismatches.push(`Location: Firebase="${firebaseData.location}" vs Polygon="${polygonData.location}"`);
+        mismatches.push(
+          `Location: Firebase="${firebaseData.location}" vs Polygon="${polygonData.location}"`
+        );
       }
       if (firebaseData.mbti !== polygonData.mbti) {
-        mismatches.push(`MBTI: Firebase="${firebaseData.mbti}" vs Polygon="${polygonData.mbti}"`);
+        mismatches.push(
+          `MBTI: Firebase="${firebaseData.mbti}" vs Polygon="${polygonData.mbti}"`
+        );
       }
 
       // Compare personality traits
@@ -225,35 +230,58 @@ export default function SettingsScreen() {
         const firebaseTraits = firebaseData.personalityTraits;
         const polygonTraitsData = polygonTraits.personalityTraits;
 
-        ['agreeableness', 'conscientiousness', 'extroversion', 'neuroticism', 'openness'].forEach(trait => {
+        [
+          "agreeableness",
+          "conscientiousness",
+          "extroversion",
+          "neuroticism",
+          "openness",
+        ].forEach((trait) => {
           const firebaseValue = firebaseTraits[trait];
           const polygonValue = polygonTraitsData[trait];
-          if (Math.abs(firebaseValue - polygonValue) > 0.001) { // Allow small floating point differences
-            mismatches.push(`${trait}: Firebase=${firebaseValue} vs Polygon=${polygonValue}`);
+          if (Math.abs(firebaseValue - polygonValue) > 0.001) {
+            // Allow small floating point differences
+            mismatches.push(
+              `${trait}: Firebase=${firebaseValue} vs Polygon=${polygonValue}`
+            );
           }
         });
       }
 
       // Compare bio
-      const firebaseBio = firebaseData.bio || firebaseData.traits?.bio || '';
-      const polygonBio = polygonTraits.bio || '';
+      const firebaseBio = firebaseData.bio || firebaseData.traits?.bio || "";
+      const polygonBio = polygonTraits.bio || "";
       if (firebaseBio.trim() !== polygonBio.trim()) {
-        mismatches.push(`Bio: Firebase="${firebaseBio.substring(0, 50)}..." vs Polygon="${polygonBio.substring(0, 50)}..."`);
-      }
-
-      if (mismatches.length === 0) {
-        Alert.alert("✅ Data Integrity Verified", "Your Firebase data matches the immutable Polygon blockchain data. No tampering detected.");
-      } else {
-        Alert.alert(
-          "🚨 DATA TAMPERING DETECTED!",
-          `Critical security issue: ${mismatches.length} data mismatches found:\n\n${mismatches.join('\n')}\n\nYour profile may have been compromised. Contact support immediately.`,
-          [{ text: "OK", style: "destructive" }]
+        mismatches.push(
+          `Bio: Firebase="${firebaseBio.substring(
+            0,
+            50
+          )}..." vs Polygon="${polygonBio.substring(0, 50)}..."`
         );
       }
 
+      if (mismatches.length === 0) {
+        Alert.alert(
+          "✅ Data Integrity Verified",
+          "Your Firebase data matches the immutable Polygon blockchain data. No tampering detected."
+        );
+      } else {
+        Alert.alert(
+          "🚨 DATA TAMPERING DETECTED!",
+          `Critical security issue: ${
+            mismatches.length
+          } data mismatches found:\n\n${mismatches.join(
+            "\n"
+          )}\n\nYour profile may have been compromised. Contact support immediately.`,
+          [{ text: "OK", style: "destructive" }]
+        );
+      }
     } catch (error) {
       console.error("Data integrity verification error:", error);
-      Alert.alert("Error", "Failed to verify data integrity. Please try again.");
+      Alert.alert(
+        "Error",
+        "Failed to verify data integrity. Please try again."
+      );
     } finally {
       setIsVerifyingIntegrity(false);
     }
@@ -266,51 +294,36 @@ export default function SettingsScreen() {
     try {
       console.log("Bio migration: Starting for address:", address);
 
-      // First try to get bio from Polygon blockchain
-      const { getUserData } = await import("../utils/contract");
-      const blockchainData = await getUserData(address);
-      console.log("Bio migration: Blockchain data:", blockchainData);
+      let bioToMigrate = "";
+      let localDataString = null;
 
-      let polygonBio = "";
-      if (blockchainData) {
-        // Parse traits to get bio
-        let traits: any = {};
-        if (blockchainData.traits) {
-          try {
-            traits = typeof blockchainData.traits === 'string'
-              ? JSON.parse(blockchainData.traits)
-              : blockchainData.traits;
-            console.log("Bio migration: Parsed traits:", traits);
-          } catch (e) {
-            console.log("Bio migration: Could not parse traits");
-          }
+      // Check local data for bio (since contract doesn't support retrieval yet)
+      console.log("Bio migration: Checking local storage for bio data");
+      try {
+        localDataString = await AsyncStorage.getItem(`userData_${address}`);
+        if (!localDataString) {
+          localDataString = await AsyncStorage.getItem("userData");
         }
-        polygonBio = traits.bio || (blockchainData as any).bio || "";
-        console.log("Bio migration: Polygon bio:", polygonBio);
+        if (localDataString) {
+          const localData = JSON.parse(localDataString);
+          if (localData.bio && localData.bio.trim()) {
+            bioToMigrate = localData.bio.trim();
+            console.log("Bio migration: Found bio in local data:", `"${bioToMigrate}"`);
+          } else {
+            console.log("Bio migration: No bio found in local data");
+          }
+        } else {
+          console.log("Bio migration: No local data found");
+        }
+      } catch (error) {
+        console.log("Bio migration: Could not check local data:", error);
       }
 
-      // If no bio on Polygon, check local data
-      if (!polygonBio.trim()) {
-        console.log("Bio migration: No bio on Polygon, checking local data");
-        try {
-          let localDataString = await AsyncStorage.getItem(`userData_${address}`);
-          if (!localDataString) {
-            localDataString = await AsyncStorage.getItem("userData");
-          }
-          if (localDataString) {
-            const localData = JSON.parse(localDataString);
-            if (localData.bio && localData.bio.trim()) {
-              polygonBio = localData.bio.trim();
-              console.log("Bio migration: Found bio in local data:", polygonBio);
-            }
-          }
-        } catch (error) {
-          console.log("Bio migration: Could not check local data:", error);
-        }
-      }
-
-      if (!polygonBio.trim()) {
-        Alert.alert("Info", "No bio found on Polygon blockchain or local storage to migrate.");
+      if (!bioToMigrate.trim()) {
+        Alert.alert(
+          "Info",
+          "No bio found in local storage to migrate. Make sure you've completed the signup process."
+        );
         return;
       }
 
@@ -323,24 +336,78 @@ export default function SettingsScreen() {
       const currentProfile = await FirebaseService.getUserProfile(address);
       console.log("Bio migration: Current Firebase profile:", currentProfile);
 
-      if (!currentProfile) {
-        Alert.alert("Error", "Firebase profile not found. Please complete profile migration first.");
-        return;
+      let profileData;
+
+      if (currentProfile) {
+        // Update existing Firebase profile with bio
+        profileData = {
+          ...currentProfile,
+          bio: bioToMigrate.trim(),
+        };
+        console.log("Bio migration: Updated existing profile with bio");
+      } else {
+        // Create new complete profile from local data
+        console.log("Bio migration: No existing Firebase profile, creating complete profile");
+
+        if (localDataString) {
+          // Use local data as base
+          const localData = JSON.parse(localDataString);
+          profileData = {
+            firstName: localData.firstName || "",
+            lastName: localData.lastName || "",
+            email: localData.email || "",
+            dob: localData.dob || "",
+            gender: localData.gender || "",
+            location: localData.location || "",
+            occupation: localData.occupation || "",
+            careerAspiration: localData.careerAspiration || "",
+            mbti: localData.mbti || "",
+            bio: bioToMigrate.trim(),
+            id: localData.id || "",
+            openEnded: localData.openEnded || "",
+            personalityTraits: localData.personalityTraits || {},
+            transactionHash: localData.transactionHash || "",
+            walletAddress: address,
+          };
+          console.log("Bio migration: Created profile from local data");
+        } else {
+          // Create minimal profile with just bio
+          profileData = {
+            firstName: "",
+            lastName: "",
+            email: "",
+            dob: "",
+            gender: "",
+            location: "",
+            occupation: "",
+            careerAspiration: "",
+            mbti: "",
+            bio: bioToMigrate.trim(),
+            id: "",
+            openEnded: "",
+            personalityTraits: {},
+            transactionHash: "",
+            walletAddress: address,
+          };
+          console.log("Bio migration: Created minimal profile with bio only");
+        }
       }
 
-      // Update Firebase profile with bio
-      const updatedProfile = {
-        ...currentProfile,
-        bio: polygonBio.trim(),
-      };
-      console.log("Bio migration: Updated profile:", updatedProfile);
+      await FirebaseService.storeUserProfile(address, profileData);
 
-      await FirebaseService.storeUserProfile(address, updatedProfile);
+      console.log("Bio migration: Successfully stored profile with bio:", profileData.bio);
+      console.log("Bio migration: Full profile data:", profileData);
 
-      console.log("Bio migration: Successfully stored profile");
-      Alert.alert("Success", "Bio migrated successfully!");
+      // Verify the profile was stored correctly
+      const verifyProfile = await FirebaseService.getUserProfile(address);
+      console.log("Bio migration: Verification - retrieved profile:", verifyProfile);
+      console.log("Bio migration: Verification - bio in profile:", verifyProfile?.bio);
+
+      Alert.alert(
+        "Success",
+        "Bio migrated successfully! Your profile is now visible in the matching system."
+      );
       setNeedsBioMigration(false);
-
     } catch (error) {
       console.error("Bio migration error:", error);
       Alert.alert("Error", "Failed to migrate bio. Please try again.");
@@ -367,7 +434,9 @@ export default function SettingsScreen() {
 
       if (!localDataString) {
         // If no local data found, try to get data from blockchain as fallback
-        console.log("Migration: No local data found, attempting to fetch from blockchain");
+        console.log(
+          "Migration: No local data found, attempting to fetch from blockchain"
+        );
         try {
           const { getUserData } = await import("../utils/contract");
           const blockchainData = await getUserData(address);
@@ -376,11 +445,14 @@ export default function SettingsScreen() {
             let traits: any = {};
             if (blockchainData.traits) {
               try {
-                traits = typeof blockchainData.traits === 'string'
-                  ? JSON.parse(blockchainData.traits)
-                  : blockchainData.traits;
+                traits =
+                  typeof blockchainData.traits === "string"
+                    ? JSON.parse(blockchainData.traits)
+                    : blockchainData.traits;
               } catch (e) {
-                console.log("Migration: Could not parse traits, using empty object");
+                console.log(
+                  "Migration: Could not parse traits, using empty object"
+                );
               }
             }
 
@@ -398,20 +470,32 @@ export default function SettingsScreen() {
               bio: traits.bio || blockchainData.bio || "",
               id: blockchainData.id,
               openEnded: traits.openEnded || "",
-              personalityTraits: traits.personalityTraits || (blockchainData as any).personalityTraits || {},
+              personalityTraits:
+                traits.personalityTraits ||
+                (blockchainData as any).personalityTraits ||
+                {},
               transactionHash: "", // Will be set during migration
               walletAddress: address,
             });
             dataSource = "blockchain";
-            console.log("Migration: Retrieved data from blockchain, bio:", traits.bio || blockchainData.bio || "none");
+            console.log(
+              "Migration: Retrieved data from blockchain, bio:",
+              traits.bio || blockchainData.bio || "none"
+            );
           }
         } catch (blockchainError) {
-          console.error("Migration: Failed to fetch from blockchain:", blockchainError);
+          console.error(
+            "Migration: Failed to fetch from blockchain:",
+            blockchainError
+          );
         }
       }
 
       if (!localDataString) {
-        Alert.alert("Error", "No profile data found to migrate. Please ensure you have completed the sign-up process.");
+        Alert.alert(
+          "Error",
+          "No profile data found to migrate. Please ensure you have completed the sign-up process."
+        );
         return;
       }
 
@@ -419,12 +503,20 @@ export default function SettingsScreen() {
       if (dataSource === "old-key") {
         const localData = JSON.parse(localDataString);
         // Check if the data contains wallet address and matches current wallet
-        if (localData.walletAddress && localData.walletAddress.toLowerCase() === address.toLowerCase()) {
+        if (
+          localData.walletAddress &&
+          localData.walletAddress.toLowerCase() === address.toLowerCase()
+        ) {
           await AsyncStorage.setItem(`userData_${address}`, localDataString);
           await AsyncStorage.removeItem("userData");
-          console.log("Migration: Migrated validated data from old key to wallet-specific key");
+          console.log(
+            "Migration: Migrated validated data from old key to wallet-specific key"
+          );
         } else {
-          Alert.alert("Error", "The stored profile data doesn't match your current wallet address. Please ensure you're using the correct wallet.");
+          Alert.alert(
+            "Error",
+            "The stored profile data doesn't match your current wallet address. Please ensure you're using the correct wallet."
+          );
           return;
         }
       }
@@ -502,7 +594,9 @@ export default function SettingsScreen() {
           style={[theme.button, { backgroundColor: "#28a745" }]}
         >
           <Text style={[theme.buttonTextStyle, { color: "#fff" }]}>
-            {isMigrating ? "🔄 Migrating Profile..." : "📤 Migrate Profile to Matching"}
+            {isMigrating
+              ? "🔄 Migrating Profile..."
+              : "📤 Migrate Profile to Matching"}
           </Text>
         </TouchableOpacity>
       )}
@@ -514,13 +608,20 @@ export default function SettingsScreen() {
           style={[theme.button, { backgroundColor: "#17a2b8" }]}
         >
           <Text style={[theme.buttonTextStyle, { color: "#fff" }]}>
-            {isBioMigrating ? "🔄 Migrating Bio..." : "📝 Migrate Bio from Polygon"}
+            {isBioMigrating
+              ? "🔄 Migrating Bio..."
+              : "📝 Migrate Bio from Polygon"}
           </Text>
         </TouchableOpacity>
       )}
 
       <TouchableOpacity
-        onPress={() => Alert.alert("Feature Coming Soon", "Data integrity verification will be available in the next update to ensure your Firebase data matches the immutable Polygon blockchain.")}
+        onPress={() =>
+          Alert.alert(
+            "Feature Coming Soon",
+            "Data integrity verification will be available in the next update to ensure your Firebase data matches the immutable Polygon blockchain."
+          )
+        }
         style={[theme.button, { backgroundColor: "#6f42c1" }]}
       >
         <Text style={[theme.buttonTextStyle, { color: "#fff" }]}>
