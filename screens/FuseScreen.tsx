@@ -202,7 +202,11 @@ export default function FuseScreen() {
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 
     const panResponder = PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: (evt, gestureState) => {
+        // Only respond to pan gestures that are more vertical than horizontal
+        // This allows horizontal scrolling in the photo carousel
+        return Math.abs(gestureState.dx) < Math.abs(gestureState.dy);
+      },
       onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
         useNativeDriver: false,
       }),
@@ -269,11 +273,15 @@ export default function FuseScreen() {
                 ref={scrollViewRef}
                 horizontal
                 pagingEnabled
-                showsHorizontalScrollIndicator={false}
+                showsHorizontalScrollIndicator={true}
                 onScroll={handleScroll}
                 scrollEventThrottle={16}
                 style={styles.photoScrollView}
+                snapToInterval={200}
+                decelerationRate="fast"
                 contentContainerStyle={{ alignItems: 'center' }}
+                bounces={false}
+                scrollEnabled={true}
               >
                 {user.photos.map((photo, index) => (
                   <Image
@@ -343,9 +351,15 @@ export default function FuseScreen() {
                 )}
               </Text>
             )}
-          <Text style={[{ color: theme?.textColor || "#666" }, styles.bio]}>
-            {String(user.bio || "No bio available")}
-          </Text>
+          <ScrollView 
+            style={styles.bioScrollView}
+            showsVerticalScrollIndicator={true}
+            bounces={false}
+          >
+            <Text style={[{ color: theme?.textColor || "#666" }, styles.bio]}>
+              {String(user.bio || "No bio available")}
+            </Text>
+          </ScrollView>
         </View>
 
         {/* Action Buttons */}
@@ -439,9 +453,9 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scrollContainer: { alignItems: "center", padding: 20 },
   card: {
-    width: Dimensions.get("window").width * 0.85,
-    maxWidth: 350,
-    height: 350, // Fixed height that works on tablets
+    width: Dimensions.get("window").width * 0.95,
+    maxWidth: 450,
+    height: 650, // Increased height for scrollable bio
     backgroundColor: "white",
     borderRadius: 15,
     padding: 15,
@@ -463,9 +477,10 @@ const styles = StyleSheet.create({
   },
   userInfo: { 
     flex: 1, // Take remaining space
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     alignItems: "center",
     paddingVertical: 5,
+    paddingHorizontal: 5,
   },
   name: { fontSize: 24, fontWeight: "bold", textAlign: "center" },
   compatibility: {
@@ -475,16 +490,24 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   bio: {
-    marginTop: 10,
     fontStyle: "italic",
     textAlign: "center",
-    lineHeight: 20,
+    lineHeight: 22,
+    paddingHorizontal: 8,
+    fontSize: 14,
+  },
+  bioScrollView: {
+    flex: 1, // Take remaining space in userInfo
+    width: '100%',
+    minHeight: 100, // Minimum height to show some content
   },
   fuseButton: {
-    marginTop: 20,
+    flex: 1,
     backgroundColor: "blue",
-    padding: 15,
+    padding: 12,
     borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   fuseText: { color: "white", fontSize: 18 },
   skipButton: {
@@ -496,25 +519,23 @@ const styles = StyleSheet.create({
   },
   // New styles for card-based UI
   imageContainer: {
-    height: 120, // Fixed height for image
+    height: 200, // Increased for larger images
     alignItems: "center",
     justifyContent: 'center',
     marginBottom: 10,
   },
   userImage: {
-    width: Dimensions.get("window").width * 0.25,
-    height: Dimensions.get("window").width * 0.25,
-    maxWidth: 150,
-    maxHeight: 150,
+    width: 200,
+    height: 200,
+    maxWidth: 200,
+    maxHeight: 200,
     borderRadius: 0, // Square instead of circular
     borderWidth: 3,
     borderColor: "#e1e5e9",
   },
   placeholderImage: {
-    width: Dimensions.get("window").width * 0.25,
-    height: Dimensions.get("window").width * 0.25,
-    maxWidth: 150,
-    maxHeight: 150,
+    width: 200,
+    height: 200,
     borderRadius: 0, // Square instead of circular
     justifyContent: "center",
     alignItems: "center",
@@ -577,12 +598,13 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   photoScrollView: {
-    width: Dimensions.get('window').width * 0.25,
-    height: Dimensions.get('window').width * 0.25,
+    width: Dimensions.get("window").width * 0.95 - 30, // Card width minus padding
+    maxWidth: 420, // Max width minus padding
+    height: 200,
   },
   photoImage: {
-    width: Dimensions.get('window').width * 0.25,
-    height: Dimensions.get('window').width * 0.25,
+    width: 200,
+    height: 200,
     borderRadius: 0,
     borderWidth: 3,
     borderColor: '#e1e5e9',
