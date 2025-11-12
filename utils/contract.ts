@@ -366,135 +366,9 @@ export const updateUserData = async (
     console.log("📤 Sending contract transaction...");
     console.log("Transaction to:", CONTRACT_ADDRESS);
 
-    // Check current network before switching
-    let currentChainId: string;
-    try {
-      console.log("🔍 Checking current network...");
-      const chainIdResponse = await signClient.request({
-        topic: sessionTopic,
-        chainId: "eip155:1", // Use a default chainId for the request
-        request: {
-          method: "eth_chainId",
-          params: [],
-        },
-      });
-      currentChainId = chainIdResponse as string;
-      console.log("📡 Current chain ID:", currentChainId);
-
-      // Normalize chain ID to hex format for comparison
-      const normalizedChainId = currentChainId.startsWith('0x')
-        ? currentChainId.toLowerCase()
-        : '0x' + parseInt(currentChainId).toString(16);
-
-      if (normalizedChainId === "0x89") {
-        console.log("✅ Already on Polygon network");
-      } else {
-        console.log("🔄 Not on Polygon, need to switch network");
-      }
-    } catch (chainError) {
-      console.log("❌ Could not get current chain ID:", chainError);
-      currentChainId = "unknown";
-    }
-
-    // Only switch network if not already on Polygon
-    const normalizedCurrentChainId = currentChainId.startsWith('0x')
-      ? currentChainId.toLowerCase()
-      : currentChainId !== "unknown" ? '0x' + parseInt(currentChainId).toString(16) : "unknown";
-
-    if (normalizedCurrentChainId !== "0x89") {
-      // First ensure we're on Polygon network
-      try {
-        console.log("🚀 Attempting to switch to Polygon network...");
-        await signClient.request({
-          topic: sessionTopic,
-          chainId: "eip155:137",
-          request: {
-            method: "wallet_switchEthereumChain",
-            params: [{ chainId: "0x89" }], // Polygon mainnet chainId in hex
-          },
-        });
-        console.log("✅ Successfully switched to Polygon network");
-      } catch (switchError: any) {
-        console.log("❌ Network switch failed:", switchError);
-        // If network doesn't exist, try to add it
-        if (
-          switchError.code === 4902 ||
-          switchError.message?.includes("Unrecognized chain")
-        ) {
-          console.log("📥 Adding Polygon network to MetaMask...");
-          try {
-            await signClient.request({
-              topic: sessionTopic,
-              chainId: "eip155:137",
-              request: {
-                method: "wallet_addEthereumChain",
-                params: [
-                  {
-                    chainId: "0x89",
-                    chainName: "Polygon Mainnet",
-                    nativeCurrency: {
-                      name: "MATIC",
-                      symbol: "MATIC",
-                      decimals: 18,
-                    },
-                    rpcUrls: ["https://polygon-rpc.com/"],
-                    blockExplorerUrls: ["https://polygonscan.com/"],
-                  },
-                ],
-              },
-            });
-          console.log("✅ Added Polygon network, now switching...");
-          // Try switching again
-          await signClient.request({
-            topic: sessionTopic,
-            chainId: "eip155:137",
-            request: {
-              method: "wallet_switchEthereumChain",
-              params: [{ chainId: "0x89" }],
-            },
-          });
-          console.log(
-            "✅ Successfully switched to Polygon network after adding it"
-          );
-        } catch (addError) {
-          console.error("❌ Failed to add Polygon network:", addError);
-          throw new Error("Please add Polygon network to your wallet manually");
-        }
-      } else {
-        console.log(
-          "❌ Network switch failed with different error:",
-          switchError
-        );
-        // For other errors, still try to continue - user might already be on Polygon
-        console.log("⚠️ Continuing anyway - user might already be on Polygon");
-      }
-
-      // Verify we're actually on Polygon after the switch attempt
-      try {
-        console.log("🔍 Verifying network switch...");
-        await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait for switch to complete
-
-        const verifyChainIdResponse = await signClient.request({
-          topic: sessionTopic,
-          chainId: "eip155:137", // Now use Polygon chainId for verification
-          request: {
-            method: "eth_chainId",
-            params: [],
-          },
-        });
-        const verifyChainId = (verifyChainIdResponse as string).toLowerCase();
-
-        if (verifyChainId === "0x89") {
-          console.log("✅ Verified: Successfully on Polygon network");
-        } else {
-          console.warn("⚠️ Warning: Still not on Polygon network after switch attempt. Chain ID:", verifyChainId);
-          throw new Error(`Please switch to Polygon network manually. Current chain: ${verifyChainId}`);
-        }
-      } catch (verifyError) {
-        console.error("❌ Network verification failed:", verifyError);
-        throw verifyError;
-      }
-    }
+    // Skip network checking for now - let WalletConnect handle network switching
+    // This prevents hanging on network checks and allows the transaction to proceed directly
+    console.log("🔄 Skipping network check - proceeding directly to Polygon transaction");
 
     // Add timeout to prevent hanging
     const timeoutPromise = new Promise((_, reject) => {
@@ -509,8 +383,8 @@ export const updateUserData = async (
       ); // 90 second timeout (increased for Polygon network)
     });
 
-    // Now try the actual contract transaction
-    console.log("📤 Sending contract transaction...");
+    // Send transaction directly to Polygon
+    console.log("📤 Sending transaction request to MetaMask...");
 
     const txPromise = signClient.request({
       topic: sessionTopic,
@@ -531,7 +405,6 @@ export const updateUserData = async (
       },
     });
 
-    console.log("📤 Sending transaction request to MetaMask...");
     console.log("📋 Transaction details:", {
       from: address,
       to: CONTRACT_ADDRESS,
@@ -544,8 +417,11 @@ export const updateUserData = async (
 
     // FORCE OPEN METAMASK - This ensures MetaMask opens regardless of WalletConnect redirect
     console.log("🔗 Force opening MetaMask app...");
+    console.log("⏰ Starting 500ms delay before opening MetaMask...");
+
     // Small delay to ensure transaction request is processed first
     setTimeout(async () => {
+      console.log("🚀 Executing MetaMask force open now...");
       try {
         // Try multiple MetaMask opening methods - prioritize direct app links
         const urls = [
@@ -556,6 +432,7 @@ export const updateUserData = async (
 
         for (const url of urls) {
           try {
+            console.log("🔗 Attempting to open MetaMask with URL:", url);
             await Linking.openURL(url);
             console.log("✅ MetaMask open URL triggered:", url);
             break; // Stop after first successful attempt
@@ -566,7 +443,7 @@ export const updateUserData = async (
       } catch (linkError) {
         console.warn("⚠️ Could not open MetaMask URL:", linkError);
       }
-    }, 500); // 500ms delay (reduced from 1000)
+    }, 500); // 500ms delay
 
     try {
       console.log("⏳ Waiting for MetaMask approval (90 second timeout)...");
@@ -577,7 +454,6 @@ export const updateUserData = async (
     } catch (txError) {
       console.error("❌ Transaction failed or timed out:", txError);
       throw txError;
-    }
     }
   } catch (error: any) {
     console.error("Transaction failed:", error);

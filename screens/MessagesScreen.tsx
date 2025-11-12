@@ -111,7 +111,10 @@ export default function MessagesScreen() {
     if (!newMessage.trim() || !selectedConversation || !address) return;
 
     try {
-      await MessagingService.sendMessage(selectedConversation, newMessage.trim());
+      await MessagingService.sendMessage(
+        selectedConversation,
+        newMessage.trim()
+      );
 
       // Add the message to local state immediately for UI feedback
       const newMsg: Message = {

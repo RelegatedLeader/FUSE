@@ -93,8 +93,16 @@ export default function SettingsScreen() {
         console.log("Settings: Firebase data exists:", !!firebaseData);
 
         // If Firebase data doesn't exist or is incomplete (missing bio), perform automatic migration
-        const needsMigration = !firebaseData || !firebaseData.bio || firebaseData.bio.trim() === "";
-        console.log("Settings: Needs migration:", needsMigration, "hasFirebaseData:", !!firebaseData, "hasBio:", firebaseData?.bio ? "yes" : "no");
+        const needsMigration =
+          !firebaseData || !firebaseData.bio || firebaseData.bio.trim() === "";
+        console.log(
+          "Settings: Needs migration:",
+          needsMigration,
+          "hasFirebaseData:",
+          !!firebaseData,
+          "hasBio:",
+          firebaseData?.bio ? "yes" : "no"
+        );
 
         if (needsMigration && localData) {
           console.log("Settings: Performing automatic migration...");
@@ -286,7 +294,10 @@ export default function SettingsScreen() {
     }
   };
 
-  const performAutomaticMigration = async (localDataString: string, dataSource: string) => {
+  const performAutomaticMigration = async (
+    localDataString: string,
+    dataSource: string
+  ) => {
     try {
       // If data was from old key, validate it belongs to current wallet and migrate it
       if (dataSource === "old-key") {
@@ -302,7 +313,9 @@ export default function SettingsScreen() {
             "Migration: Migrated validated data from old key to wallet-specific key"
           );
         } else {
-          console.log("Migration: Data doesn't belong to current wallet, skipping");
+          console.log(
+            "Migration: Data doesn't belong to current wallet, skipping"
+          );
           return;
         }
       }
@@ -345,7 +358,9 @@ export default function SettingsScreen() {
       // Store in Firebase using the proper service (this handles encryption)
       await FirebaseService.storeUserProfile(address, profileData);
 
-      console.log("Automatic migration: Successfully migrated profile to Firebase");
+      console.log(
+        "Automatic migration: Successfully migrated profile to Firebase"
+      );
     } catch (error) {
       console.error("Automatic migration failed:", error);
     }

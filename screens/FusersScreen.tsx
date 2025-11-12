@@ -361,7 +361,7 @@ export default function FusersScreen() {
                 No connection requests at the moment. Keep swiping!
               </Text>
             ) : (
-              requests.map((request, index) => 
+              requests.map((request, index) => (
                 <Animated.View
                   key={request.address}
                   style={[
@@ -402,7 +402,7 @@ export default function FusersScreen() {
                     </TouchableOpacity>
                   </View>
                 </Animated.View>
-              )
+              ))
             )}
           </ScrollView>
         </View>
@@ -415,7 +415,7 @@ export default function FusersScreen() {
                 No matches yet. Start fusing to connect with people!
               </Text>
             ) : (
-              matchedUsers.map((user) => 
+              matchedUsers.map((user) => (
                 <View key={user.address} style={styles.matchedUserCard}>
                   <View style={styles.matchedUserInfo}>
                     <Text style={styles.matchedUserName}>
@@ -436,7 +436,7 @@ export default function FusersScreen() {
                     <Text style={styles.buttonText}>Message</Text>
                   </TouchableOpacity>
                 </View>
-              )
+              ))
             )}
           </ScrollView>
         </View>

@@ -340,7 +340,9 @@ export default function SignUpScreen({ navigation }: Props) {
   // Real-time validation
   const updateValidationErrors = () => {
     const errors: string[] = [];
-    const currentWordCount = bio.split(" ").filter((word) => word.length > 0).length;
+    const currentWordCount = bio
+      .split(" ")
+      .filter((word) => word.length > 0).length;
 
     if (!firstName.trim()) errors.push("First name is required");
     if (!lastName.trim()) errors.push("Last name is required");
@@ -352,7 +354,10 @@ export default function SignUpScreen({ navigation }: Props) {
     if (!occupation.trim()) errors.push("Occupation is required");
     if (!careerAspiration.trim()) errors.push("Career aspiration is required");
     if (!mbti.trim()) errors.push("MBTI type is required");
-    if (currentWordCount < 100) errors.push(`Bio must be at least 100 words (currently ${currentWordCount})`);
+    if (currentWordCount < 100)
+      errors.push(
+        `Bio must be at least 100 words (currently ${currentWordCount})`
+      );
     if (!faceScanned) errors.push("Face verification is required");
 
     // Validate date format
@@ -595,7 +600,8 @@ export default function SignUpScreen({ navigation }: Props) {
     if (validationErrors.length > 0) {
       Alert.alert(
         "Missing Requirements",
-        "Please complete the following:\n\n" + validationErrors.map(error => "• " + error).join("\n")
+        "Please complete the following:\n\n" +
+          validationErrors.map((error) => "• " + error).join("\n")
       );
       return;
     }
@@ -890,26 +896,32 @@ export default function SignUpScreen({ navigation }: Props) {
         <Text style={[styles.title, { color: theme.textColor }]}>
           Create Your Fuse Profile
         </Text>
-        
+
         {/* Data Immutability Warning */}
         <View style={styles.warningContainer}>
           <Text style={styles.warningIcon}>⚠️</Text>
           <Text style={styles.warningText}>
-            <Text style={styles.warningTitle}>IMPORTANT:</Text> All information you provide will be stored encrypted on the Polygon blockchain and become your permanent digital profile. This data is immutable and cannot be changed once submitted. It will help match you with the best possible beings out there. Please ensure all information is 100% accurate as it represents your real digital identity.
+            <Text style={styles.warningTitle}>IMPORTANT:</Text> All information
+            you provide will be stored encrypted on the Polygon blockchain and
+            become your permanent digital profile. This data is immutable and
+            cannot be changed once submitted. It will help match you with the
+            best possible beings out there. Please ensure all information is
+            100% accurate as it represents your real digital identity.
           </Text>
         </View>
-        
+
         {/* Validation Errors */}
         {validationErrors.length > 0 && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorIcon}>❌</Text>
             <Text style={styles.errorText}>
               <Text style={styles.errorTitle}>MISSING REQUIREMENTS:</Text>
-              {"\n"}{validationErrors.join("\n• ")}
+              {"\n"}
+              {validationErrors.join("\n• ")}
             </Text>
           </View>
         )}
-        
+
         {/* Basic Information */}
         <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
           Basic Information
@@ -941,7 +953,12 @@ export default function SignUpScreen({ navigation }: Props) {
           onChangeText={setDob}
         />
         {renderDropdown(GENDER_OPTIONS, gender, setGender, "Select Gender")}
-        {renderDropdown(SEXUALITY_OPTIONS, sexuality, setSexuality, "Select Sexuality")}
+        {renderDropdown(
+          SEXUALITY_OPTIONS,
+          sexuality,
+          setSexuality,
+          "Select Sexuality"
+        )}
         {/* Location & Career */}
         <Text style={styles.sectionTitle}>Location & Career</Text>
         {renderSuggestions(
@@ -1039,7 +1056,12 @@ export default function SignUpScreen({ navigation }: Props) {
         )}
         {/* Bio */}
         <Text style={styles.sectionTitle}>Personal Bio</Text>
-        <Text style={[styles.bioHint, { color: wordCount >= 100 ? '#28a745' : '#dc3545' }]}>
+        <Text
+          style={[
+            styles.bioHint,
+            { color: wordCount >= 100 ? "#28a745" : "#dc3545" },
+          ]}
+        >
           Write a genuine bio about yourself. This helps our AI understand you
           better for matching. Minimum 100 words required. Current: {wordCount}{" "}
           words. Note: This bio is immutable and will be stored on the Polygon
@@ -1257,7 +1279,7 @@ export default function SignUpScreen({ navigation }: Props) {
         <TouchableOpacity
           style={[
             styles.signUpButton,
-            (validationErrors.length > 0) && styles.signUpButtonDisabled,
+            validationErrors.length > 0 && styles.signUpButtonDisabled,
           ]}
           onPress={handleSignUp}
           disabled={validationErrors.length > 0}

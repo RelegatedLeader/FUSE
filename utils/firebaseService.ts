@@ -68,6 +68,7 @@ export class FirebaseService {
         lastName: profileData.lastName,
         gender: profileData.gender,
         sexuality: profileData.sexuality,
+        bio: profileData.bio, // Include bio in matching data so it can be displayed
       };
 
       const sensitiveData = {
