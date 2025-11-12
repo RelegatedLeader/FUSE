@@ -6,9 +6,12 @@ import {
   TouchableOpacity,
   ScrollView,
   Animated,
+  Alert,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import CryptoJS from "crypto-js";
 
 interface ConnectionRequest {
   address: string;
@@ -19,10 +22,24 @@ interface ConnectionRequest {
   timestamp: Date;
 }
 
+interface MatchedUser {
+  address: string;
+  name: string;
+  age: number | string;
+  city: string;
+  bio: string;
+  photos: string[];
+  matchedDate: Date;
+}
+
+type MenuOption = "want-to-fuse" | "fusers";
+
 export default function FusersScreen() {
   const { address } = useWallet();
   const { theme } = useTheme();
   const [requests, setRequests] = useState<ConnectionRequest[]>([]);
+  const [matchedUsers, setMatchedUsers] = useState<MatchedUser[]>([]);
+  const [selectedMenu, setSelectedMenu] = useState<MenuOption>("want-to-fuse");
   const [animatingIndex, setAnimatingIndex] = useState<number | null>(null);
   const [animationType, setAnimationType] = useState<
     "rocket" | "blackhole" | null
@@ -31,31 +48,47 @@ export default function FusersScreen() {
   const blackHoleAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Mock connection requests
-    const mockRequests: ConnectionRequest[] = [
-      {
-        address: "0xabc",
-        name: "Sam",
-        age: 26,
-        city: "Seattle",
-        bio: "Software developer who loves hiking and board games.",
-        timestamp: new Date(),
-      },
-      {
-        address: "0xdef",
-        name: "Casey",
-        age: 24,
-        city: "Portland",
-        bio: "Artist and musician. Always up for new adventures!",
-        timestamp: new Date(),
-      },
-    ];
-    setRequests(mockRequests);
-  }, []);
+    // Load connection requests and matched users from storage
+    loadRequestsAndMatches();
+  }, [address]);
 
-  const handleFuse = (index: number) => {
+  const loadRequestsAndMatches = async () => {
+    if (!address) return;
+
+    try {
+      // Load connection requests
+      const requestsData = await AsyncStorage.getItem(
+        `fuse_requests_${address}`
+      );
+      if (requestsData) {
+        const decrypted = CryptoJS.AES.decrypt(requestsData, address).toString(
+          CryptoJS.enc.Utf8
+        );
+        setRequests(JSON.parse(decrypted));
+      }
+
+      // Load matched users
+      const matchesData = await AsyncStorage.getItem(
+        `matched_users_${address}`
+      );
+      if (matchesData) {
+        const decrypted = CryptoJS.AES.decrypt(matchesData, address).toString(
+          CryptoJS.enc.Utf8
+        );
+        setMatchedUsers(JSON.parse(decrypted));
+      }
+    } catch (error) {
+      console.error("Error loading requests and matches:", error);
+    }
+  };
+
+  const handleFuse = async (index: number) => {
+    if (!address) return;
+
+    const request = requests[index];
     setAnimatingIndex(index);
     setAnimationType("rocket");
+
     // Rocket launch animation
     Animated.sequence([
       Animated.timing(rocketAnim, {
@@ -68,17 +101,158 @@ export default function FusersScreen() {
         duration: 500,
         useNativeDriver: true,
       }),
-    ]).start(() => {
+    ]).start(async () => {
       setAnimatingIndex(null);
       setAnimationType(null);
-      // Remove the request after animation
-      setRequests(requests.filter((_, i) => i !== index));
+
+      try {
+        // Load the matched user's profile data
+        const profileData = await AsyncStorage.getItem(
+          `user_profile_${request.address}`
+        );
+        let userPhotos = [];
+        try {
+          const photosData = await AsyncStorage.getItem(
+            `photos_${request.address}`
+          );
+          if (photosData) {
+            const photosDecrypted = CryptoJS.AES.decrypt(
+              photosData,
+              request.address
+            ).toString(CryptoJS.enc.Utf8);
+            userPhotos = JSON.parse(photosDecrypted);
+          }
+        } catch (error) {
+          console.error("Error loading photos:", error);
+        }
+
+        // Create matched user entry for current user
+        const newMatch: MatchedUser = {
+          address: request.address,
+          name: request.name,
+          age: request.age,
+          city: request.city,
+          bio: request.bio,
+          photos: userPhotos,
+          matchedDate: new Date(),
+        };
+
+        // Add to current user's matched users
+        const updatedMatches = [...matchedUsers, newMatch];
+        setMatchedUsers(updatedMatches);
+
+        // Save to current user's storage
+        const encrypted = CryptoJS.AES.encrypt(
+          JSON.stringify(updatedMatches),
+          address
+        ).toString();
+        await AsyncStorage.setItem(`matched_users_${address}`, encrypted);
+
+        // Also add current user to the other user's matched users
+        const otherUserMatchesData = await AsyncStorage.getItem(
+          `matched_users_${request.address}`
+        );
+        let otherUserMatches = [];
+        if (otherUserMatchesData) {
+          const decrypted = CryptoJS.AES.decrypt(
+            otherUserMatchesData,
+            request.address
+          ).toString(CryptoJS.enc.Utf8);
+          otherUserMatches = JSON.parse(decrypted);
+        }
+
+        // Load current user's profile for the other user
+        const currentUserProfileData = await AsyncStorage.getItem(
+          `user_profile_${address}`
+        );
+        let currentUserName = "Unknown User";
+        let currentUserAge: number | string = "N/A";
+        let currentUserCity = "Unknown";
+        let currentUserBio = "No bio available";
+
+        if (currentUserProfileData) {
+          const profileDecrypted = CryptoJS.AES.decrypt(
+            currentUserProfileData,
+            address
+          ).toString(CryptoJS.enc.Utf8);
+          const profile = JSON.parse(profileDecrypted);
+          currentUserName =
+            profile.firstName && profile.lastName
+              ? `${profile.firstName} ${profile.lastName}`
+              : profile.firstName || profile.lastName || "Unknown User";
+          currentUserAge = profile.birthdate
+            ? new Date().getFullYear() -
+              new Date(profile.birthdate).getFullYear()
+            : "N/A";
+          currentUserCity = profile.location || "Unknown";
+          currentUserBio = profile.bio || "No bio available";
+        }
+
+        // Load current user's photos
+        let currentUserPhotos = [];
+        try {
+          const photosData = await AsyncStorage.getItem(`photos_${address}`);
+          if (photosData) {
+            const photosDecrypted = CryptoJS.AES.decrypt(
+              photosData,
+              address
+            ).toString(CryptoJS.enc.Utf8);
+            currentUserPhotos = JSON.parse(photosDecrypted);
+          }
+        } catch (error) {
+          console.error("Error loading current user photos:", error);
+        }
+
+        const currentUserMatch: MatchedUser = {
+          address: address,
+          name: currentUserName,
+          age: currentUserAge,
+          city: currentUserCity,
+          bio: currentUserBio,
+          photos: currentUserPhotos,
+          matchedDate: new Date(),
+        };
+
+        otherUserMatches.push(currentUserMatch);
+
+        // Save to other user's storage
+        const otherEncrypted = CryptoJS.AES.encrypt(
+          JSON.stringify(otherUserMatches),
+          request.address
+        ).toString();
+        await AsyncStorage.setItem(
+          `matched_users_${request.address}`,
+          otherEncrypted
+        );
+      } catch (error) {
+        console.error("Error processing match:", error);
+        Alert.alert("Error", "Failed to complete the match. Please try again.");
+        return;
+      }
+
+      // Remove from requests
+      const updatedRequests = requests.filter((_, i) => i !== index);
+      setRequests(updatedRequests);
+
+      // Save updated requests
+      try {
+        const encrypted = CryptoJS.AES.encrypt(
+          JSON.stringify(updatedRequests),
+          address
+        ).toString();
+        await AsyncStorage.setItem(`fuse_requests_${address}`, encrypted);
+      } catch (error) {
+        console.error("Error saving requests:", error);
+      }
     });
   };
 
-  const handleReject = (index: number) => {
+  const handleReject = async (index: number) => {
+    if (!address) return;
+
     setAnimatingIndex(index);
     setAnimationType("blackhole");
+
     // Black hole animation
     Animated.sequence([
       Animated.timing(blackHoleAnim, {
@@ -91,11 +265,24 @@ export default function FusersScreen() {
         duration: 300,
         useNativeDriver: true,
       }),
-    ]).start(() => {
+    ]).start(async () => {
       setAnimatingIndex(null);
       setAnimationType(null);
-      // Remove the request after animation
-      setRequests(requests.filter((_, i) => i !== index));
+
+      // Remove from requests
+      const updatedRequests = requests.filter((_, i) => i !== index);
+      setRequests(updatedRequests);
+
+      // Save updated requests
+      try {
+        const encrypted = CryptoJS.AES.encrypt(
+          JSON.stringify(updatedRequests),
+          address
+        ).toString();
+        await AsyncStorage.setItem(`fuse_requests_${address}`, encrypted);
+      } catch (error) {
+        console.error("Error saving requests:", error);
+      }
     });
   };
 
@@ -124,97 +311,160 @@ export default function FusersScreen() {
       style={[styles.container, { backgroundColor: theme.backgroundColor }]}
     >
       <Text style={theme.title}>Fusers</Text>
-      <Text style={theme.subtitle}>Connection requests waiting for you</Text>
 
-      <ScrollView style={styles.requestsContainer}>
-        {requests.length === 0 ? (
-          <View style={theme.card}>
-            <Text
-              style={{
-                color: theme.textColor,
-                textAlign: "center",
-                fontSize: 16,
-              }}
-            >
-              🚀 No connection requests yet.{"\n"}Keep fusing to attract more
-              connections!
-            </Text>
-          </View>
-        ) : (
-          requests.map((request, index) => (
-            <View key={index} style={theme.card}>
-              {animatingIndex === index && (
-                <View style={styles.animationOverlay}>
-                  {animationType === "rocket" ? (
-                    <Animated.Text
-                      style={[
-                        styles.rocket,
-                        {
-                          transform: [
-                            { translateY: rocketTranslateY },
-                            { scale: rocketScale },
-                          ],
-                        },
-                      ]}
-                    >
-                      🚀
-                    </Animated.Text>
-                  ) : animationType === "blackhole" ? (
-                    <Animated.View
-                      style={[
-                        styles.blackHole,
-                        {
-                          transform: [{ scale: blackHoleScale }],
-                          opacity: blackHoleOpacity,
-                        },
-                      ]}
-                    >
-                      <Text style={styles.blackHoleEmoji}>🕳️</Text>
-                    </Animated.View>
-                  ) : null}
-                </View>
-              )}
+      {/* Dropdown Menu */}
+      <View style={styles.dropdownContainer}>
+        <TouchableOpacity
+          style={[
+            styles.dropdownButton,
+            selectedMenu === "want-to-fuse" && styles.dropdownButtonActive,
+          ]}
+          onPress={() => setSelectedMenu("want-to-fuse")}
+        >
+          <Text
+            style={[
+              styles.dropdownText,
+              selectedMenu === "want-to-fuse" && styles.dropdownTextActive,
+            ]}
+          >
+            Want to Fuse
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.dropdownButton,
+            selectedMenu === "fusers" && styles.dropdownButtonActive,
+          ]}
+          onPress={() => setSelectedMenu("fusers")}
+        >
+          <Text
+            style={[
+              styles.dropdownText,
+              selectedMenu === "fusers" && styles.dropdownTextActive,
+            ]}
+          >
+            Fusers
+          </Text>
+        </TouchableOpacity>
+      </View>
 
-              <Text style={[styles.name, { color: theme.textColor }]}>
-                {request.name}, {request.age}
+      {selectedMenu === "want-to-fuse" ? (
+        <View style={{ flex: 1 }}>
+          <Text style={theme.subtitle}>
+            Connection requests waiting for you
+          </Text>
+          <ScrollView style={styles.requestsContainer}>
+            {requests.length === 0 ? (
+              <Text style={styles.emptyText}>
+                No connection requests at the moment. Keep swiping!
               </Text>
-              <Text style={{ color: theme.textColor, fontSize: 16 }}>
-                📍 {request.city}
-              </Text>
-              <Text style={[styles.bio, { color: theme.textColor }]}>
-                {request.bio}
-              </Text>
-
-              <View style={styles.actionButtons}>
-                <TouchableOpacity
-                  onPress={() => handleReject(index)}
-                  style={[styles.rejectButton, { backgroundColor: "#dc3545" }]}
-                  disabled={animatingIndex !== null}
-                >
-                  <Text style={[styles.buttonText, { color: "#fff" }]}>
-                    🕳️ Reject
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  onPress={() => handleFuse(index)}
+            ) : (
+              requests.map((request, index) => (
+                <Animated.View
+                  key={request.address}
                   style={[
-                    styles.fuseButton,
-                    { backgroundColor: theme.buttonBackground },
+                    styles.requestCard,
+                    animatingIndex === index &&
+                      animationType === "rocket" && {
+                        transform: [
+                          { translateY: rocketTranslateY },
+                          { scale: rocketScale },
+                        ],
+                      },
+                    animatingIndex === index &&
+                      animationType === "blackhole" && {
+                        transform: [{ scale: blackHoleScale }],
+                        opacity: blackHoleOpacity,
+                      },
                   ]}
-                  disabled={animatingIndex !== null}
                 >
-                  <Text
-                    style={[styles.buttonText, { color: theme.buttonText }]}
+                  <View style={styles.requestInfo}>
+                    <Text style={styles.requestName}>
+                      {request.name}, {request.age}
+                    </Text>
+                    <Text style={styles.requestLocation}>{request.city}</Text>
+                    <Text style={styles.requestBio}>{request.bio}</Text>
+                  </View>
+                  <View style={styles.requestActions}>
+                    <TouchableOpacity
+                      style={styles.rejectButton}
+                      onPress={() => handleReject(index)}
+                    >
+                      <Text style={styles.buttonText}>Reject</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.fuseButton}
+                      onPress={() => handleFuse(index)}
+                    >
+                      <Text style={styles.buttonText}>Fuse</Text>
+                    </TouchableOpacity>
+                  </View>
+                </Animated.View>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      ) : (
+        <View style={{ flex: 1 }}>
+          <Text style={theme.subtitle}>Your matched connections</Text>
+          <ScrollView style={styles.requestsContainer}>
+            {matchedUsers.length === 0 ? (
+              <Text style={styles.emptyText}>
+                No matches yet. Start fusing to connect with people!
+              </Text>
+            ) : (
+              matchedUsers.map((user) => (
+                <View key={user.address} style={styles.matchedUserCard}>
+                  <View style={styles.matchedUserInfo}>
+                    <Text style={styles.matchedUserName}>
+                      {user.name}, {user.age}
+                    </Text>
+                    <Text style={styles.matchedUserLocation}>{user.city}</Text>
+                    <Text style={styles.matchedUserDate}>
+                      Matched {user.matchedDate.toLocaleDateString()}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.messageButton}
+                    onPress={() => {
+                      // Navigate to messages with this user
+                      // This will be implemented when we add navigation
+                    }}
                   >
-                    🚀 Fuse
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
-        )}
-      </ScrollView>
+                    <Text style={styles.buttonText}>Message</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Rocket Animation */}
+      {animatingIndex !== null && animationType === "rocket" && (
+        <Animated.View
+          style={{
+            transform: [
+              { translateY: rocketTranslateY },
+              { scale: rocketScale },
+            ],
+          }}
+        >
+          <Text style={styles.rocketText}>🚀</Text>
+        </Animated.View>
+      )}
+
+      {/* Black Hole Animation */}
+      {animatingIndex !== null && animationType === "blackhole" && (
+        <Animated.View
+          style={{
+            transform: [{ scale: blackHoleScale }],
+            opacity: blackHoleOpacity,
+          }}
+        >
+          <Text style={styles.blackHoleText}>🕳️</Text>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -278,6 +528,101 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   blackHoleEmoji: {
+    fontSize: 60,
+  },
+  dropdownContainer: {
+    flexDirection: "row",
+    marginVertical: 15,
+    paddingHorizontal: 20,
+  },
+  dropdownButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginHorizontal: 5,
+    borderRadius: 25,
+    borderWidth: 2,
+    borderColor: "#ddd",
+    alignItems: "center",
+    backgroundColor: "#f8f9fa",
+  },
+  dropdownButtonActive: {
+    backgroundColor: "#007bff",
+    borderColor: "#007bff",
+  },
+  dropdownText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#666",
+  },
+  dropdownTextActive: {
+    color: "#fff",
+  },
+  requestCard: {
+    backgroundColor: "#fff",
+    borderRadius: 15,
+    padding: 15,
+    marginBottom: 15,
+    elevation: 3,
+  },
+  requestInfo: {
+    marginBottom: 10,
+  },
+  requestName: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  requestLocation: {
+    fontSize: 16,
+    color: "#666",
+  },
+  requestBio: {
+    fontSize: 14,
+    color: "#333",
+  },
+  requestActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  emptyText: {
+    textAlign: "center",
+    color: "#999",
+    fontSize: 16,
+    marginTop: 20,
+  },
+  matchedUserCard: {
+    backgroundColor: "#fff",
+    borderRadius: 15,
+    padding: 15,
+    marginBottom: 15,
+    elevation: 3,
+  },
+  matchedUserInfo: {
+    marginBottom: 10,
+  },
+  matchedUserName: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  matchedUserLocation: {
+    fontSize: 16,
+    color: "#666",
+  },
+  matchedUserDate: {
+    fontSize: 14,
+    color: "#333",
+  },
+  messageButton: {
+    backgroundColor: "#007bff",
+    borderRadius: 25,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    alignItems: "center",
+  },
+  rocketText: {
+    fontSize: 60,
+  },
+  blackHoleText: {
     fontSize: 60,
   },
 });

@@ -18,6 +18,9 @@ import { MatchingEngine } from "../utils/matchingEngine";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CryptoJS from "crypto-js";
 
+const AnimatedTouchableOpacity =
+  Animated.createAnimatedComponent(TouchableOpacity);
+
 interface User {
   address: string;
   name: string;
@@ -155,7 +158,13 @@ export default function FuseScreen() {
     fetchMatches();
   }, [address, skippedUsers]);
 
-  const handleFuse = (userAddress: string) => {
+  const handleFuse = async (userAddress: string) => {
+    if (!address) return;
+
+    // Find the user data
+    const user = users.find((u) => u.address === userAddress);
+    if (!user) return;
+
     // Animate fusing
     Animated.sequence([
       Animated.timing(fuseAnim, {
@@ -168,9 +177,56 @@ export default function FuseScreen() {
         duration: 500,
         useNativeDriver: true,
       }),
-    ]).start(() => {
-      Alert.alert("Fused!", "You have matched with this user!");
-      // Remove this user from the list (they've been matched)
+    ]).start(async () => {
+      // Create connection request for the other user
+      const connectionRequest = {
+        address: address, // Current user is requesting connection
+        name: "Anonymous", // For privacy, we'll use anonymous until accepted
+        age: 0, // Will be filled when profile is viewed
+        city: "Unknown",
+        bio: "Someone wants to connect with you!",
+        timestamp: new Date(),
+        requesterAddress: address,
+        targetAddress: userAddress,
+      };
+
+      try {
+        // Load existing requests for the target user
+        const existingRequestsData = await AsyncStorage.getItem(
+          `fuse_requests_${userAddress}`
+        );
+        let existingRequests = [];
+        if (existingRequestsData) {
+          const decrypted = CryptoJS.AES.decrypt(
+            existingRequestsData,
+            userAddress
+          ).toString(CryptoJS.enc.Utf8);
+          existingRequests = JSON.parse(decrypted);
+        }
+
+        // Add new request
+        existingRequests.push(connectionRequest);
+
+        // Save back to storage
+        const encrypted = CryptoJS.AES.encrypt(
+          JSON.stringify(existingRequests),
+          userAddress
+        ).toString();
+        await AsyncStorage.setItem(`fuse_requests_${userAddress}`, encrypted);
+
+        Alert.alert(
+          "Request Sent!",
+          "Your connection request has been sent. Check back later to see if they accept!"
+        );
+      } catch (error) {
+        console.error("Error sending connection request:", error);
+        Alert.alert(
+          "Error",
+          "Failed to send connection request. Please try again."
+        );
+      }
+
+      // Remove this user from the list
       setUsers((prev) => prev.filter((user) => user.address !== userAddress));
     });
   };
@@ -279,7 +335,7 @@ export default function FuseScreen() {
                 style={styles.photoScrollView}
                 snapToInterval={200}
                 decelerationRate="fast"
-                contentContainerStyle={{ alignItems: 'center' }}
+                contentContainerStyle={{ alignItems: "center" }}
                 bounces={false}
                 scrollEnabled={true}
               >
@@ -351,7 +407,7 @@ export default function FuseScreen() {
                 )}
               </Text>
             )}
-          <ScrollView 
+          <ScrollView
             style={styles.bioScrollView}
             showsVerticalScrollIndicator={true}
             bounces={false}
@@ -364,9 +420,41 @@ export default function FuseScreen() {
 
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
-          <TouchableOpacity
+          <AnimatedTouchableOpacity
             onPress={() => onFuse(user.address)}
-            style={[styles.fuseButton, { backgroundColor: "#28a745" }]}
+            style={[
+              styles.fuseButton,
+              {
+                backgroundColor: fuseAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ["#ff4757", "#ff3838"],
+                }),
+                shadowColor: fuseAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ["#ff4757", "#ff6b6b"],
+                }),
+                shadowOpacity: fuseAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.3, 0.8],
+                }),
+                shadowRadius: fuseAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [5, 15],
+                }),
+                elevation: fuseAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [5, 15],
+                }),
+                transform: [
+                  {
+                    scale: fuseAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 1.05],
+                    }),
+                  },
+                ],
+              },
+            ]}
           >
             <Animated.Text
               style={[
@@ -376,16 +464,35 @@ export default function FuseScreen() {
                     {
                       scale: fuseAnim.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [1, 1.2],
+                        outputRange: [1, 1.3],
+                      }),
+                    },
+                    {
+                      rotate: fuseAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ["0deg", "5deg"],
                       }),
                     },
                   ],
+                  color: fuseAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ["#ffffff", "#ff6b6b"],
+                  }),
+                  textShadowColor: fuseAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ["transparent", "rgba(255, 107, 107, 0.8)"],
+                  }),
+                  textShadowOffset: { width: 0, height: 0 },
+                  textShadowRadius: fuseAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, 10],
+                  }),
                 },
               ]}
             >
-              Fuse & Connect
+              FUSE
             </Animated.Text>
-          </TouchableOpacity>
+          </AnimatedTouchableOpacity>
         </View>
       </Animated.View>
     );
@@ -464,8 +571,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 5,
-    flexDirection: 'column',
-    alignItems: 'stretch',
+    flexDirection: "column",
+    alignItems: "stretch",
   },
   leftTap: {
     position: "absolute",
@@ -475,9 +582,9 @@ const styles = StyleSheet.create({
     padding: 5,
     borderRadius: 5,
   },
-  userInfo: { 
+  userInfo: {
     flex: 1, // Take remaining space
-    justifyContent: 'flex-start',
+    justifyContent: "flex-start",
     alignItems: "center",
     paddingVertical: 5,
     paddingHorizontal: 5,
@@ -498,7 +605,7 @@ const styles = StyleSheet.create({
   },
   bioScrollView: {
     flex: 1, // Take remaining space in userInfo
-    width: '100%',
+    width: "100%",
     minHeight: 100, // Minimum height to show some content
   },
   fuseButton: {
@@ -506,8 +613,8 @@ const styles = StyleSheet.create({
     backgroundColor: "blue",
     padding: 12,
     borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   fuseText: { color: "white", fontSize: 18 },
   skipButton: {
@@ -521,7 +628,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     height: 200, // Increased for larger images
     alignItems: "center",
-    justifyContent: 'center',
+    justifyContent: "center",
     marginBottom: 10,
   },
   userImage: {
@@ -554,7 +661,7 @@ const styles = StyleSheet.create({
     height: 50, // Fixed height for buttons
     flexDirection: "row",
     justifyContent: "center",
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 5,
   },
   buttonText: {
@@ -607,7 +714,7 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 0,
     borderWidth: 3,
-    borderColor: '#e1e5e9',
+    borderColor: "#e1e5e9",
   },
   photoIndicators: {
     position: "absolute",

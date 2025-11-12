@@ -6,9 +6,12 @@ import {
   TouchableOpacity,
   ScrollView,
   TextInput,
+  Image,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import CryptoJS from "crypto-js";
 
 interface Message {
   id: string;
@@ -19,17 +22,29 @@ interface Message {
   isRead: boolean;
 }
 
+interface MatchedUser {
+  address: string;
+  name: string;
+  age: number;
+  city: string;
+  bio: string;
+  photos: string[];
+  matchedDate: Date;
+}
+
 export default function MessagesScreen() {
   const { address } = useWallet();
   const { theme } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [matchedUsers, setMatchedUsers] = useState<MatchedUser[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<
     string | null
   >(null);
   const [newMessage, setNewMessage] = useState("");
 
   useEffect(() => {
-    // Mock messages
+    loadMatchedUsers();
+    // Mock messages for now
     const mockMessages: Message[] = [
       {
         id: "1",
@@ -59,7 +74,25 @@ export default function MessagesScreen() {
       },
     ];
     setMessages(mockMessages);
-  }, []);
+  }, [address]);
+
+  const loadMatchedUsers = async () => {
+    if (!address) return;
+
+    try {
+      const matchesData = await AsyncStorage.getItem(
+        `matched_users_${address}`
+      );
+      if (matchesData) {
+        const decrypted = CryptoJS.AES.decrypt(matchesData, address).toString(
+          CryptoJS.enc.Utf8
+        );
+        setMatchedUsers(JSON.parse(decrypted));
+      }
+    } catch (error) {
+      console.error("Error loading matched users:", error);
+    }
+  };
 
   const handleSendMessage = () => {
     if (newMessage.trim() && selectedConversation) {
@@ -165,6 +198,56 @@ export default function MessagesScreen() {
       <Text style={theme.title}>Chats</Text>
       <Text style={theme.subtitle}>Connect through conversation</Text>
 
+      {/* Matched Users Section */}
+      {matchedUsers.length > 0 && (
+        <View style={styles.matchedUsersContainer}>
+          <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
+            Your Matches
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.matchedUsersScroll}
+          >
+            {matchedUsers.map((user) => (
+              <TouchableOpacity
+                key={user.address}
+                style={[
+                  styles.matchedUserCard,
+                  { backgroundColor: theme.card.backgroundColor },
+                ]}
+                onPress={() => {
+                  // Navigate to user profile/chat
+                  // For now, just set as selected conversation
+                  setSelectedConversation(user.address);
+                }}
+              >
+                <Image
+                  source={{
+                    uri:
+                      user.photos && user.photos.length > 0
+                        ? user.photos[0]
+                        : "https://via.placeholder.com/60x60?text=👤",
+                  }}
+                  style={styles.matchedUserImage}
+                />
+                <Text
+                  style={[styles.matchedUserName, { color: theme.textColor }]}
+                  numberOfLines={1}
+                >
+                  {user.name}
+                </Text>
+                <Text
+                  style={[styles.matchedUserAge, { color: theme.textColor }]}
+                >
+                  {user.age}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       <ScrollView style={styles.messagesList}>
         {messages.length === 0 ? (
           <View style={theme.card}>
@@ -198,14 +281,10 @@ export default function MessagesScreen() {
                 {!message.isRead && <View style={styles.unreadDot} />}
               </View>
               <Text
-                style={[
-                  styles.messagePreview,
-                  { color: theme.textColor, opacity: 0.8 },
-                ]}
+                style={[styles.messagePreview, { color: theme.textColor }]}
+                numberOfLines={2}
               >
-                {message.message.length > 50
-                  ? message.message.substring(0, 50) + "..."
-                  : message.message}
+                {message.message}
               </Text>
               <Text
                 style={[
@@ -308,5 +387,39 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
+  },
+  matchedUsersContainer: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 10,
+    marginLeft: 5,
+  },
+  matchedUsersScroll: {
+    marginBottom: 10,
+  },
+  matchedUserCard: {
+    width: 80,
+    alignItems: "center",
+    marginRight: 15,
+    padding: 10,
+    borderRadius: 10,
+  },
+  matchedUserImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginBottom: 5,
+  },
+  matchedUserName: {
+    fontSize: 14,
+    fontWeight: "500",
+    textAlign: "center",
+  },
+  matchedUserAge: {
+    fontSize: 12,
+    color: "#666",
   },
 });
