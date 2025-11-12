@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
+import CustomModal from "../components/CustomModal";
 import { StackNavigationProp } from "@react-navigation/stack";
 
 // Define navigation types
@@ -40,6 +41,24 @@ export default function WalletScreen({ navigation }: Props) {
   } = useWallet();
   const { theme } = useTheme();
 
+  // Custom modal states
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalTitle, setModalTitle] = useState("");
+  const [modalMessage, setModalMessage] = useState("");
+  const [modalButtons, setModalButtons] = useState<any[]>([]);
+
+  // Helper function to show custom modal
+  const showCustomModal = (
+    title: string,
+    message: string,
+    buttons: any[] = []
+  ) => {
+    setModalTitle(title);
+    setModalMessage(message);
+    setModalButtons(buttons);
+    setModalVisible(true);
+  };
+
   useEffect(() => {
     if (address) {
       navigation.navigate("SignIn");
@@ -51,25 +70,28 @@ export default function WalletScreen({ navigation }: Props) {
       await connectWallet();
       // Navigation will happen automatically when address is set
     } catch (error: any) {
-      Alert.alert("Connection Error", error.message);
+      showCustomModal("Connection Error", error.message);
     }
   };
 
   const handleDisconnect = async () => {
     try {
       await disconnectWallet();
-      Alert.alert("Disconnected", "Wallet disconnected successfully.");
+      showCustomModal("Disconnected", "Wallet disconnected successfully.");
     } catch (error: any) {
-      Alert.alert("Error", error.message);
+      showCustomModal("Error", error.message);
     }
   };
 
   const handleClearSessions = async () => {
     try {
       await clearAllSessions();
-      Alert.alert("Cleared", "All sessions cleared. App will restart fresh.");
+      showCustomModal(
+        "Cleared",
+        "All sessions cleared. App will restart fresh."
+      );
     } catch (error: any) {
-      Alert.alert("Error", error.message);
+      showCustomModal("Error", error.message);
     }
   };
 
@@ -116,6 +138,13 @@ export default function WalletScreen({ navigation }: Props) {
             Disconnect
           </Text>
         </TouchableOpacity>
+        <CustomModal
+          visible={modalVisible}
+          title={modalTitle}
+          message={modalMessage}
+          buttons={modalButtons}
+          onClose={() => setModalVisible(false)}
+        />
       </View>
     );
   }
@@ -160,6 +189,13 @@ export default function WalletScreen({ navigation }: Props) {
           <Text style={theme.buttonTextStyle}>🚀 Fuse with MetaMask</Text>
         </TouchableOpacity>
       )}
+      <CustomModal
+        visible={modalVisible}
+        title={modalTitle}
+        message={modalMessage}
+        buttons={modalButtons}
+        onClose={() => setModalVisible(false)}
+      />
     </View>
   );
 }

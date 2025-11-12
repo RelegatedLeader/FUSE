@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
+import CustomModal from "../components/CustomModal";
 import { StackNavigationProp } from "@react-navigation/stack";
 
 // Define navigation types
@@ -33,6 +34,24 @@ export default function SignInScreen({ navigation }: Props) {
   const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
 
+  // Custom modal states
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalTitle, setModalTitle] = useState("");
+  const [modalMessage, setModalMessage] = useState("");
+  const [modalButtons, setModalButtons] = useState<any[]>([]);
+
+  // Helper function to show custom modal
+  const showCustomModal = (
+    title: string,
+    message: string,
+    buttons: any[] = []
+  ) => {
+    setModalTitle(title);
+    setModalMessage(message);
+    setModalButtons(buttons);
+    setModalVisible(true);
+  };
+
   useEffect(() => {
     const initialize = async () => {
       if (address) {
@@ -46,7 +65,7 @@ export default function SignInScreen({ navigation }: Props) {
   const handleSignIn = async () => {
     if (isRegistered) {
       // Show gas confirmation for sign in transaction
-      Alert.alert(
+      showCustomModal(
         "Confirm Sign In",
         "This will update your activity data on the blockchain. This requires a small gas fee.\n\nEstimated gas cost: ~0.005 MATIC\n\nDo you want to proceed?",
         [
@@ -71,38 +90,56 @@ export default function SignInScreen({ navigation }: Props) {
 
   const executeSignIn = async () => {
     try {
-      // Show processing alert (non-blocking)
-      Alert.alert("Processing", "Updating your activity on the blockchain...");
+      // Show processing modal
+      showCustomModal(
+        "Processing",
+        "Updating your activity on the blockchain..."
+      );
 
       console.log("Calling signIn...");
       await signIn();
 
-      Alert.alert(
-        "Success",
-        "Signed in successfully! Your activity has been recorded on the blockchain.",
-        [
-          {
-            text: "OK",
-            onPress: () => navigation.navigate("Main"),
-          },
-        ]
-      );
+      // Close processing modal and show success modal
+      setModalVisible(false);
+      setTimeout(() => {
+        showCustomModal(
+          "Success",
+          "Signed in successfully! Your activity has been recorded on the blockchain.",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                setModalVisible(false);
+                navigation.navigate("Main");
+              },
+            },
+          ]
+        );
+      }, 300); // Small delay to ensure smooth transition
     } catch (error) {
       console.error("SignIn error:", error);
-      Alert.alert(
-        "Sign In Failed",
-        "Failed to sign in: " + (error as Error).message,
-        [
-          {
-            text: "Try Again",
-            onPress: () => executeSignIn(),
-          },
-          {
-            text: "Cancel",
-            style: "cancel",
-          },
-        ]
-      );
+      // Close processing modal and show error modal
+      setModalVisible(false);
+      setTimeout(() => {
+        showCustomModal(
+          "Sign In Failed",
+          "Failed to sign in: " + (error as Error).message,
+          [
+            {
+              text: "Try Again",
+              onPress: () => {
+                setModalVisible(false);
+                executeSignIn();
+              },
+            },
+            {
+              text: "Cancel",
+              style: "cancel",
+              onPress: () => setModalVisible(false),
+            },
+          ]
+        );
+      }, 300);
     }
   };
 
@@ -136,6 +173,13 @@ export default function SignInScreen({ navigation }: Props) {
           🚀 {isRegistered ? "Sign In & Launch" : "Sign Up & Launch"}
         </Text>
       </TouchableOpacity>
+      <CustomModal
+        visible={modalVisible}
+        title={modalTitle}
+        message={modalMessage}
+        buttons={modalButtons}
+        onClose={() => setModalVisible(false)}
+      />
     </View>
   );
 }

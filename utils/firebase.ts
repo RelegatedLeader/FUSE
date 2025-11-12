@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAuth, signInAnonymously } from "firebase/auth";
+import { getStorage } from "firebase/storage";
 
 // Firebase configuration for FUSE
 const firebaseConfig = {
@@ -27,6 +28,7 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firebase services
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+export const storage = getStorage(app);
 
 // Initialize anonymous authentication
 export const initializeFirebaseAuth = async () => {

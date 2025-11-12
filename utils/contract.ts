@@ -368,7 +368,9 @@ export const updateUserData = async (
 
     // Skip network checking for now - let WalletConnect handle network switching
     // This prevents hanging on network checks and allows the transaction to proceed directly
-    console.log("🔄 Skipping network check - proceeding directly to Polygon transaction");
+    console.log(
+      "🔄 Skipping network check - proceeding directly to Polygon transaction"
+    );
 
     // Add timeout to prevent hanging
     const timeoutPromise = new Promise((_, reject) => {

@@ -22,6 +22,9 @@ import CryptoJS from "crypto-js";
 import { FirebaseService } from "../utils/firebaseService";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp } from "@react-navigation/native";
+import CustomModal from "../components/CustomModal";
+import FaceDetector from "@react-native-ml-kit/face-detection";
+
 type RootStackParamList = {
   Wallet: undefined;
   SignUp: undefined;
@@ -37,7 +40,6 @@ type SignUpScreenNavigationProp = StackNavigationProp<
 type Props = {
   navigation: SignUpScreenNavigationProp;
 };
-import FaceDetector from "@react-native-ml-kit/face-detection";
 
 const { width, height } = Dimensions.get("window");
 
@@ -196,6 +198,24 @@ export default function SignUpScreen({ navigation }: Props) {
     {}
   );
   const [isScanning, setIsScanning] = useState(false);
+
+  // Custom modal states
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalTitle, setModalTitle] = useState("");
+  const [modalMessage, setModalMessage] = useState("");
+  const [modalButtons, setModalButtons] = useState<any[]>([]);
+
+  // Helper function to show custom modal
+  const showCustomModal = (
+    title: string,
+    message: string,
+    buttons: any[] = []
+  ) => {
+    setModalTitle(title);
+    setModalMessage(message);
+    setModalButtons(buttons);
+    setModalVisible(true);
+  };
   const [detectedFaceAngle, setDetectedFaceAngle] = useState<
     "center" | "left" | "right" | "unknown"
   >("unknown");
@@ -583,7 +603,7 @@ export default function SignUpScreen({ navigation }: Props) {
     } catch (error) {
       console.error("Error taking picture:", error);
       setFaceValidationMessage("Failed to capture image. Please try again.");
-      Alert.alert("Error", "Failed to capture image. Please try again.");
+      showCustomModal("Error", "Failed to capture image. Please try again.");
     } finally {
       setIsScanning(false);
     }
@@ -592,13 +612,13 @@ export default function SignUpScreen({ navigation }: Props) {
   const handleSignUp = async () => {
     console.log("SignUp handleSignUp called, address:", address);
     if (!address) {
-      Alert.alert("Error", "Please connect your wallet first");
+      showCustomModal("Error", "Please connect your wallet first");
       return;
     }
 
     // Check for validation errors
     if (validationErrors.length > 0) {
-      Alert.alert(
+      showCustomModal(
         "Missing Requirements",
         "Please complete the following:\n\n" +
           validationErrors.map((error) => "• " + error).join("\n")
@@ -736,7 +756,7 @@ export default function SignUpScreen({ navigation }: Props) {
         })
       );
 
-      Alert.alert(
+      showCustomModal(
         "Account Created Successfully!",
         `Your encrypted profile data has been stored on the blockchain${
           result.note ? " (simulated)" : ""
@@ -748,7 +768,10 @@ export default function SignUpScreen({ navigation }: Props) {
         [
           {
             text: "View Profile",
-            onPress: () => navigation.navigate("Main"),
+            onPress: () => {
+              setModalVisible(false);
+              navigation.navigate("Main");
+            },
           },
         ]
       );
@@ -756,17 +779,21 @@ export default function SignUpScreen({ navigation }: Props) {
       console.error("SignUp error:", error);
       setIsTransactionLoading(false);
       setShowManualMetaMaskPrompt(false);
-      Alert.alert(
+      showCustomModal(
         "Transaction Failed",
         "Failed to store data on blockchain: " + (error as Error).message,
         [
           {
             text: "Try Again",
-            onPress: () => executeSignUp(),
+            onPress: () => {
+              setModalVisible(false);
+              executeSignUp();
+            },
           },
           {
             text: "Cancel",
             style: "cancel",
+            onPress: () => setModalVisible(false),
           },
         ]
       );
@@ -782,7 +809,7 @@ export default function SignUpScreen({ navigation }: Props) {
     <TouchableOpacity
       style={styles.dropdown}
       onPress={() => {
-        Alert.alert(
+        showCustomModal(
           placeholder,
           "Select an option",
           options.map((option) => ({
@@ -1288,6 +1315,13 @@ export default function SignUpScreen({ navigation }: Props) {
         </TouchableOpacity>
         <View style={styles.bottomPadding} />
       </ScrollView>
+      <CustomModal
+        visible={modalVisible}
+        title={modalTitle}
+        message={modalMessage}
+        buttons={modalButtons}
+        onClose={() => setModalVisible(false)}
+      />
     </View>
   );
 }

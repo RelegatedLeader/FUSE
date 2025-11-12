@@ -126,9 +126,7 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
               onPress={() => setIsLocked(!isLocked)}
               style={styles.lockButton}
             >
-              <Text style={{ fontSize: 24 }}>
-                {isLocked ? "🔒" : "🔓"}
-              </Text>
+              <Text style={{ fontSize: 24 }}>{isLocked ? "🔒" : "🔓"}</Text>
             </TouchableOpacity>
           </View>
           <TouchableOpacity onPress={goToFuse} style={styles.logoContainer}>
@@ -196,7 +194,12 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
         </View>
       )}
       {PagerView ? (
-        <PagerView style={{ flex: 1 }} initialPage={1} ref={pagerRef} scrollEnabled={!isLocked}>
+        <PagerView
+          style={{ flex: 1 }}
+          initialPage={1}
+          ref={pagerRef}
+          scrollEnabled={!isLocked}
+        >
           <View key="0" style={{ flex: 1 }}>
             <View style={{ flex: 1 }}>{renderAlliancesContent()}</View>
             <View

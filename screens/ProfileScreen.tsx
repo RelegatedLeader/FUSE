@@ -11,8 +11,7 @@ import {
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import * as ImagePicker from "expo-image-picker";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import CryptoJS from "crypto-js";
+import { FirebaseService } from "../utils/firebaseService";
 import { getUserData } from "../utils/contract";
 
 export default function ProfileScreen() {
@@ -21,6 +20,8 @@ export default function ProfileScreen() {
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [photos, setPhotos] = useState<string[]>([]);
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [preferences, setPreferences] = useState<Record<string, boolean>>({
     showAge: true,
     showLocation: true,
@@ -64,27 +65,29 @@ export default function ProfileScreen() {
 
   const loadPhotos = async () => {
     try {
-      const stored = await AsyncStorage.getItem(`photos_${address}`);
-      if (stored) {
-        const decrypted = CryptoJS.AES.decrypt(stored, address).toString(
-          CryptoJS.enc.Utf8
-        );
-        setPhotos(JSON.parse(decrypted));
+      // Initialize Firebase if needed
+      await FirebaseService.initializeUser(address);
+
+      // Get photo URLs from Firebase
+      const urls = await FirebaseService.getUserPhotoUrls(address);
+      setPhotoUrls(urls);
+
+      // Load and decrypt photos for display
+      const decryptedPhotos: string[] = [];
+      for (const url of urls) {
+        try {
+          const decryptedUri = await FirebaseService.downloadUserImage(
+            url,
+            address
+          );
+          decryptedPhotos.push(decryptedUri);
+        } catch (error) {
+          console.error("Failed to decrypt photo:", error);
+        }
       }
+      setPhotos(decryptedPhotos);
     } catch (error) {
       console.error("Error loading photos:", error);
-    }
-  };
-
-  const savePhotos = async (newPhotos: string[]) => {
-    try {
-      const encrypted = CryptoJS.AES.encrypt(
-        JSON.stringify(newPhotos),
-        address
-      ).toString();
-      await AsyncStorage.setItem(`photos_${address}`, encrypted);
-    } catch (error) {
-      console.error("Error saving photos:", error);
     }
   };
 
@@ -93,17 +96,50 @@ export default function ProfileScreen() {
       Alert.alert("Limit", "You can add up to 4 photos");
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 1,
-    });
 
-    if (!result.canceled) {
-      const newPhotos = [...photos, result.assets[0].uri];
-      setPhotos(newPhotos);
-      await savePhotos(newPhotos);
+    try {
+      setUploading(true);
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 1,
+        base64: true,
+      });
+
+      if (!result.canceled) {
+        const asset = result.assets[0];
+        if (!asset.base64) {
+          Alert.alert("Error", "Failed to get image data");
+          return;
+        }
+
+        // Initialize Firebase if needed
+        await FirebaseService.initializeUser(address);
+
+        // Upload encrypted image to Firebase
+        const imageIndex = photos.length;
+        const downloadUrl = await FirebaseService.uploadUserImageFromBase64(
+          address,
+          asset.base64,
+          imageIndex
+        );
+
+        // Update photo URLs in Firebase
+        const newPhotoUrls = [...photoUrls, downloadUrl];
+        await FirebaseService.updateUserPhotoUrls(address, newPhotoUrls);
+
+        // Add to local state (create data URL for display)
+        const dataUrl = `data:image/jpeg;base64,${asset.base64}`;
+        setPhotos([...photos, dataUrl]);
+        setPhotoUrls(newPhotoUrls);
+        Alert.alert("Success", "Photo uploaded successfully!");
+      }
+    } catch (error) {
+      console.error("Error uploading photo:", error);
+      Alert.alert("Error", "Failed to upload photo. Please try again.");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -113,9 +149,28 @@ export default function ProfileScreen() {
       {
         text: "Delete",
         onPress: async () => {
-          const newPhotos = photos.filter((_, i) => i !== index);
-          setPhotos(newPhotos);
-          await savePhotos(newPhotos);
+          try {
+            setUploading(true);
+
+            // Delete from Firebase Storage
+            await FirebaseService.deleteUserImage(address, index);
+
+            // Update photo URLs in Firebase (remove the URL at this index)
+            const newPhotoUrls = photoUrls.filter((_, i) => i !== index);
+            await FirebaseService.updateUserPhotoUrls(address, newPhotoUrls);
+
+            // Update local state
+            const newPhotos = photos.filter((_, i) => i !== index);
+            setPhotos(newPhotos);
+            setPhotoUrls(newPhotoUrls);
+
+            Alert.alert("Success", "Photo deleted successfully!");
+          } catch (error) {
+            console.error("Error deleting photo:", error);
+            Alert.alert("Error", "Failed to delete photo. Please try again.");
+          } finally {
+            setUploading(false);
+          }
         },
       },
     ]);
@@ -206,24 +261,57 @@ export default function ProfileScreen() {
             marginBottom: 10,
           }}
         >
-          📸 Your Photos (up to 4 pieces)
+          📸 Your Photos ({photos.length}/4 pieces)
         </Text>
         <View style={styles.photosGrid}>
+          {/* Render existing photos */}
           {photos.map((uri, index) => (
-            <View key={index} style={styles.photoContainer}>
+            <View key={`photo-${index}`} style={styles.photoContainer}>
               <Image source={{ uri }} style={styles.photo} />
               <TouchableOpacity
                 style={styles.deleteButton}
                 onPress={() => deletePhoto(index)}
+                disabled={uploading}
               >
                 <Text style={styles.deleteText}>❌</Text>
               </TouchableOpacity>
             </View>
           ))}
+
+          {/* Render empty slots for adding photos */}
+          {Array.from(
+            { length: Math.max(0, 4 - photos.length) },
+            (_, index) => (
+              <TouchableOpacity
+                key={`empty-${index}`}
+                style={[styles.photoContainer, styles.emptyPhotoContainer]}
+                onPress={pickImage}
+                disabled={uploading}
+              >
+                <View style={styles.emptyPhoto}>
+                  <Text style={styles.addPhotoText}>+</Text>
+                </View>
+              </TouchableOpacity>
+            )
+          )}
         </View>
+
+        {uploading && (
+          <Text
+            style={{
+              color: theme.textColor,
+              textAlign: "center",
+              marginTop: 10,
+            }}
+          >
+            Uploading photo...
+          </Text>
+        )}
+
         <TouchableOpacity
           onPress={pickImage}
           style={[theme.button, { marginTop: 10 }]}
+          disabled={uploading || photos.length >= 4}
         >
           <Text style={theme.buttonTextStyle}>📷 Add Photo Piece</Text>
         </TouchableOpacity>
@@ -282,6 +370,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   deleteText: { color: "white", fontSize: 12 },
+  emptyPhotoContainer: {
+    borderWidth: 2,
+    borderColor: "#ccc",
+    borderStyle: "dashed",
+    backgroundColor: "rgba(255,255,255,0.1)",
+  },
+  emptyPhoto: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  addPhotoText: {
+    fontSize: 32,
+    color: "#ccc",
+    fontWeight: "bold",
+  },
   addPhoto: { padding: 10, backgroundColor: "lightblue", margin: 5 },
   preferencesContainer: { marginBottom: 20 },
 });

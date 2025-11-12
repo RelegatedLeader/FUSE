@@ -173,4 +173,143 @@ export class EncryptionService {
   static verifyIntegrity(data: string, hash: string): boolean {
     return this.hashData(data) === hash;
   }
+
+  // Encrypt binary data (Uint8Array) - handles large data with chunking
+  static encryptData(data: Uint8Array, key: string): Uint8Array {
+    // For large data, process in chunks to avoid memory issues
+    const CHUNK_SIZE = 512 * 1024; // 512KB chunks (smaller for safety)
+    const iv = this.generateIV();
+
+    if (data.length <= CHUNK_SIZE) {
+      // Small data - encrypt directly
+      const wordArray = CryptoJS.lib.WordArray.create(data);
+      const encrypted = CryptoJS.AES.encrypt(wordArray, key, {
+        iv: CryptoJS.enc.Hex.parse(iv),
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7,
+      });
+
+      // Combine IV and encrypted data
+      const ivWords = CryptoJS.enc.Hex.parse(iv);
+      const ivBytes = this.wordArrayToUint8Array(ivWords);
+      const encryptedBytes = this.wordArrayToUint8Array(encrypted.ciphertext);
+
+      const result = new Uint8Array(ivBytes.length + encryptedBytes.length);
+      result.set(ivBytes, 0);
+      result.set(encryptedBytes, ivBytes.length);
+      return result;
+    } else {
+      // Large data - convert to base64 in chunks to avoid stack overflow
+      const base64Data = this.uint8ArrayToBase64(data);
+      const { encrypted, iv: stringIv } = this.encrypt(base64Data, key);
+
+      // Combine everything as a JSON string, then convert to bytes
+      const resultObj = {
+        data: encrypted,
+        iv: stringIv,
+        isChunked: true,
+      };
+      const resultJson = JSON.stringify(resultObj);
+      const resultBytes = new TextEncoder().encode(resultJson);
+      return resultBytes;
+    }
+  }
+
+  // Decrypt binary data (Uint8Array) - handles chunked data
+  static decryptData(encryptedData: Uint8Array, key: string): Uint8Array {
+    try {
+      // Check if this is chunked data
+      const textData = new TextDecoder().decode(encryptedData);
+      try {
+        const parsed = JSON.parse(textData);
+        if (parsed.isChunked) {
+          // Chunked data - decrypt as string then convert back
+          const decryptedBase64 = this.decrypt(parsed.data, key, parsed.iv);
+          const binaryString = atob(decryptedBase64);
+          const result = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+            result[i] = binaryString.charCodeAt(i);
+          }
+          return result;
+        }
+      } catch (e) {
+        // Not chunked data, continue with original method
+      }
+
+      // Original method for smaller data
+      const ivSize = 16;
+      const ivBytes = encryptedData.slice(0, ivSize);
+      const encryptedBytes = encryptedData.slice(ivSize);
+
+      const iv = CryptoJS.lib.WordArray.create(ivBytes);
+      const ciphertext = CryptoJS.lib.WordArray.create(encryptedBytes);
+
+      const decrypted = CryptoJS.AES.decrypt(
+        { ciphertext: ciphertext } as any,
+        key,
+        {
+          iv: iv,
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7,
+        }
+      );
+
+      return this.wordArrayToUint8Array(decrypted);
+    } catch (error) {
+      throw new Error(
+        "Binary decryption failed: Invalid key or corrupted data"
+      );
+    }
+  }
+
+  // Helper method to convert WordArray to Uint8Array
+  private static wordArrayToUint8Array(
+    wordArray: CryptoJS.lib.WordArray
+  ): Uint8Array {
+    const words = wordArray.words;
+    const sigBytes = wordArray.sigBytes;
+    const uint8Array = new Uint8Array(sigBytes);
+
+    for (let i = 0; i < sigBytes; i++) {
+      const byteIndex = i % 4;
+      const wordIndex = Math.floor(i / 4);
+      const word = words[wordIndex];
+
+      // Extract the specific byte from the word (big-endian)
+      let byteValue = 0;
+      switch (byteIndex) {
+        case 0:
+          byteValue = (word >> 24) & 0xff;
+          break;
+        case 1:
+          byteValue = (word >> 16) & 0xff;
+          break;
+        case 2:
+          byteValue = (word >> 8) & 0xff;
+          break;
+        case 3:
+          byteValue = word & 0xff;
+          break;
+      }
+
+      uint8Array[i] = byteValue;
+    }
+
+    return uint8Array;
+  }
+
+  // Helper method to convert Uint8Array to base64 safely
+  private static uint8ArrayToBase64(data: Uint8Array): string {
+    // Process in chunks to avoid stack overflow
+    const chunkSize = 8192; // 8KB chunks
+    let result = "";
+
+    for (let i = 0; i < data.length; i += chunkSize) {
+      const chunk = data.slice(i, i + chunkSize);
+      const binaryString = String.fromCharCode(...chunk);
+      result += binaryString;
+    }
+
+    return btoa(result);
+  }
 }

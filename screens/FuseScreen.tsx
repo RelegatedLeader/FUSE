@@ -46,17 +46,36 @@ export default function FuseScreen() {
 
   const loadUserPhotos = async (userAddress: string): Promise<string[]> => {
     try {
-      const stored = await AsyncStorage.getItem(`photos_${userAddress}`);
-      if (stored) {
-        const decrypted = CryptoJS.AES.decrypt(stored, userAddress).toString(
-          CryptoJS.enc.Utf8
-        );
-        return JSON.parse(decrypted);
+      // Initialize Firebase for the target user
+      const { FirebaseService } = await import("../utils/firebaseService");
+      await FirebaseService.initializeUser(userAddress);
+
+      // Get photo URLs from Firebase
+      const photoUrls = await FirebaseService.getUserPhotoUrls(userAddress);
+
+      // Download and decrypt photos for display
+      const decryptedPhotos: string[] = [];
+      for (const url of photoUrls) {
+        try {
+          const decryptedUri = await FirebaseService.downloadUserImage(
+            url,
+            userAddress
+          );
+          decryptedPhotos.push(decryptedUri);
+        } catch (error) {
+          console.error(
+            "Failed to decrypt photo for user:",
+            userAddress,
+            error
+          );
+        }
       }
+
+      return decryptedPhotos;
     } catch (error) {
       console.error("Error loading photos for user:", userAddress, error);
+      return [];
     }
-    return [];
   };
 
   useEffect(() => {

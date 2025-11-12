@@ -13,7 +13,15 @@ import {
   Timestamp,
   writeBatch,
 } from "firebase/firestore";
-import { db } from "./firebase";
+import {
+  ref,
+  uploadBytes,
+  uploadString,
+  getDownloadURL,
+  deleteObject,
+  listAll,
+} from "firebase/storage";
+import { db, storage } from "./firebase";
 import { EncryptionService } from "./encryption";
 import { KeyManager } from "./keyManager";
 
@@ -515,5 +523,196 @@ export class FirebaseService {
     }
 
     return Math.min(100, score);
+  }
+
+  // Image Storage Methods
+
+  // Upload encrypted image to Firebase Storage
+  static async uploadUserImage(
+    walletAddress: string,
+    imageUri: string,
+    imageIndex: number
+  ): Promise<string> {
+    if (!this.userKeys) {
+      throw new Error("User keys not initialized");
+    }
+
+    try {
+      // For React Native, we need to handle the image URI differently
+      // Convert image URI to blob using fetch
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+
+      // Convert blob to base64 first
+      const base64Data = await this.blobToBase64(blob);
+
+      // Use the base64 upload method
+      return await this.uploadUserImageFromBase64(
+        walletAddress,
+        base64Data,
+        imageIndex
+      );
+    } catch (error) {
+      console.error("Failed to upload image:", error);
+      throw error;
+    }
+  }
+
+  // Helper method to convert blob to base64
+  private static async blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === "string") {
+          // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
+          const base64 = reader.result.split(",")[1];
+          resolve(base64);
+        } else {
+          reject(new Error("Failed to convert blob to base64"));
+        }
+      };
+      reader.onerror = () => reject(new Error("Blob reading failed"));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // Upload encrypted image to Firebase Storage from base64
+  static async uploadUserImageFromBase64(
+    walletAddress: string,
+    base64Data: string,
+    imageIndex: number
+  ): Promise<string> {
+    if (!this.userKeys) {
+      throw new Error("User keys not initialized");
+    }
+
+    try {
+      // Convert base64 to Uint8Array
+      const binaryString = atob(base64Data);
+      const uint8Array = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        uint8Array[i] = binaryString.charCodeAt(i);
+      }
+
+      // Encrypt the image data
+      const encryptedData = EncryptionService.encryptData(
+        uint8Array,
+        this.userKeys.dataKey
+      );
+
+      // Convert encrypted data back to base64 for upload
+      const encryptedBase64 = btoa(String.fromCharCode(...encryptedData));
+
+      // Upload encrypted base64 string to Firebase Storage
+      const storageRef = ref(
+        storage,
+        `users/${walletAddress}/photos/photo_${imageIndex}.enc`
+      );
+      await uploadString(storageRef, encryptedBase64, "base64");
+
+      // Get download URL (this URL will be stored in the user's profile)
+      const downloadURL = await getDownloadURL(storageRef);
+
+      console.log(
+        `📸 Uploaded encrypted image ${imageIndex} for user:`,
+        walletAddress
+      );
+      return downloadURL;
+    } catch (error) {
+      console.error("Failed to upload image from base64:", error);
+      throw error;
+    }
+  }
+
+  // Delete user image from Firebase Storage
+  static async downloadUserImage(
+    imageUrl: string,
+    walletAddress: string
+  ): Promise<string> {
+    if (!this.userKeys) {
+      throw new Error("User keys not initialized");
+    }
+
+    try {
+      // Download encrypted base64 data
+      const response = await fetch(imageUrl);
+      const encryptedBase64 = await response.text();
+
+      // Convert base64 to Uint8Array
+      const encryptedBinaryString = atob(encryptedBase64);
+      const encryptedData = new Uint8Array(encryptedBinaryString.length);
+      for (let i = 0; i < encryptedBinaryString.length; i++) {
+        encryptedData[i] = encryptedBinaryString.charCodeAt(i);
+      }
+
+      // Decrypt the data
+      const decryptedData = EncryptionService.decryptData(
+        encryptedData,
+        this.userKeys.dataKey
+      );
+
+      // Convert back to base64 for display
+      const decryptedBase64 = btoa(String.fromCharCode(...decryptedData));
+      const dataUrl = `data:image/jpeg;base64,${decryptedBase64}`;
+
+      return dataUrl;
+    } catch (error) {
+      console.error("Failed to download/decrypt image:", error);
+      throw error;
+    }
+  }
+
+  // Delete user image from Firebase Storage
+  static async deleteUserImage(
+    walletAddress: string,
+    imageIndex: number
+  ): Promise<void> {
+    try {
+      const storageRef = ref(
+        storage,
+        `users/${walletAddress}/photos/photo_${imageIndex}.enc`
+      );
+      await deleteObject(storageRef);
+      console.log(`🗑️ Deleted image ${imageIndex} for user:`, walletAddress);
+    } catch (error) {
+      console.error("Failed to delete image:", error);
+      throw error;
+    }
+  }
+
+  // Get all user photo URLs (for profile display)
+  static async getUserPhotoUrls(walletAddress: string): Promise<string[]> {
+    try {
+      const userRef = doc(db, "users", walletAddress);
+      const userDoc = await getDoc(userRef);
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        return userData.photoUrls || [];
+      }
+
+      return [];
+    } catch (error) {
+      console.error("Failed to get user photo URLs:", error);
+      return [];
+    }
+  }
+
+  // Update user photo URLs in profile
+  static async updateUserPhotoUrls(
+    walletAddress: string,
+    photoUrls: string[]
+  ): Promise<void> {
+    try {
+      const userRef = doc(db, "users", walletAddress);
+      await updateDoc(userRef, {
+        photoUrls: photoUrls,
+        lastUpdated: Timestamp.now(),
+      });
+      console.log("📝 Updated photo URLs for user:", walletAddress);
+    } catch (error) {
+      console.error("Failed to update photo URLs:", error);
+      throw error;
+    }
   }
 }

@@ -466,10 +466,9 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
       await signInUser(signClient, sessionTopic, address);
       // Update registration status after successful sign in
       await checkRegistration();
-      Alert.alert("Success", "Signed in successfully!");
     } catch (error) {
       console.error("Sign in error:", error);
-      Alert.alert("Error", "Failed to sign in: " + (error as Error).message);
+      throw error; // Re-throw so SignInScreen can handle the error modal
     }
   };
 
