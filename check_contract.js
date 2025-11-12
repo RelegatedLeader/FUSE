@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ethers } from "ethers";
 
 const CONTRACT_ADDRESS = "0xE4fC636D0da367f402b33e413442b43B1b103c01";
 const POLYGON_RPC = "https://polygon-rpc.com";
@@ -8,25 +8,33 @@ const ABI = [
     inputs: [
       {
         components: [
-          { internalType: "string", name: "encryptedFirstName", type: "string" },
+          {
+            internalType: "string",
+            name: "encryptedFirstName",
+            type: "string",
+          },
           { internalType: "string", name: "encryptedLastName", type: "string" },
-          { internalType: "string", name: "encryptedBirthdate", type: "string" },
+          {
+            internalType: "string",
+            name: "encryptedBirthdate",
+            type: "string",
+          },
           { internalType: "string", name: "encryptedGender", type: "string" },
           { internalType: "string", name: "encryptedLocation", type: "string" },
           { internalType: "string", name: "encryptedID", type: "string" },
           { internalType: "string", name: "encryptedTraits", type: "string" },
-          { internalType: "string", name: "encryptedMBTI", type: "string" }
+          { internalType: "string", name: "encryptedMBTI", type: "string" },
         ],
         internalType: "struct UserDataStorage.UserData",
         name: "data",
-        type: "tuple"
-      }
+        type: "tuple",
+      },
     ],
     name: "updateData",
     outputs: [],
     stateMutability: "nonpayable",
-    type: "function"
-  }
+    type: "function",
+  },
 ];
 
 async function checkContract() {
@@ -65,9 +73,10 @@ async function checkContract() {
       const getFunction = contract.interface.getFunction("getUserData");
       console.log("✅ getUserData function exists:", getFunction);
     } catch (error) {
-      console.log("ℹ️  getUserData function not found (this is ok if it doesn't exist)");
+      console.log(
+        "ℹ️  getUserData function not found (this is ok if it doesn't exist)"
+      );
     }
-
   } catch (error) {
     console.error("❌ Error checking contract:", error.message);
   }

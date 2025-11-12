@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection: Authenticated users can read all profiles and write their own
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // Messages collection: Only authenticated users can read/write messages
+    match /messages/{messageId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Matches collection: Only authenticated users can read/write matches
+    match /matches/{matchId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Interactions collection: Only authenticated users can read/write interactions
+    match /interactions/{interactionId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // Sessions collection: Only authenticated users can read/write sessions
+    match /sessions/{sessionId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

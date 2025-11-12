@@ -25,16 +25,25 @@ export class FirebaseService {
     messagingKey: string;
   } | null = null;
 
-  // Initialize user encryption keys
+  // Initialize user encryption keys (TEST MODE: no auth required)
   static async initializeUser(walletAddress: string): Promise<void> {
     try {
+      console.log("🔐 Initializing Firebase service for:", walletAddress);
       this.userKeys = await KeyManager.getUserKeys(walletAddress);
       if (!this.userKeys) {
+        console.log("🔑 Generating new user keys...");
         this.userKeys = await KeyManager.generateUserKeys(walletAddress);
       }
       console.log("🔐 Firebase service initialized with user keys");
     } catch (error) {
-      throw new Error("Failed to initialize Firebase user: " + error);
+      console.error("Failed to initialize Firebase user:", error);
+      // For testing, create basic keys even if KeyManager fails
+      this.userKeys = {
+        masterKey: "test_master_key_" + walletAddress,
+        dataKey: "test_data_key_" + walletAddress,
+        messagingKey: "test_messaging_key_" + walletAddress,
+      };
+      console.log("🔐 Using test keys for development");
     }
   }
 

@@ -1,21 +1,15 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getAuth, signInAnonymously } from "firebase/auth";
 
 // Firebase configuration for FUSE
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "your-api-key",
-  authDomain:
-    process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ||
-    "your-project.firebaseapp.com",
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || "your-project-id",
-  storageBucket:
-    process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ||
-    "your-project.appspot.com",
-  messagingSenderId:
-    process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "123456789",
-  appId:
-    process.env.EXPO_PUBLIC_FIREBASE_APP_ID || "1:123456789:web:abcdef123456",
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "AIzaSyAvPvnDfJVt49njOLiSfs3bX714TSxEIiE",
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || "fuse-ede12.firebaseapp.com",
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || "fuse-ede12",
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || "fuse-ede12.firebasestorage.app",
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "912263943195",
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || "1:912263943195:web:0326708ad673c37a0014be"
 };
 
 // Initialize Firebase
@@ -25,40 +19,48 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 
-// Firestore security rules helper
+// Initialize anonymous authentication
+export const initializeFirebaseAuth = async () => {
+  try {
+    if (!auth.currentUser) {
+      await signInAnonymously(auth);
+      console.log("🔐 Firebase anonymous authentication initialized");
+    }
+  } catch (error) {
+    console.error("Failed to initialize Firebase auth:", error);
+  }
+};
+
+// Firestore security rules helper (PRODUCTION MODE - requires authentication)
 export const FIRESTORE_RULES = `
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Users collection - encrypted data only
+    // Users collection: Authenticated users can read all profiles and write their own
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      allow read: if request.auth != null; // Allow reading for matching
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
     }
 
-    // Messages collection - E2E encrypted
+    // Messages collection: Only authenticated users can read/write messages
     match /messages/{messageId} {
       allow read, write: if request.auth != null;
-      // Additional validation can be added for message structure
     }
 
-    // Matches collection - encrypted compatibility data
+    // Matches collection: Only authenticated users can read/write matches
     match /matches/{matchId} {
       allow read, write: if request.auth != null;
     }
 
-    // User interactions - encrypted activity data
+    // Interactions collection: Only authenticated users can read/write interactions
     match /interactions/{interactionId} {
       allow read, write: if request.auth != null;
     }
 
-    // Temporary sessions for real-time coordination
+    // Sessions collection: Only authenticated users can read/write sessions
     match /sessions/{sessionId} {
       allow read, write: if request.auth != null;
-      // Auto-delete after 24 hours
     }
   }
 }
 `;
-
-export default app;

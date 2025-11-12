@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ethers } from "ethers";
 
 const CONTRACT_ADDRESS = "0xE4fC636D0da367f402b33e413442b43B1b103c01";
 const POLYGON_RPC = "https://polygon-rpc.com";
@@ -8,44 +8,52 @@ const ABI = [
     inputs: [
       {
         components: [
-          { internalType: "string", name: "encryptedFirstName", type: "string" },
+          {
+            internalType: "string",
+            name: "encryptedFirstName",
+            type: "string",
+          },
           { internalType: "string", name: "encryptedLastName", type: "string" },
-          { internalType: "string", name: "encryptedBirthdate", type: "string" },
+          {
+            internalType: "string",
+            name: "encryptedBirthdate",
+            type: "string",
+          },
           { internalType: "string", name: "encryptedGender", type: "string" },
           { internalType: "string", name: "encryptedLocation", type: "string" },
           { internalType: "string", name: "encryptedID", type: "string" },
           { internalType: "string", name: "encryptedTraits", type: "string" },
-          { internalType: "string", name: "encryptedMBTI", type: "string" }
+          { internalType: "string", name: "encryptedMBTI", type: "string" },
         ],
         internalType: "struct UserDataStorage.UserInput",
         name: "input",
-        type: "tuple"
-      }
+        type: "tuple",
+      },
     ],
     name: "updateData",
     outputs: [],
     stateMutability: "nonpayable",
-    type: "function"
+    type: "function",
   },
   {
     inputs: [
       {
         internalType: "address",
         name: "_user",
-        type: "address"
-      }
+        type: "address",
+      },
     ],
     name: "isUserRegistered",
     outputs: [
       {
         internalType: "bool",
         name: "",
-        type: "bool"
-      }
+        type: "bool",
+      },
     ],
     stateMutability: "view",
-    type: "function"
-  }
+    type: "function",
+  },
 ];
 
 async function testContractCall() {
@@ -61,7 +69,7 @@ async function testContractCall() {
     "encrypted_location",
     "encrypted_id",
     "encrypted_traits",
-    "encrypted_mbti"
+    "encrypted_mbti",
   ];
 
   try {
@@ -90,7 +98,6 @@ async function testContractCall() {
         console.log("Revert data:", callError.data);
       }
     }
-
   } catch (error) {
     console.error("Error:", error.message);
   }

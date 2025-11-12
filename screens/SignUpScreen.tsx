@@ -19,11 +19,9 @@ import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import Slider from "@react-native-community/slider";
 import CryptoJS from "crypto-js";
-import { getLocalUserDataByTransaction } from "../utils/contract";
+import { FirebaseService } from "../utils/firebaseService";
 import { StackNavigationProp } from "@react-navigation/stack";
 import { RouteProp } from "@react-navigation/native";
-
-// Define navigation types
 type RootStackParamList = {
   Wallet: undefined;
   SignUp: undefined;
@@ -614,6 +612,38 @@ export default function SignUpScreen({ navigation }: Props) {
         JSON.stringify(blockchainUserData), // Face scans removed from blockchain storage
         mbti
       );
+
+      // Store user profile in Firebase for matching
+      try {
+        await FirebaseService.storeUserProfile(address, {
+          firstName,
+          lastName,
+          email,
+          dob,
+          gender,
+          location: userLocation,
+          occupation,
+          careerAspiration,
+          mbti,
+          bio,
+          id,
+          openEnded,
+          personalityTraits: {
+            extroversion,
+            openness,
+            conscientiousness,
+            agreeableness,
+            neuroticism,
+          },
+          transactionHash: result.hash,
+          walletAddress: address,
+        });
+        console.log("User profile stored in Firebase successfully");
+      } catch (firebaseError) {
+        console.error("Failed to store user profile in Firebase:", firebaseError);
+        // Don't fail the entire sign-up if Firebase storage fails
+        // User can still use the app, just won't appear in matching until Firebase is fixed
+      }
 
       // Clear the manual prompt timer
       // NOTE: Removed since we force open MetaMask automatically

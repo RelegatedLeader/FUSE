@@ -46,7 +46,8 @@ export default function FuseScreen() {
           name: match.profile?.name || "Unknown User",
           age: match.profile?.age || 25,
           city: match.profile?.location || "Unknown",
-          bio: match.profile?.bio || match.profile?.traits || "No bio available",
+          bio:
+            match.profile?.bio || match.profile?.traits || "No bio available",
           photos: match.profile?.photos || [],
           compatibilityScore: match.compatibilityScore,
         }));
@@ -54,7 +55,10 @@ export default function FuseScreen() {
         setUsers(formattedUsers);
       } catch (error) {
         console.error("Error fetching matches:", error);
-        Alert.alert("Error", "Failed to load potential matches. Please try again.");
+        Alert.alert(
+          "Error",
+          "Failed to load potential matches. Please try again."
+        );
         setUsers([]);
       }
     };
@@ -98,7 +102,8 @@ export default function FuseScreen() {
         <Text
           style={{ color: theme.textColor, textAlign: "center", fontSize: 18 }}
         >
-          🎯 No more potential matches right now.{"\n"}Check back later or invite friends to join!
+          🎯 No more potential matches right now.{"\n"}Check back later or
+          invite friends to join!
         </Text>
       </View>
     );

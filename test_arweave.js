@@ -23,7 +23,10 @@ class ArweaveService {
 
       // Check balance
       const balance = await this.bundlr.getLoadedBalance();
-      console.log("Bundlr balance:", this.bundlr.utils.unitConverter(balance).toString());
+      console.log(
+        "Bundlr balance:",
+        this.bundlr.utils.unitConverter(balance).toString()
+      );
 
       return this.bundlr;
     } catch (error) {
@@ -75,23 +78,30 @@ async function testArweave() {
 
     // In the actual app, this would be the MetaMask provider from WalletConnect
     // For testing, we'll show what happens without a provider
-    console.log("⚠️  This test requires a MetaMask provider for Arweave uploads");
+    console.log(
+      "⚠️  This test requires a MetaMask provider for Arweave uploads"
+    );
     console.log("In the actual app, Arweave uploads work through MetaMask:");
     console.log("1. User connects MetaMask wallet");
-    console.log("2. When uploading data, Bundlr automatically funds using user's MATIC");
-    console.log("3. No separate wallet needed - everything goes through MetaMask");
+    console.log(
+      "2. When uploading data, Bundlr automatically funds using user's MATIC"
+    );
+    console.log(
+      "3. No separate wallet needed - everything goes through MetaMask"
+    );
 
     // Test data
     const testFaceScans = {
-      center: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+      center:
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
       left: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
-      right: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+      right:
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
     };
 
     console.log("Test data prepared:", Object.keys(testFaceScans));
     console.log("✅ Arweave service structure test passed!");
     console.log("✅ MetaMask integration ready for production!");
-
   } catch (error) {
     console.error("❌ Arweave test failed:", error.message);
     console.log("\nTo fix this:");

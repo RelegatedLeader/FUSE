@@ -11,6 +11,7 @@ import { ethers } from "ethers";
 import { Core } from "@walletconnect/core";
 import { buildApprovedNamespaces, getSdkError } from "@walletconnect/utils";
 import { SignClient } from "@walletconnect/sign-client";
+import { FirebaseService } from "../utils/firebaseService";
 
 interface WalletContextType {
   provider: any;
@@ -302,6 +303,25 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
             console.log("Connected to real wallet:", address);
             setAddress(address);
             setSessionTopic(session.topic);
+
+            // Initialize Firebase with user keys
+            try {
+              console.log("Initializing Firebase for user:", address);
+
+              // Initialize Firebase Auth first
+              const { initializeFirebaseAuth } = await import("../utils/firebase");
+              await initializeFirebaseAuth();
+
+              await FirebaseService.initializeUser(address);
+              console.log("Firebase initialized successfully");
+            } catch (firebaseError: any) {
+              console.error("Firebase initialization failed:", firebaseError.message);
+              // Continue anyway for testing - Firebase auth errors won't block wallet connection
+              if (!firebaseError.message?.includes("api-key-not-valid")) {
+                console.log("Non-auth Firebase error, still proceeding...");
+              }
+            }
+
             setIsConnecting(false);
           } else {
             console.error("No accounts in session");

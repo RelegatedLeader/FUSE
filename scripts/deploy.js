@@ -1,5 +1,5 @@
 import { ethers } from "hardhat";
-import fs from 'fs';
+import fs from "fs";
 
 async function main() {
   console.log("🚀 Deploying UserDataStorage contract to Polygon...");
@@ -12,17 +12,20 @@ async function main() {
 
   console.log("✅ Contract deployed successfully!");
   console.log("📍 Contract address:", contractAddress);
-  console.log("🔗 PolygonScan:", `https://polygonscan.com/address/${contractAddress}`);
+  console.log(
+    "🔗 PolygonScan:",
+    `https://polygonscan.com/address/${contractAddress}`
+  );
 
   // Update the contract address in utils/contract.ts
-  const contractFile = './utils/contract.ts';
-  let content = fs.readFileSync(contractFile, 'utf8');
+  const contractFile = "./utils/contract.ts";
+  let content = fs.readFileSync(contractFile, "utf8");
   content = content.replace(
     /const CONTRACT_ADDRESS = "0x[a-fA-F0-9]{40}"/,
     `const CONTRACT_ADDRESS = "${contractAddress}"`
   );
   fs.writeFileSync(contractFile, content);
-  console.log('📝 Updated contract address in utils/contract.ts');
+  console.log("📝 Updated contract address in utils/contract.ts");
 }
 
 main()

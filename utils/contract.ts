@@ -285,7 +285,9 @@ export const updateUserData = async (
     try {
       // Try to encode updateData first - if this succeeds, the function exists
       data = contract.interface.encodeFunctionData("updateData", [input]);
-      console.log("✅ updateData function encoded successfully - function exists");
+      console.log(
+        "✅ updateData function encoded successfully - function exists"
+      );
     } catch (encodeError) {
       console.warn(
         "❌ updateData encoding failed, function may not exist on contract:",
