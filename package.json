@@ -27,7 +27,7 @@
     "babel-preset-expo": "~54.0.0",
     "crypto-js": "^4.2.0",
     "ethers": "^6.15.0",
-    "expo": "54.0.19",
+    "expo": "54.0.23",
     "expo-camera": "^17.0.8",
     "expo-image-picker": "^17.0.8",
     "expo-linking": "~8.0.8",

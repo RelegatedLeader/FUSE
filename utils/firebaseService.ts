@@ -129,7 +129,10 @@ export class FirebaseService {
             );
           } catch (error) {
             // If we can't decrypt (different user's keys), that's OK for matching
-            console.log("Cannot decrypt sensitive data for user:", walletAddress);
+            console.log(
+              "Cannot decrypt sensitive data for user:",
+              walletAddress
+            );
           }
         }
 

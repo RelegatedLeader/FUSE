@@ -309,13 +309,18 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
               console.log("Initializing Firebase for user:", address);
 
               // Initialize Firebase Auth first
-              const { initializeFirebaseAuth } = await import("../utils/firebase");
+              const { initializeFirebaseAuth } = await import(
+                "../utils/firebase"
+              );
               await initializeFirebaseAuth();
 
               await FirebaseService.initializeUser(address);
               console.log("Firebase initialized successfully");
             } catch (firebaseError: any) {
-              console.error("Firebase initialization failed:", firebaseError.message);
+              console.error(
+                "Firebase initialization failed:",
+                firebaseError.message
+              );
               // Continue anyway for testing - Firebase auth errors won't block wallet connection
               if (!firebaseError.message?.includes("api-key-not-valid")) {
                 console.log("Non-auth Firebase error, still proceeding...");

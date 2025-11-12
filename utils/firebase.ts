@@ -4,12 +4,21 @@ import { getAuth, signInAnonymously } from "firebase/auth";
 
 // Firebase configuration for FUSE
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "AIzaSyAvPvnDfJVt49njOLiSfs3bX714TSxEIiE",
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || "fuse-ede12.firebaseapp.com",
+  apiKey:
+    process.env.EXPO_PUBLIC_FIREBASE_API_KEY ||
+    "AIzaSyAvPvnDfJVt49njOLiSfs3bX714TSxEIiE",
+  authDomain:
+    process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ||
+    "fuse-ede12.firebaseapp.com",
   projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || "fuse-ede12",
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || "fuse-ede12.firebasestorage.app",
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "912263943195",
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || "1:912263943195:web:0326708ad673c37a0014be"
+  storageBucket:
+    process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+    "fuse-ede12.firebasestorage.app",
+  messagingSenderId:
+    process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "912263943195",
+  appId:
+    process.env.EXPO_PUBLIC_FIREBASE_APP_ID ||
+    "1:912263943195:web:0326708ad673c37a0014be",
 };
 
 // Initialize Firebase

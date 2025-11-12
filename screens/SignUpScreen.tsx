@@ -640,7 +640,10 @@ export default function SignUpScreen({ navigation }: Props) {
         });
         console.log("User profile stored in Firebase successfully");
       } catch (firebaseError) {
-        console.error("Failed to store user profile in Firebase:", firebaseError);
+        console.error(
+          "Failed to store user profile in Firebase:",
+          firebaseError
+        );
         // Don't fail the entire sign-up if Firebase storage fails
         // User can still use the app, just won't appear in matching until Firebase is fixed
       }
