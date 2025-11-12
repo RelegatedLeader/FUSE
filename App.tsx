@@ -63,6 +63,7 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
   const [alliancesTab, setAlliancesTab] = useState("AlliancesMain");
   const [fuseTab, setFuseTab] = useState("FuseHome");
   const [cyberspaceTab, setCyberspaceTab] = useState("CyberspaceMain");
+  const [isLocked, setIsLocked] = useState(true);
 
   const pagerRef = useRef<any>(null);
 
@@ -120,7 +121,16 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
         <View
           style={[styles.header, { backgroundColor: theme.backgroundColor }]}
         >
-          <View style={styles.headerLeft} />
+          <View style={styles.headerLeft}>
+            <TouchableOpacity
+              onPress={() => setIsLocked(!isLocked)}
+              style={styles.lockButton}
+            >
+              <Text style={{ fontSize: 24 }}>
+                {isLocked ? "🔒" : "🔓"}
+              </Text>
+            </TouchableOpacity>
+          </View>
           <TouchableOpacity onPress={goToFuse} style={styles.logoContainer}>
             <Image
               source={require("./assets/puzzle_rocket_no_background.png")}
@@ -186,7 +196,7 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
         </View>
       )}
       {PagerView ? (
-        <PagerView style={{ flex: 1 }} initialPage={1} ref={pagerRef}>
+        <PagerView style={{ flex: 1 }} initialPage={1} ref={pagerRef} scrollEnabled={!isLocked}>
           <View key="0" style={{ flex: 1 }}>
             <View style={{ flex: 1 }}>{renderAlliancesContent()}</View>
             <View
@@ -519,6 +529,10 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === "ios" ? 50 : 10, // Account for status bar on iOS
   },
   headerLeft: { flex: 1 },
+  lockButton: {
+    padding: 5,
+    alignItems: "center",
+  },
   logoContainer: {
     flex: 1,
     alignItems: "center",
