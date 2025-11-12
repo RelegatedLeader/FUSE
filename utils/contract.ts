@@ -785,14 +785,17 @@ export const getUserDataByTransaction = async (
 };
 
 export const getLocalUserDataByTransaction = async (
-  transactionHash: string
+  transactionHash: string,
+  userAddress?: string
 ) => {
   try {
     // Import AsyncStorage dynamically to avoid circular dependencies
     const AsyncStorage =
       require("@react-native-async-storage/async-storage").default;
 
-    const storedData = await AsyncStorage.getItem("userData");
+    // Use wallet-specific key if address is provided
+    const storageKey = userAddress ? `userData_${userAddress}` : "userData";
+    const storedData = await AsyncStorage.getItem(storageKey);
     if (!storedData) {
       throw new Error("No local user data found");
     }

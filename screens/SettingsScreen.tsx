@@ -50,12 +50,28 @@ export default function SettingsScreen() {
   // Check if user needs migration (has local data but not in Firebase)
   useEffect(() => {
     const checkMigrationNeeded = async () => {
-      if (!address) return;
+      if (!address) {
+        console.log("Settings: No address, skipping migration check");
+        return;
+      }
 
       try {
-        // Check if user has local data
-        const localData = await AsyncStorage.getItem("userData");
-        if (!localData) return;
+        console.log("Settings: Checking migration for address:", address);
+
+        // Check if user has local data (wallet-specific key first, then check old key for any wallet)
+        let localData = await AsyncStorage.getItem(`userData_${address}`);
+        let dataSource = "wallet-specific";
+
+        if (!localData) {
+          // Check old key for any available data - we'll validate ownership during migration
+          localData = await AsyncStorage.getItem("userData");
+          if (localData) {
+            dataSource = "old-key";
+            console.log("Settings: Found data under old key - will validate ownership during migration");
+          }
+        }
+
+        console.log("Settings: Local data exists:", !!localData, "source:", dataSource);
 
         // Initialize Firebase Auth first
         const { initializeFirebaseAuth } = await import("../utils/firebase");
@@ -64,9 +80,13 @@ export default function SettingsScreen() {
         // Check if user exists in Firebase
         await FirebaseService.initializeUser(address);
         const firebaseData = await FirebaseService.getUserProfile(address);
+        console.log("Settings: Firebase data exists:", !!firebaseData);
 
-        // If local data exists but Firebase data doesn't, migration is needed
-        setNeedsMigration(!firebaseData);
+        // If Firebase data doesn't exist (regardless of local data), migration is needed
+        // This allows migration even if local data is in an unexpected location
+        const needsMigration = !firebaseData || !firebaseData.matchingData;
+        console.log("Settings: Needs migration:", needsMigration);
+        setNeedsMigration(needsMigration);
       } catch (error) {
         console.error("Error checking migration status:", error);
         // If we can't check Firebase, assume migration might be needed
@@ -75,18 +95,78 @@ export default function SettingsScreen() {
     };
 
     checkMigrationNeeded();
-  }, [address]);
-
-  const handleMigrateProfile = async () => {
+  }, [address]);  const handleMigrateProfile = async () => {
     if (!address || isMigrating) return;
 
     setIsMigrating(true);
     try {
-      // Get local user data
-      const localDataString = await AsyncStorage.getItem("userData");
+      // Get local user data (check both keys)
+      let localDataString = await AsyncStorage.getItem(`userData_${address}`);
+      let dataSource = "wallet-specific";
+
       if (!localDataString) {
-        Alert.alert("Error", "No local profile data found to migrate.");
+        localDataString = await AsyncStorage.getItem("userData");
+        if (localDataString) {
+          dataSource = "old-key";
+        }
+      }
+
+      if (!localDataString) {
+        // If no local data found, try to get data from blockchain as fallback
+        console.log("Migration: No local data found, attempting to fetch from blockchain");
+        try {
+          const { getUserData } = await import("../utils/contract");
+          const blockchainData = await getUserData(address);
+          if (blockchainData && blockchainData.firstName) {
+            // Convert blockchain data to local format
+            localDataString = JSON.stringify({
+              firstName: blockchainData.firstName,
+              lastName: blockchainData.lastName,
+              email: "", // Not stored on blockchain
+              dob: blockchainData.birthdate,
+              gender: blockchainData.gender,
+              location: blockchainData.location,
+              occupation: "", // Not stored on blockchain
+              careerAspiration: "", // Not stored on blockchain
+              mbti: blockchainData.mbti,
+              bio: blockchainData.traits ? JSON.parse(blockchainData.traits).bio || "" : "",
+              id: blockchainData.id,
+              openEnded: blockchainData.traits ? JSON.parse(blockchainData.traits).openEnded || "" : "",
+              personalityTraits: blockchainData.traits ? JSON.parse(blockchainData.traits).personalityTraits || {} : {},
+              transactionHash: "", // Will be set during migration
+              walletAddress: address,
+            });
+            dataSource = "blockchain";
+            console.log("Migration: Retrieved data from blockchain");
+          }
+        } catch (blockchainError) {
+          console.error("Migration: Failed to fetch from blockchain:", blockchainError);
+        }
+      }
+
+      if (!localDataString) {
+        Alert.alert("Error", "No profile data found to migrate. Please ensure you have completed the sign-up process.");
         return;
+      }
+
+      // If data was from old key, validate it belongs to current wallet and migrate it
+      if (dataSource === "old-key") {
+        const localData = JSON.parse(localDataString);
+        // Check if the data contains wallet address and matches current wallet
+        if (localData.walletAddress && localData.walletAddress.toLowerCase() === address.toLowerCase()) {
+          await AsyncStorage.setItem(`userData_${address}`, localDataString);
+          await AsyncStorage.removeItem("userData");
+          console.log("Migration: Migrated validated data from old key to wallet-specific key");
+        } else {
+          Alert.alert("Error", "The stored profile data doesn't match your current wallet address. Please ensure you're using the correct wallet.");
+          return;
+        }
+      }
+
+      // If data was from blockchain, store it locally
+      if (dataSource === "blockchain") {
+        await AsyncStorage.setItem(`userData_${address}`, localDataString);
+        console.log("Migration: Stored blockchain data locally");
       }
 
       const localData = JSON.parse(localDataString);
@@ -125,7 +205,7 @@ export default function SettingsScreen() {
 
       Alert.alert(
         "Migration Complete",
-        "Your profile has been successfully migrated to Firebase. You will now appear in the matching system!"
+        "Your profile has been migrated to Firebase and updated to the latest format. You will now appear in the matching system!"
       );
     } catch (error) {
       console.error("Migration failed:", error);

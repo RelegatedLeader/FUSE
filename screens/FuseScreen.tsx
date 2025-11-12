@@ -37,20 +37,53 @@ export default function FuseScreen() {
 
       try {
         console.log("Fetching matches for user:", address);
+
+        // First check if user has migrated their profile to Firebase
+        const { initializeFirebaseAuth } = await import("../utils/firebase");
+        await initializeFirebaseAuth();
+
+        const { FirebaseService } = await import("../utils/firebaseService");
+        await FirebaseService.initializeUser(address);
+        const userProfile = await FirebaseService.getUserProfile(address);
+
+        if (!userProfile) {
+          console.log("User profile not found in Firebase - needs migration");
+          setUsers([]);
+          return;
+        }
+
         const matches = await MatchingEngine.findMatchesForUser(address);
         console.log("Found matches:", matches.length);
 
         // Convert MatchResult to User format
-        const formattedUsers: User[] = matches.map((match) => ({
-          address: match.address,
-          name: match.profile?.name || "Unknown User",
-          age: match.profile?.age || 25,
-          city: match.profile?.location || "Unknown",
-          bio:
-            match.profile?.bio || match.profile?.traits || "No bio available",
-          photos: match.profile?.photos || [],
-          compatibilityScore: match.compatibilityScore,
-        }));
+        const formattedUsers: User[] = matches.map((match) => {
+          // Calculate age from birthdate
+          let age = 25; // default
+          if (match.profile?.birthdate) {
+            const birthDate = new Date(match.profile.birthdate);
+            const today = new Date();
+            age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+              age--;
+            }
+          }
+
+          // Format name from firstName and lastName
+          const name = match.profile?.firstName && match.profile?.lastName
+            ? `${match.profile.firstName} ${match.profile.lastName}`
+            : match.profile?.firstName || match.profile?.lastName || "Unknown User";
+
+          return {
+            address: match.address,
+            name: name,
+            age: age,
+            city: match.profile?.location || "Unknown",
+            bio: match.profile?.traits?.bio || match.profile?.bio || "No bio available",
+            photos: match.profile?.photos || [],
+            compatibilityScore: match.compatibilityScore,
+          };
+        });
 
         setUsers(formattedUsers);
       } catch (error) {
@@ -102,8 +135,18 @@ export default function FuseScreen() {
         <Text
           style={{ color: theme.textColor, textAlign: "center", fontSize: 18 }}
         >
-          🎯 No more potential matches right now.{"\n"}Check back later or
-          invite friends to join!
+          {users.length === 0 && address ? (
+            <>
+              🚀 No potential matches yet.{"\n"}
+              Make sure you've migrated your profile in Settings first!{"\n\n"}
+              Once migrated, you'll start seeing other users.
+            </>
+          ) : (
+            <>
+              🎯 No more potential matches right now.{"\n"}Check back later or
+              invite friends to join!
+            </>
+          )}
         </Text>
       </View>
     );

@@ -57,19 +57,45 @@ export class FirebaseService {
     }
 
     try {
-      const encryptedProfile = EncryptionService.encryptUserProfile(
-        profileData,
+      // Separate matching data from sensitive data
+      const matchingData = {
+        mbti: profileData.mbti,
+        personalityTraits: profileData.personalityTraits,
+        location: profileData.location,
+        birthdate: profileData.dob,
+        // Add basic info needed for matching
+        firstName: profileData.firstName,
+        lastName: profileData.lastName,
+        gender: profileData.gender,
+      };
+
+      const sensitiveData = {
+        email: profileData.email,
+        occupation: profileData.occupation,
+        careerAspiration: profileData.careerAspiration,
+        bio: profileData.bio,
+        id: profileData.id,
+        openEnded: profileData.openEnded,
+        transactionHash: profileData.transactionHash,
+        walletAddress: profileData.walletAddress,
+      };
+
+      const encryptedSensitiveData = EncryptionService.encryptUserProfile(
+        sensitiveData,
         this.userKeys.dataKey
       );
 
       const userRef = doc(db, "users", walletAddress);
       await setDoc(userRef, {
-        encryptedProfile,
+        // Public matching data (unencrypted)
+        matchingData,
+        // Encrypted sensitive data
+        encryptedProfile: encryptedSensitiveData,
         lastUpdated: Timestamp.now(),
         version: "1.0",
       });
 
-      console.log("💾 Stored encrypted user profile for:", walletAddress);
+      console.log("💾 Stored user profile for:", walletAddress);
     } catch (error) {
       throw new Error("Failed to store user profile: " + error);
     }
@@ -90,10 +116,49 @@ export class FirebaseService {
       }
 
       const data = userSnap.data();
-      return EncryptionService.decryptUserProfile(
-        data.encryptedProfile,
-        this.userKeys.dataKey
-      );
+
+      // Handle both old format (fully encrypted) and new format (separated)
+      if (data!.matchingData) {
+        // New format: matching data is separate
+        let decryptedSensitiveData: any = {};
+        if (data!.encryptedProfile) {
+          try {
+            decryptedSensitiveData = EncryptionService.decryptUserProfile(
+              data!.encryptedProfile,
+              this.userKeys.dataKey
+            );
+          } catch (error) {
+            // If we can't decrypt (different user's keys), that's OK for matching
+            console.log("Cannot decrypt sensitive data for user:", walletAddress);
+          }
+        }
+
+        return {
+          ...data!.matchingData,
+          ...decryptedSensitiveData,
+          traits: {
+            personalityTraits: data!.matchingData?.personalityTraits,
+            bio: decryptedSensitiveData?.bio || "",
+          },
+        };
+      } else if (data!.encryptedProfile) {
+        // Old format: try to decrypt everything
+        try {
+          const decryptedData = EncryptionService.decryptUserProfile(
+            data!.encryptedProfile,
+            this.userKeys.dataKey
+          );
+
+          // For old format, we can only return data if we can decrypt it
+          // This will only work for the user's own profile
+          return decryptedData;
+        } catch (error) {
+          // Cannot decrypt old format data from other users
+          return null;
+        }
+      }
+
+      return null;
     } catch (error) {
       throw new Error("Failed to retrieve user profile: " + error);
     }
@@ -398,15 +463,16 @@ export class FirebaseService {
       if (age > criteria.maxAge) return false;
     }
 
-    if (criteria.location && userData.location) {
-      if (
-        !userData.location
-          .toLowerCase()
-          .includes(criteria.location.toLowerCase())
-      ) {
-        return false;
-      }
-    }
+    // Location filtering disabled for now - allow global matching
+    // if (criteria.location && userData.location) {
+    //   if (
+    //     !userData.location
+    //       .toLowerCase()
+    //       .includes(criteria.location.toLowerCase())
+    //   ) {
+    //     return false;
+    //   }
+    // }
 
     return true;
   }
@@ -421,16 +487,16 @@ export class FirebaseService {
       else if (userData.mbti.charAt(0) === criteria.mbti.charAt(0)) score += 15;
     }
 
-    // Location match
-    if (userData.location && criteria.location) {
-      if (
-        userData.location
-          .toLowerCase()
-          .includes(criteria.location.toLowerCase())
-      ) {
-        score += 20;
-      }
-    }
+    // Location match disabled for now - global matching
+    // if (userData.location && criteria.location) {
+    //   if (
+    //     userData.location
+    //       .toLowerCase()
+    //       .includes(criteria.location.toLowerCase())
+    //   ) {
+    //     score += 20;
+    //   }
+    // }
 
     // Age compatibility
     if (userData.birthdate && criteria.birthdate) {

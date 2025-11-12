@@ -650,9 +650,9 @@ export default function SignUpScreen({ navigation }: Props) {
       setIsTransactionLoading(false);
       setShowManualMetaMaskPrompt(false);
 
-      // Store locally as well for quick access
+      // Store locally as well for quick access (wallet-specific key)
       await AsyncStorage.setItem(
-        "userData",
+        `userData_${address}`,
         JSON.stringify({
           firstName,
           lastName,

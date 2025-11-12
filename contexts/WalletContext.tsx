@@ -511,7 +511,7 @@ export const WalletProvider: React.FC<WalletProviderProps> = ({ children }) => {
   const getUserDataByTransaction = async (transactionHash: string) => {
     if (!address) throw new Error("No wallet connected");
     const { getLocalUserDataByTransaction } = await import("../utils/contract");
-    return await getLocalUserDataByTransaction(transactionHash);
+    return await getLocalUserDataByTransaction(transactionHash, address);
   };
 
   return (
