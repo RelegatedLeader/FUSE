@@ -29,11 +29,7 @@ export default function ProfileScreen() {
     balance: string;
     costPerImage: { matic: number; usd: number };
   } | null>(null);
-  const [placeholderImages, setPlaceholderImages] = useState<string[]>([]); // Images waiting for payment
-  const [trashedImages, setTrashedImages] = useState<
-    { url: string; data: string; index: number }[]
-  >([]); // Images moved to trash
-  const [showUploadedImages, setShowUploadedImages] = useState(false); // Toggle for uploaded images view
+  const [placeholderImages, setPlaceholderImages] = useState<string[]>([]); // Images waiting for upload
   const [preferences, setPreferences] = useState<Record<string, boolean>>({
     showAge: true,
     showLocation: true,
@@ -236,62 +232,10 @@ export default function ProfileScreen() {
 
     try {
       setUploading(true);
-
-      // Check Arweave balance first
-      const balance = await FirebaseService.checkArweaveBalance();
-      if (!balance?.hasBalance) {
-        // Show payment required modal
-        showCustomModal(
-          "Payment Required",
-          `You have ${
-            placeholderImages.length
-          } placeholder image(s) that need to be uploaded to Arweave.\n\nCost: ${
-            (balance?.costPerImage.matic || 0.001) * placeholderImages.length
-          } MATIC ($${
-            (balance?.costPerImage.usd || 0.0008) * placeholderImages.length
-          })\n\nCurrent balance: ${balance?.balance} MATIC`,
-          [
-            {
-              text: "Cancel",
-              style: "cancel",
-              onPress: () => setUploading(false),
-            },
-            {
-              text: "Pay & Upload",
-              onPress: async () => {
-                setModalVisible(false); // Close the payment modal
-                try {
-                  const totalCost =
-                    (balance?.costPerImage.matic || 0.001) *
-                    placeholderImages.length;
-                  const paidAmount = await FirebaseService.fundArweaveStorage(
-                    totalCost,
-                    signClient,
-                    sessionTopic,
-                    address
-                  );
-
-                  // Now upload the images
-                  await uploadPlaceholderImages(paidAmount);
-                } catch (error) {
-                  showCustomModal(
-                    "Error",
-                    "Failed to fund storage. Please try again."
-                  );
-                  setUploading(false);
-                }
-              },
-            },
-          ]
-        );
-        return;
-      }
-
-      // If balance is sufficient, upload directly
       await uploadPlaceholderImages();
     } catch (error) {
       console.error("Error finalizing images:", error);
-      showCustomModal("Error", "Failed to finalize images");
+      showCustomModal("Error", "Failed to upload images");
       setUploading(false);
     }
   };
@@ -315,12 +259,11 @@ export default function ProfileScreen() {
 
         const base64Data = base64Match[1];
 
-        // Upload to Arweave
+        // Upload to Firebase Storage
         const downloadUrl = await FirebaseService.uploadUserImageFromBase64(
           base64Data,
           address,
-          imageIndex,
-          paidAmount
+          imageIndex
         );
 
         uploadedUrls.push(downloadUrl);
@@ -361,7 +304,7 @@ export default function ProfileScreen() {
   const deletePhoto = async (index: number) => {
     showCustomModal(
       "Remove Photo",
-      "What would you like to do with this photo?",
+      "Are you sure you want to remove this photo?",
       [
         {
           text: "Cancel",
@@ -369,40 +312,7 @@ export default function ProfileScreen() {
           onPress: () => setModalVisible(false),
         },
         {
-          text: "Move to Trash",
-          onPress: async () => {
-            try {
-              setModalVisible(false);
-              // Move to trash - keep in local state but hide from main view
-              const trashedPhoto = {
-                url: photoUrls[index],
-                data: photos[index],
-                index: index,
-              };
-              setTrashedImages([...trashedImages, trashedPhoto]);
-
-              // Remove from main view
-              const newPhotoUrls = photoUrls.filter((_, i) => i !== index);
-              const newPhotos = photos.filter((_, i) => i !== index);
-              setPhotos(newPhotos);
-              setPhotoUrls(newPhotoUrls);
-
-              // Update Firebase to reflect the change
-              await FirebaseService.updateUserPhotoUrls(address, newPhotoUrls);
-
-              showCustomModal("Success", "Photo moved to trash!", [
-                { text: "OK", onPress: () => setModalVisible(false) },
-              ]);
-            } catch (error) {
-              console.error("Error moving photo to trash:", error);
-              showCustomModal("Error", "Failed to move photo to trash", [
-                { text: "OK", onPress: () => setModalVisible(false) },
-              ]);
-            }
-          },
-        },
-        {
-          text: "Remove Completely",
+          text: "Remove",
           style: "destructive",
           onPress: async () => {
             try {
@@ -421,7 +331,7 @@ export default function ProfileScreen() {
               setPhotos(newPhotos);
               setPhotoUrls(newPhotoUrls);
 
-              showCustomModal("Success", "Photo removed completely!", [
+              showCustomModal("Success", "Photo removed!", [
                 { text: "OK", onPress: () => setModalVisible(false) },
               ]);
             } catch (error) {
@@ -542,83 +452,6 @@ export default function ProfileScreen() {
           📸 Your Photos ({photos.length + placeholderImages.length}/4 pieces)
         </Text>
         <View style={styles.photosGrid}>
-          {/* Toggle for uploaded images management */}
-          <TouchableOpacity
-            style={[styles.toggleButton, { borderColor: theme.textColor }]}
-            onPress={() => setShowUploadedImages(!showUploadedImages)}
-          >
-            <Text style={[styles.toggleButtonText, { color: theme.textColor }]}>
-              {showUploadedImages ? "⬆️ Hide" : "⬇️ Show"} Uploaded Arweave
-              Images ({trashedImages.length} in trash)
-            </Text>
-          </TouchableOpacity>
-
-          {showUploadedImages && (
-            <View style={styles.trashSection}>
-              <Text style={[styles.subTitle, { color: theme.textColor }]}>
-                🗑️ Trashed Images (Can be restored)
-              </Text>
-              <View style={styles.photosGrid}>
-                {trashedImages.map((trashed, index) => (
-                  <View key={`trashed-${index}`} style={styles.photoContainer}>
-                    <Image
-                      source={{ uri: trashed.data }}
-                      style={styles.photo}
-                    />
-                    <View style={styles.trashActions}>
-                      <TouchableOpacity
-                        style={[styles.actionButton, styles.restoreButton]}
-                        onPress={() => {
-                          // Restore from trash
-                          const restoredPhoto = trashedImages[index];
-                          setPhotos([...photos, restoredPhoto.data]);
-                          setPhotoUrls([...photoUrls, restoredPhoto.url]);
-                          setTrashedImages(
-                            trashedImages.filter((_, i) => i !== index)
-                          );
-                          // Update Firebase
-                          FirebaseService.updateUserPhotoUrls(address, [
-                            ...photoUrls,
-                            restoredPhoto.url,
-                          ]);
-                          showCustomModal("Success", "Photo restored!", [
-                            {
-                              text: "OK",
-                              onPress: () => setModalVisible(false),
-                            },
-                          ]);
-                        }}
-                      >
-                        <Text style={styles.actionText}>↩️ Restore</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.actionButton, styles.deleteButton]}
-                        onPress={() => {
-                          // Permanently delete
-                          setTrashedImages(
-                            trashedImages.filter((_, i) => i !== index)
-                          );
-                          showCustomModal(
-                            "Success",
-                            "Photo permanently deleted!",
-                            [
-                              {
-                                text: "OK",
-                                onPress: () => setModalVisible(false),
-                              },
-                            ]
-                          );
-                        }}
-                      >
-                        <Text style={styles.actionText}>🗑️ Delete</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
-
           {/* Render existing photos */}
           {photos.map((uri, index) => (
             <View key={`photo-${index}`} style={styles.photoContainer}>
@@ -641,7 +474,7 @@ export default function ProfileScreen() {
                 style={[styles.photo, styles.placeholderPhoto]}
               />
               <View style={styles.placeholderOverlay}>
-                <Text style={styles.placeholderText}>💰 Pending Payment</Text>
+                <Text style={styles.placeholderText}>⏳ Ready to Upload</Text>
               </View>
               <TouchableOpacity
                 style={styles.deleteButton}
@@ -688,14 +521,6 @@ export default function ProfileScreen() {
           </Text>
         )}
 
-        <TouchableOpacity
-          onPress={pickImage}
-          style={[theme.button, { marginTop: 10 }]}
-          disabled={uploading || photos.length >= 4}
-        >
-          <Text style={theme.buttonTextStyle}>📷 Add Photo Piece</Text>
-        </TouchableOpacity>
-
         {placeholderImages.length > 0 && (
           <TouchableOpacity
             onPress={finalizePlaceholderImages}
@@ -706,9 +531,8 @@ export default function ProfileScreen() {
             disabled={uploading}
           >
             <Text style={theme.buttonTextStyle}>
-              💰 Finalize {placeholderImages.length} Photo
-              {placeholderImages.length > 1 ? "s" : ""} ($
-              {(0.0008 * placeholderImages.length).toFixed(4)})
+              � Upload {placeholderImages.length} Photo
+              {placeholderImages.length > 1 ? "s" : ""}
             </Text>
           </TouchableOpacity>
         )}
@@ -760,16 +584,17 @@ const styles = StyleSheet.create({
   bioText: { fontSize: 14, marginBottom: 10 },
   immutableNote: { fontStyle: "italic", color: "red" },
   photosContainer: { marginBottom: 20 },
-  photosGrid: { flexDirection: "row", flexWrap: "wrap" },
-  photoContainer: { position: "relative", margin: 5 },
-  photo: { width: 100, height: 100 },
+  photosGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+  photoContainer: { width: "23%", aspectRatio: 1, marginBottom: 10 },
+  photo: { width: "100%", height: "100%", borderRadius: 8 },
   deleteButton: {
     position: "absolute",
-    top: 0,
-    right: 0,
+    top: -5,
+    right: -5,
     backgroundColor: "red",
     width: 20,
     height: 20,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -804,53 +629,9 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     color: "white",
-    fontSize: 12,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  toggleButton: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 10,
-    alignItems: "center",
-  },
-  toggleButtonText: {
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-  trashSection: {
-    marginBottom: 20,
-    padding: 10,
-    backgroundColor: "rgba(0,0,0,0.1)",
-    borderRadius: 8,
-  },
-  subTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 10,
-  },
-  trashActions: {
-    position: "absolute",
-    bottom: 5,
-    left: 5,
-    right: 5,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  actionButton: {
-    padding: 5,
-    borderRadius: 4,
-    minWidth: 60,
-    alignItems: "center",
-  },
-  restoreButton: {
-    backgroundColor: "green",
-  },
-  actionText: {
-    color: "white",
     fontSize: 10,
     fontWeight: "bold",
+    textAlign: "center",
   },
   preferencesContainer: { marginBottom: 20 },
 });

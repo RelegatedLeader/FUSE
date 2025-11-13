@@ -720,23 +720,23 @@ export class FirebaseService {
     costPerImage: { matic: number; usd: number };
   }> {
     try {
-      console.log("💰 Checking Arweave balance via Irys API...");
+      console.log("💰 Checking Firebase Storage balance...");
 
-      // For real payments, always require payment (no free balance)
+      // For Firebase Storage, always have balance (no cost)
       return {
-        hasBalance: false,
-        balance: "0.00",
+        hasBalance: true,
+        balance: "Unlimited",
         costPerImage: {
-          matic: 0.001,
-          usd: 0.0008,
+          matic: 0,
+          usd: 0,
         },
       };
     } catch (error) {
-      console.error("Failed to check Arweave balance:", error);
+      console.error("Failed to check balance:", error);
       return {
-        hasBalance: false,
-        balance: "0",
-        costPerImage: { matic: 0.001, usd: 0.0008 },
+        hasBalance: true,
+        balance: "Unlimited",
+        costPerImage: { matic: 0, usd: 0 },
       };
     }
   }
@@ -813,13 +813,12 @@ export class FirebaseService {
   }
 
   /**
-   * Upload encrypted image to Arweave via HTTP API (React Native compatible)
+   * Upload encrypted image to Firebase Storage
    */
   static async uploadUserImageFromBase64(
     base64Data: string,
     walletAddress: string,
-    imageIndex: number,
-    paidAmount?: number
+    imageIndex: number
   ): Promise<string> {
     if (!this.userKeys) {
       throw new Error("User keys not initialized");
@@ -881,26 +880,16 @@ export class FirebaseService {
 
       const dataString = JSON.stringify(imageData);
 
-      console.log("📤 Uploading to Arweave after payment...");
+      console.log("📤 Uploading to Firebase Storage...");
 
-      // After successful payment, create real Arweave transaction ID
-      const transactionId = `arweave_tx_${Date.now()}_${Math.random()
-        .toString(36)
-        .substr(2, 9)}`;
-      const arweaveUrl = `${this.ARWEAVE_BASE_URL}/${transactionId}`;
+      // Upload encrypted data to Firebase Storage
+      const storageRef = ref(storage, `users/${walletAddress}/images/${imageIndex}_${Date.now()}.enc`);
+      await uploadBytes(storageRef, encryptedData);
+      const downloadUrl = await getDownloadURL(storageRef);
 
-      console.log(`✅ Image uploaded to Arweave: ${arweaveUrl}`);
-      console.log(
-        `💰 Payment of ${
-          paidAmount || 0.001
-        } MATIC confirmed for permanent storage`
-      );
-
-      console.log(
-        `📸 Uploaded encrypted image ${imageIndex} for user:`,
-        walletAddress
-      );
-      return arweaveUrl;
+      console.log(`✅ Image uploaded to Firebase Storage: ${downloadUrl}`);
+      console.log(`📸 Uploaded encrypted image ${imageIndex} for user:`, walletAddress);
+      return downloadUrl;
     } catch (error) {
       console.error("❌ Failed to upload image to Arweave:", error);
       throw error;
@@ -908,38 +897,28 @@ export class FirebaseService {
   }
 
   /**
-   * Download and decrypt image from Arweave
+   * Download and decrypt image from Firebase Storage
    */
   static async downloadUserImageFromArweave(
-    arweaveUrl: string
+    firebaseUrl: string
   ): Promise<string> {
     if (!this.userKeys) {
       throw new Error("User keys not initialized");
     }
 
     try {
-      console.log("📥 Downloading image from Arweave...");
+      console.log("📥 Downloading image from Firebase Storage...");
 
-      // Extract transaction ID from URL
-      const transactionId = arweaveUrl.split("/").pop();
-      if (!transactionId) {
-        throw new Error("Invalid Arweave URL");
-      }
-
-      // Fetch data from Arweave
-      const response = await fetch(`https://arweave.net/${transactionId}`);
+      // Fetch encrypted data from Firebase Storage
+      const response = await fetch(firebaseUrl);
       if (!response.ok) {
-        throw new Error(`Failed to fetch from Arweave: ${response.status}`);
+        throw new Error(`Failed to fetch from Firebase: ${response.status}`);
       }
 
-      const imageData = await response.json();
+      const encryptedData = new Uint8Array(await response.arrayBuffer());
 
       // Decrypt the image
       console.log("🔓 Decrypting image data...");
-      const encryptedData = Uint8Array.from(
-        atob(imageData.encryptedImage),
-        (c) => c.charCodeAt(0)
-      );
       const decryptedData = EncryptionService.decryptData(
         encryptedData,
         this.userKeys.dataKey
