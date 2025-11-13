@@ -178,11 +178,11 @@ export class EncryptionService {
   static encryptData(data: Uint8Array, key: string): Uint8Array {
     // For large data, process in chunks to avoid memory issues
     const CHUNK_SIZE = 512 * 1024; // 512KB chunks (smaller for safety)
-    const iv = this.generateIV();
 
     if (data.length <= CHUNK_SIZE) {
       // Small data - encrypt directly
       const wordArray = CryptoJS.lib.WordArray.create(data);
+      const iv = this.generateIV();
       const encrypted = CryptoJS.AES.encrypt(wordArray, key, {
         iv: CryptoJS.enc.Hex.parse(iv),
         mode: CryptoJS.mode.CBC,
@@ -199,31 +199,51 @@ export class EncryptionService {
       result.set(encryptedBytes, ivBytes.length);
       return result;
     } else {
-      // Large data - convert to base64 in chunks to avoid stack overflow
-      const base64Data = this.uint8ArrayToBase64(data);
-      const { encrypted, iv: stringIv } = this.encrypt(base64Data, key);
+      // Large data - encrypt in chunks and combine results
+      const chunks: Uint8Array[] = [];
+      const iv = this.generateIV();
 
-      // Combine everything as a JSON string, then convert to bytes
-      const resultObj = {
-        data: encrypted,
-        iv: stringIv,
-        isChunked: true,
-      };
-      const resultJson = JSON.stringify(resultObj);
-      const resultBytes = new TextEncoder().encode(resultJson);
-      return resultBytes;
+      // Store IV at the beginning
+      const ivWords = CryptoJS.enc.Hex.parse(iv);
+      const ivBytes = this.wordArrayToUint8Array(ivWords);
+      chunks.push(ivBytes);
+
+      // Process data in chunks
+      for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+        const chunk = data.slice(i, i + CHUNK_SIZE);
+        const wordArray = CryptoJS.lib.WordArray.create(chunk);
+        const encrypted = CryptoJS.AES.encrypt(wordArray, key, {
+          iv: CryptoJS.enc.Hex.parse(iv),
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7,
+        });
+
+        const encryptedBytes = this.wordArrayToUint8Array(encrypted.ciphertext);
+        chunks.push(encryptedBytes);
+      }
+
+      // Combine all chunks
+      const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+      const result = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const chunk of chunks) {
+        result.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      return result;
     }
   }
 
   // Decrypt binary data (Uint8Array) - handles chunked data
   static decryptData(encryptedData: Uint8Array, key: string): Uint8Array {
     try {
-      // Check if this is chunked data
+      // Check if this is the old chunked format (JSON)
       const textData = new TextDecoder().decode(encryptedData);
       try {
         const parsed = JSON.parse(textData);
         if (parsed.isChunked) {
-          // Chunked data - decrypt as string then convert back
+          // Old format - decrypt as string then convert back
           const decryptedBase64 = this.decrypt(parsed.data, key, parsed.iv);
           const binaryString = atob(decryptedBase64);
           const result = new Uint8Array(binaryString.length);
@@ -233,28 +253,69 @@ export class EncryptionService {
           return result;
         }
       } catch (e) {
-        // Not chunked data, continue with original method
+        // Not old chunked data, continue with new method
       }
 
-      // Original method for smaller data
+      // New chunked format: IV (16 bytes) + encrypted chunks
       const ivSize = 16;
+      if (encryptedData.length < ivSize) {
+        throw new Error("Invalid encrypted data: too short");
+      }
+
       const ivBytes = encryptedData.slice(0, ivSize);
-      const encryptedBytes = encryptedData.slice(ivSize);
+      const encryptedChunks = encryptedData.slice(ivSize);
 
       const iv = CryptoJS.lib.WordArray.create(ivBytes);
-      const ciphertext = CryptoJS.lib.WordArray.create(encryptedBytes);
 
-      const decrypted = CryptoJS.AES.decrypt(
-        { ciphertext: ciphertext } as any,
-        key,
-        {
-          iv: iv,
-          mode: CryptoJS.mode.CBC,
-          padding: CryptoJS.pad.Pkcs7,
+      // For small data, decrypt directly
+      if (encryptedChunks.length <= 1024 * 1024) {
+        // 1MB
+        const ciphertext = CryptoJS.lib.WordArray.create(encryptedChunks);
+        const decrypted = CryptoJS.AES.decrypt(
+          { ciphertext: ciphertext } as any,
+          key,
+          {
+            iv: iv,
+            mode: CryptoJS.mode.CBC,
+            padding: CryptoJS.pad.Pkcs7,
+          }
+        );
+        return this.wordArrayToUint8Array(decrypted);
+      } else {
+        // Large data - decrypt in chunks
+        const CHUNK_SIZE = 1024 * 1024; // 1MB encrypted chunks
+        const decryptedChunks: Uint8Array[] = [];
+
+        for (let i = 0; i < encryptedChunks.length; i += CHUNK_SIZE) {
+          const chunk = encryptedChunks.slice(i, i + CHUNK_SIZE);
+          const ciphertext = CryptoJS.lib.WordArray.create(chunk);
+          const decrypted = CryptoJS.AES.decrypt(
+            { ciphertext: ciphertext } as any,
+            key,
+            {
+              iv: iv,
+              mode: CryptoJS.mode.CBC,
+              padding: CryptoJS.pad.Pkcs7,
+            }
+          );
+          const decryptedBytes = this.wordArrayToUint8Array(decrypted);
+          decryptedChunks.push(decryptedBytes);
         }
-      );
 
-      return this.wordArrayToUint8Array(decrypted);
+        // Combine decrypted chunks
+        const totalLength = decryptedChunks.reduce(
+          (sum, chunk) => sum + chunk.length,
+          0
+        );
+        const result = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of decryptedChunks) {
+          result.set(chunk, offset);
+          offset += chunk.length;
+        }
+
+        return result;
+      }
     } catch (error) {
       throw new Error(
         "Binary decryption failed: Invalid key or corrupted data"

@@ -1,115 +1,168 @@
-import Arweave from "arweave";
+﻿import Bundlr from '@bundlr-network/client';
+import Arweave from 'arweave';
+import { EncryptionService } from './encryption';
+
+// Bundlr configuration for Polygon (cheapest fees)
+const BUNDLR_NODE = 'https://node2.bundlr.network';
 
 // Arweave configuration
 const arweave = Arweave.init({
-  host: "arweave.net",
+  host: 'arweave.net',
   port: 443,
-  protocol: "https",
+  protocol: 'https',
   timeout: 20000,
   logging: false,
 });
 
 export class ArweaveService {
+  private static bundlr: Bundlr | null = null;
+
   /**
-   * Upload data directly to Arweave using HTTP API (React Native compatible)
-   * Note: This is a placeholder implementation. Full Arweave integration requires
-   * wallet signing which needs to be implemented with MetaMask.
+   * Initialize Bundlr with user's wallet
    */
-  static async uploadDataDirect(data: string, tags: { name: string; value: string }[] = []): Promise<string> {
+  static async initializeBundlr(signer: any): Promise<void> {
     try {
-      console.log("⚠️ Arweave upload placeholder - requires MetaMask signing implementation");
-      console.log("Data size:", data.length, "bytes");
-      console.log("Tags:", tags);
+      console.log(' Initializing Bundlr for Arweave storage...');
 
-      // For now, return a placeholder transaction ID
-      // In production, this would:
-      // 1. Create Arweave transaction
-      // 2. Sign with MetaMask (eth_sign)
-      // 3. Submit to Arweave network
-      const placeholderId = `arweave_placeholder_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      // Use Polygon network for cheapest fees
+      this.bundlr = new Bundlr(BUNDLR_NODE, 'matic', signer);
 
-      console.log("Generated placeholder Arweave TX ID:", placeholderId);
-      return placeholderId;
+      // Check balance
+      const balance = await this.bundlr.getLoadedBalance();
+      const balanceMatic = this.bundlr.utils.unitConverter(balance);
+
+      console.log( Bundlr balance:  MATIC);
+
     } catch (error) {
-      console.error("Failed to create Arweave transaction:", error);
+      console.error(' Failed to initialize Bundlr:', error);
       throw error;
     }
   }
 
   /**
-   * Upload face scan images to Arweave (placeholder implementation)
+   * Get upload cost for data
    */
-  static async uploadFaceScans(faceImages: { [key: string]: string }, provider?: any): Promise<string> {
-    try {
-      console.log("📸 Uploading face scans to Arweave (placeholder)...");
+  static async getUploadCost(dataSize: number): Promise<{ costMatic: number; costUsd: number }> {
+    if (!this.bundlr) {
+      throw new Error('Bundlr not initialized');
+    }
 
-      // Convert base64 images to a JSON bundle
-      const faceScanData = {
-        timestamp: Date.now(),
-        images: faceImages,
-        version: "1.0",
+    try {
+      const cost = await this.bundlr.getPrice(dataSize);
+      const costMatic = this.bundlr.utils.unitConverter(cost);
+      const costUsd = costMatic.toNumber() * 0.8; // Rough MATIC to USD conversion
+
+      return {
+        costMatic: costMatic.toNumber(),
+        costUsd: Number(costUsd.toFixed(4))
       };
 
-      const dataString = JSON.stringify(faceScanData);
+    } catch (error) {
+      console.error('Failed to get upload cost:', error);
+      return {
+        costMatic: 0.001,
+        costUsd: 0.0008
+      };
+    }
+  }
 
-      // Upload with appropriate tags
+  /**
+   * Upload encrypted image data to Arweave
+   */
+  static async uploadEncryptedImage(
+    encryptedData: Uint8Array,
+    walletAddress: string,
+    imageIndex: number
+  ): Promise<string> {
+    if (!this.bundlr) {
+      throw new Error('Bundlr not initialized');
+    }
+
+    try {
+      console.log(' Uploading encrypted image to Arweave...');
+
+      // Create transaction with tags
       const tags = [
-        { name: "Content-Type", value: "application/json" },
-        { name: "App-Name", value: "FUSE-Social" },
-        { name: "Data-Type", value: "face-scan" },
-        { name: "Timestamp", value: Date.now().toString() },
+        { name: 'Content-Type', value: 'application/json' },
+        { name: 'App-Name', value: 'FUSE-Social' },
+        { name: 'Data-Type', value: 'encrypted-image' },
+        { name: 'User-ID', value: walletAddress },
+        { name: 'Image-Index', value: imageIndex.toString() },
+        { name: 'Timestamp', value: Date.now().toString() },
+        { name: 'Version', value: '1.0' }
       ];
 
-      const transactionId = await this.uploadDataDirect(dataString, tags);
-      return transactionId;
+      // Prepare data as JSON
+      const imageData = {
+        encryptedImage: btoa(String.fromCharCode(...encryptedData)),
+        timestamp: Date.now(),
+        version: '1.0'
+      };
+
+      const dataString = JSON.stringify(imageData);
+
+      // Create and sign transaction
+      const transaction = this.bundlr.createTransaction(dataString, { tags });
+      await transaction.sign();
+
+      // Upload
+      const result = await transaction.upload();
+
+      const arweaveUrl = https://arweave.net/;
+
+      console.log( Image uploaded to Arweave: );
+
+      return arweaveUrl;
+
     } catch (error) {
-      console.error("Failed to upload face scans:", error);
+      console.error(' Failed to upload image to Arweave:', error);
       throw error;
     }
   }
 
   /**
-   * Upload AI-summarized interaction data to Arweave (placeholder implementation)
+   * Download and decrypt image from Arweave
    */
-  static async uploadInteractionSummary(interactionData: {
-    userId: string;
-    summary: string;
-    interactionCount: number;
-    personalityTraits: any;
-    timestamp: number;
-    aiAnalysis: string;
-  }, provider?: any): Promise<string> {
+  static async downloadEncryptedImage(
+    arweaveUrl: string,
+    decryptionKey: string
+  ): Promise<string> {
     try {
-      console.log("🤖 Uploading interaction summary to Arweave (placeholder)...");
+      console.log(' Downloading image from Arweave...');
 
-      const dataString = JSON.stringify(interactionData);
+      // Extract transaction ID from URL
+      const transactionId = arweaveUrl.split('/').pop();
+      if (!transactionId) {
+        throw new Error('Invalid Arweave URL');
+      }
 
-      // Upload with appropriate tags
-      const tags = [
-        { name: "Content-Type", value: "application/json" },
-        { name: "App-Name", value: "FUSE-Social" },
-        { name: "Data-Type", value: "interaction-summary" },
-        { name: "User-ID", value: interactionData.userId },
-        { name: "Timestamp", value: interactionData.timestamp.toString() },
-      ];
+      // Fetch data from Arweave
+      const response = await fetch(https://arweave.net/);
+      if (!response.ok) {
+        throw new Error(Failed to fetch from Arweave: );
+      }
 
-      const transactionId = await this.uploadDataDirect(dataString, tags);
-      return transactionId;
+      const imageData = await response.json();
+
+      // Decrypt the image
+      console.log(' Decrypting image data...');
+      const encryptedData = Uint8Array.from(atob(imageData.encryptedImage), c => c.charCodeAt(0));
+      const decryptedData = EncryptionService.decryptData(encryptedData, decryptionKey);
+
+      // Convert back to base64 for display
+      let decryptedBase64 = '';
+      const CHUNK_SIZE = 8192;
+      for (let i = 0; i < decryptedData.length; i += CHUNK_SIZE) {
+        const chunk = decryptedData.slice(i, i + CHUNK_SIZE);
+          decryptedBase64 += btoa(String.fromCharCode(...chunk));
+      }
+
+      console.log(' Image decrypted successfully');
+
+      return data:image/jpeg;base64,;
+
     } catch (error) {
-      console.error("Failed to upload interaction summary:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Retrieve data from Arweave
-   */
-  static async getData(transactionId: string): Promise<any> {
-    try {
-      const data = await arweave.transactions.getData(transactionId, { decode: true, string: true });
-      return JSON.parse(data.toString());
-    } catch (error) {
-      console.error("Failed to retrieve data from Arweave:", error);
+      console.error(' Failed to download/decrypt image:', error);
       throw error;
     }
   }

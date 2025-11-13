@@ -9,7 +9,6 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "@bundlr-network/client": "^0.11.17",
     "@galactica-net/zk-certificates": "^0.11.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/slider": "5.0.1",
@@ -28,13 +27,13 @@
     "crypto-js": "^4.2.0",
     "ethers": "^6.15.0",
     "expo": "54.0.23",
-    "expo-camera": "^17.0.8",
+    "expo-camera": "~17.0.9",
     "expo-image-picker": "^17.0.8",
     "expo-linking": "~8.0.8",
     "expo-status-bar": "~3.0.8",
     "firebase": "^12.5.0",
     "react": "19.1.0",
-    "react-dom": "^19.2.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-crypto": "^2.2.1",
     "react-native-gesture-handler": "~2.28.0",
