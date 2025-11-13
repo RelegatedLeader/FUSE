@@ -196,6 +196,22 @@ export default function ProfileScreen() {
 
         // Add as placeholder image first
         const dataUrl = `data:image/jpeg;base64,${asset.base64}`;
+
+        // Check for duplicates
+        if (checkForDuplicate(dataUrl)) {
+          showCustomModal(
+            "Duplicate Image",
+            "This image has already been added. Please select a different image.",
+            [
+              {
+                text: "OK",
+                onPress: () => setModalVisible(false),
+              },
+            ]
+          );
+          return;
+        }
+
         setPlaceholderImages([...placeholderImages, dataUrl]);
 
         showCustomModal(
@@ -422,6 +438,22 @@ export default function ProfileScreen() {
     );
   };
 
+  const checkForDuplicate = (newImageUri: string): boolean => {
+    // Check against existing photos
+    for (const existingUri of photos) {
+      if (existingUri === newImageUri) {
+        return true;
+      }
+    }
+    // Check against placeholder images
+    for (const existingUri of placeholderImages) {
+      if (existingUri === newImageUri) {
+        return true;
+      }
+    }
+    return false;
+  };
+
   const togglePreference = (key: string) => {
     setPreferences({ ...preferences, [key]: !preferences[key] });
   };
@@ -611,6 +643,16 @@ export default function ProfileScreen() {
               <View style={styles.placeholderOverlay}>
                 <Text style={styles.placeholderText}>💰 Pending Payment</Text>
               </View>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => {
+                  // Remove this placeholder image
+                  setPlaceholderImages(placeholderImages.filter((_, i) => i !== index));
+                }}
+                disabled={uploading}
+              >
+                <Text style={styles.deleteText}>❌</Text>
+              </TouchableOpacity>
             </View>
           ))}
 

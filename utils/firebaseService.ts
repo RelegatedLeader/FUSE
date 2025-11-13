@@ -754,8 +754,19 @@ export class FirebaseService {
       console.log(`💸 Funding Arweave storage with ${amountMatic} MATIC...`);
 
       if (!signClient || !sessionTopic || !address) {
-        throw new Error("Wallet connection required for payment");
+        throw new Error("Wallet connection not available. Please connect your wallet first.");
       }
+
+      console.log("Wallet connection validated:", { address, hasSignClient: !!signClient, hasSessionTopic: !!sessionTopic });
+
+      // Check if session is active
+      const sessions = signClient.session.getAll();
+      const activeSession = sessions.find((s: any) => s.topic === sessionTopic);
+      if (!activeSession) {
+        throw new Error("WalletConnect session is not active. Please reconnect your wallet.");
+      }
+
+      console.log("Active session found:", activeSession.peer.metadata.name);
 
       // Send MATIC payment using WalletConnect to a real service address
       // In production, this would be a service that handles Arweave storage
@@ -778,7 +789,19 @@ export class FirebaseService {
       });
 
       console.log(`💸 Sending ${amountMatic} MATIC to storage service...`);
-      const txHash = await txPromise;
+      console.log("Transaction params:", {
+        from: address,
+        to: serviceAddress,
+        value: "0x" + valueInWei,
+        gasLimit: "0x5208",
+      });
+
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error("Payment timeout - MetaMask didn't respond within 60 seconds")), 60000);
+      });
+
+      const txHash = await Promise.race([txPromise, timeoutPromise]);
       console.log("✅ Payment confirmed! Transaction:", txHash);
 
       // Return the amount paid for reference
