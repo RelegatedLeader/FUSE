@@ -594,51 +594,26 @@ export class FirebaseService {
   }
 
   // Delete user image from Firebase Storage
-  static async downloadUserImage(
+  static async deleteUserImage(
     imageUrl: string,
     walletAddress: string
-  ): Promise<string> {
-    try {
-      console.log("📥 Downloading image from Firebase Storage...");
-
-      // Fetch the image directly from Firebase Storage
-      const response = await fetch(imageUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch from Firebase: ${response.status}`);
-      }
-
-      // Get the response as array buffer
-      const arrayBuffer = await response.arrayBuffer();
-
-      // Convert to base64 for display
-      const uint8Array = new Uint8Array(arrayBuffer);
-      let binaryString = '';
-      for (let i = 0; i < uint8Array.length; i++) {
-        binaryString += String.fromCharCode(uint8Array[i]);
-      }
-      const base64 = btoa(binaryString);
-
-      console.log("✅ Image downloaded successfully");
-
-      return `data:image/jpeg;base64,${base64}`;
-    } catch (error) {
-      console.error("❌ Failed to download image:", error);
-      throw error;
-    }
-  }
-
-  // Delete user image from Firebase Storage
-  static async deleteUserImage(
-    walletAddress: string,
-    imageIndex: number
   ): Promise<void> {
     try {
-      const storageRef = ref(
-        storage,
-        `users/${walletAddress}/photos/photo_${imageIndex}.enc`
-      );
+      // Extract the file path from the Firebase Storage URL
+      // URL format: https://firebasestorage.googleapis.com/v0/b/bucket/o/path?alt=media
+      const urlParts = imageUrl.split('/o/');
+      if (urlParts.length < 2) {
+        throw new Error('Invalid Firebase Storage URL format');
+      }
+
+      const encodedPath = urlParts[1].split('?')[0]; // Remove query parameters
+      const filePath = decodeURIComponent(encodedPath);
+
+      console.log('Deleting image at path:', filePath);
+
+      const storageRef = ref(storage, filePath);
       await deleteObject(storageRef);
-      console.log(`🗑️ Deleted image ${imageIndex} for user:`, walletAddress);
+      console.log(`🗑️ Deleted image for user:`, walletAddress);
     } catch (error) {
       console.error("Failed to delete image:", error);
       throw error;
@@ -846,14 +821,16 @@ export class FirebaseService {
       console.log("� Uploading image to Firebase Storage...");
 
       // Upload directly without encryption for public viewing
-      const fileName = `users/${walletAddress}/images/${imageIndex}_${Date.now()}.jpg`;
-      const downloadUrl = await this.uploadViaXMLHttpRequest(uint8Array, fileName);
+      const timestamp = Date.now();
+      const randomId = Math.random().toString(36).substr(2, 9);
+      const fileName = `users/${walletAddress}/images/${timestamp}_${randomId}.jpg`;
+      const downloadUrl = await this.uploadViaXMLHttpRequest(
+        uint8Array,
+        fileName
+      );
 
       console.log(`✅ Image uploaded to Firebase Storage: ${downloadUrl}`);
-      console.log(
-        `📸 Uploaded image ${imageIndex} for user:`,
-        walletAddress
-      );
+      console.log(`📸 Uploaded image ${imageIndex} for user:`, walletAddress);
       return downloadUrl;
     } catch (error) {
       console.error("❌ Failed to upload image to Firebase:", error);
@@ -869,6 +846,7 @@ export class FirebaseService {
     data: Uint8Array,
     fileName: string
   ): Promise<string> {
+    console.log("🔐 Getting Firebase auth token...");
     // Get Firebase auth token
     const auth = getAuth();
     const user = auth.currentUser;
@@ -877,46 +855,123 @@ export class FirebaseService {
     }
 
     const token = await getIdToken(user);
+    console.log("🔑 Got auth token, length:", token.length);
 
     // Firebase Storage REST API endpoint - simple media upload
     const bucket = "fuse-ede12.firebasestorage.app";
-    const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?name=${encodeURIComponent(fileName)}&uploadType=media`;
+    const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?name=${encodeURIComponent(
+      fileName
+    )}&uploadType=media`;
 
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
 
-      xhr.open('POST', uploadUrl, true);
-      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-      xhr.setRequestHeader('Content-Length', data.length.toString());
+      xhr.open("POST", uploadUrl, true);
+      xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+      xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      xhr.setRequestHeader("Content-Length", data.length.toString());
 
       xhr.onload = () => {
+        console.log("📡 Upload response received, status:", xhr.status);
         if (xhr.status === 200) {
           try {
             const response = JSON.parse(xhr.responseText);
-            const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(fileName)}?alt=media&token=${response.downloadTokens}`;
+            console.log("📄 Upload response:", response);
+            // For media uploads, use the returned name to construct download URL
+            const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(
+              response.name
+            )}?alt=media`;
+            console.log("🔗 Generated download URL:", downloadUrl);
             resolve(downloadUrl);
           } catch (error) {
+            console.error("❌ Failed to parse upload response:", error);
             reject(new Error('Failed to parse upload response'));
           }
         } else {
+          console.error("❌ Upload failed with status:", xhr.status, "response:", xhr.responseText);
           reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.responseText}`));
         }
       };
 
       xhr.onerror = () => {
+        console.error("❌ Network error during upload");
         reject(new Error('Network error during upload'));
       };
 
       xhr.ontimeout = () => {
+        console.error("⏰ Upload timeout");
         reject(new Error('Upload timeout'));
       };
 
       xhr.timeout = 30000; // 30 second timeout
 
       // Send the ArrayBuffer directly
-      const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-      xhr.send(arrayBuffer);
+      const arrayBuffer = data.buffer.slice(
+        data.byteOffset,
+        data.byteOffset + data.byteLength
+      );
+      xhr.send(arrayBuffer as ArrayBuffer);
     });
+  }
+
+  // Delete user image from Firebase Storage
+  static async downloadUserImage(
+    imageUrl: string,
+    walletAddress: string
+  ): Promise<string> {
+    try {
+      console.log("📥 Downloading image from Firebase Storage...");
+
+      // Fetch the image from Firebase Storage
+      const response = await fetch(imageUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch from Firebase: ${response.status}`);
+      }
+
+      // Get as array buffer
+      const arrayBuffer = await response.arrayBuffer();
+      const uint8Array = new Uint8Array(arrayBuffer);
+
+      // Try to interpret as UTF-8 text (for old JSON format)
+      let textData = "";
+      let isTextData = true;
+      for (let i = 0; i < Math.min(uint8Array.length, 1000); i++) {
+        const charCode = uint8Array[i];
+        if (charCode < 32 && charCode !== 10 && charCode !== 13 && charCode !== 9) {
+          // Non-printable character, likely binary data
+          isTextData = false;
+          break;
+        }
+        textData += String.fromCharCode(charCode);
+      }
+
+      if (isTextData && textData.trim().startsWith("{")) {
+        try {
+          // Try to parse as JSON (old format)
+          const jsonData = JSON.parse(textData);
+          if (jsonData.encryptedImage) {
+            console.log("📄 Detected old JSON format, extracting base64...");
+            return `data:image/jpeg;base64,${jsonData.encryptedImage}`;
+          }
+        } catch (e) {
+          // Not valid JSON, fall through to binary handling
+        }
+      }
+
+      // Treat as binary data (new format)
+      console.log("🔍 Processing as binary image data...");
+      let binaryString = "";
+      for (let i = 0; i < uint8Array.length; i++) {
+        binaryString += String.fromCharCode(uint8Array[i]);
+      }
+      const base64 = btoa(binaryString);
+
+      console.log("✅ Image downloaded successfully");
+
+      return `data:image/jpeg;base64,${base64}`;
+    } catch (error) {
+      console.error("❌ Failed to download image:", error);
+      throw error;
+    }
   }
 }

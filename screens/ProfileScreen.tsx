@@ -116,6 +116,10 @@ export default function ProfileScreen() {
 
   const loadPhotos = async () => {
     try {
+      // Initialize Firebase auth first
+      const { initializeFirebaseAuth } = await import("../utils/firebase");
+      await initializeFirebaseAuth();
+
       // Initialize Firebase if needed
       await FirebaseService.initializeUser(address);
 
@@ -203,8 +207,12 @@ export default function ProfileScreen() {
               setModalVisible(false);
               setUploading(true);
 
+              // Initialize Firebase auth first
+              const { initializeFirebaseAuth } = await import("../utils/firebase");
+              await initializeFirebaseAuth();
+
               // Remove from Firebase completely
-              await FirebaseService.deleteUserImage(address, index);
+              await FirebaseService.deleteUserImage(photoUrls[index], address);
 
               // Update photo URLs in Firebase (remove the URL at this index)
               const newPhotoUrls = photoUrls.filter((_, i) => i !== index);
@@ -246,6 +254,10 @@ export default function ProfileScreen() {
     try {
       setUploading(true);
 
+      // Initialize Firebase auth first
+      const { initializeFirebaseAuth } = await import("../utils/firebase");
+      await initializeFirebaseAuth();
+
       // Initialize Firebase user keys if needed
       await FirebaseService.initializeUser(address);
 
@@ -279,7 +291,10 @@ export default function ProfileScreen() {
       ]);
     } catch (error) {
       console.error("Error uploading image:", error);
-      showCustomModal("Error", "Failed to upload photo");
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      showCustomModal("Upload Failed", `Failed to upload photo: ${errorMessage}`, [
+        { text: "OK", onPress: () => setModalVisible(false) },
+      ]);
     } finally {
       setUploading(false);
     }
@@ -491,8 +506,19 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
-  photoContainer: { width: "23%", aspectRatio: 1, marginBottom: 10 },
-  photo: { width: "100%", height: "100%", borderRadius: 8 },
+  photoContainer: {
+    width: "23%", // Back to 4-column grid
+    aspectRatio: 1,
+    borderRadius: 8,
+    marginBottom: 10,
+    overflow: "hidden",
+    position: "relative",
+  },
+  photo: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 8,
+  },
   deleteButton: {
     position: "absolute",
     top: -5,
@@ -504,7 +530,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  deleteText: { color: "white", fontSize: 12 },
+  deleteText: {
+    color: "white",
+    fontSize: 12,
+  },
   emptyPhotoContainer: {
     borderWidth: 2,
     borderColor: "#ccc",
@@ -520,24 +549,6 @@ const styles = StyleSheet.create({
     fontSize: 32,
     color: "#ccc",
     fontWeight: "bold",
-  },
-  addPhoto: { padding: 10, backgroundColor: "lightblue", margin: 5 },
-  placeholderPhoto: { opacity: 0.7 },
-  placeholderOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  placeholderText: {
-    color: "white",
-    fontSize: 10,
-    fontWeight: "bold",
-    textAlign: "center",
   },
   preferencesContainer: { marginBottom: 20 },
 });

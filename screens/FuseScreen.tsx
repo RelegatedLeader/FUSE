@@ -44,34 +44,24 @@ export default function FuseScreen() {
   // Track which users have been skipped
   const [skippedUsers, setSkippedUsers] = useState<Set<string>>(new Set());
 
+  // Full-screen image viewer state
+  const [fullScreenImageVisible, setFullScreenImageVisible] = useState(false);
+  const [fullScreenImageUri, setFullScreenImageUri] = useState<string>("");
+  const [fullScreenImageIndex, setFullScreenImageIndex] = useState(0);
+  const [fullScreenImages, setFullScreenImages] = useState<string[]>([]);
+
   const loadUserPhotos = async (userAddress: string): Promise<string[]> => {
     try {
       // Initialize Firebase for the target user
       const { FirebaseService } = await import("../utils/firebaseService");
       await FirebaseService.initializeUser(userAddress);
 
-      // Get photo URLs from Firebase
+      // Get photo URLs from Firebase - images are now stored unencrypted
       const photoUrls = await FirebaseService.getUserPhotoUrls(userAddress);
 
-      // Download and decrypt photos for display
-      const decryptedPhotos: string[] = [];
-      for (const url of photoUrls) {
-        try {
-          const decryptedUri = await FirebaseService.downloadUserImage(
-            url,
-            userAddress
-          );
-          decryptedPhotos.push(decryptedUri);
-        } catch (error) {
-          console.error(
-            "Failed to decrypt photo for user:",
-            userAddress,
-            error
-          );
-        }
-      }
-
-      return decryptedPhotos;
+      // Return URLs directly since images are stored unencrypted
+      console.log(`Loaded ${photoUrls.length} photos for user:`, userAddress);
+      return photoUrls;
     } catch (error) {
       console.error("Error loading photos for user:", userAddress, error);
       return [];
@@ -257,6 +247,20 @@ export default function FuseScreen() {
     setUsers((prev) => prev.filter((user) => user.address !== userAddress));
   };
 
+  const openFullScreenImage = (uri: string, index: number, images: string[]) => {
+    setFullScreenImageUri(uri);
+    setFullScreenImageIndex(index);
+    setFullScreenImages(images);
+    setFullScreenImageVisible(true);
+  };
+
+  const closeFullScreenImage = () => {
+    setFullScreenImageVisible(false);
+    setFullScreenImageUri("");
+    setFullScreenImageIndex(0);
+    setFullScreenImages([]);
+  };
+
   interface UserCardProps {
     user: User;
     onFuse: (address: string) => void;
@@ -314,14 +318,14 @@ export default function FuseScreen() {
     });
 
     const handleScroll = (event: any) => {
-      const slideSize = Dimensions.get("window").width * 0.4;
+      const slideSize = 300; // Updated to match new image width
       const index = Math.round(event.nativeEvent.contentOffset.x / slideSize);
       setCurrentPhotoIndex(index);
     };
 
     const scrollToPhoto = (index: number) => {
       if (scrollViewRef.current) {
-        const slideSize = Dimensions.get("window").width * 0.4;
+        const slideSize = 300; // Updated to match new image width
         scrollViewRef.current.scrollTo({
           x: index * slideSize,
           animated: true,
@@ -352,18 +356,22 @@ export default function FuseScreen() {
                 onScroll={handleScroll}
                 scrollEventThrottle={16}
                 style={styles.photoScrollView}
-                snapToInterval={200}
+                snapToInterval={300}
                 decelerationRate="fast"
                 contentContainerStyle={{ alignItems: "center" }}
                 bounces={false}
                 scrollEnabled={true}
               >
                 {user.photos.map((photo, index) => (
-                  <Image
+                  <TouchableOpacity
                     key={index}
-                    source={{ uri: photo }}
-                    style={styles.photoImage}
-                  />
+                    onPress={() => openFullScreenImage(photo, index, user.photos)}
+                  >
+                    <Image
+                      source={{ uri: photo }}
+                      style={styles.photoImage}
+                    />
+                  </TouchableOpacity>
                 ))}
               </ScrollView>
               {user.photos.length > 1 && (
@@ -571,6 +579,64 @@ export default function FuseScreen() {
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       )}
+
+      {/* Full-Screen Image Viewer */}
+      {fullScreenImageVisible && (
+        <View style={styles.fullScreenContainer}>
+          <TouchableOpacity
+            style={styles.fullScreenOverlay}
+            onPress={closeFullScreenImage}
+          />
+          <View style={styles.fullScreenContent}>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={closeFullScreenImage}
+            >
+              <Text style={styles.closeButtonText}>✖</Text>
+            </TouchableOpacity>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.fullScreenScrollView}
+            >
+              {fullScreenImages.map((image, index) => (
+                <Image
+                  key={index}
+                  source={{ uri: image }}
+                  style={styles.fullScreenImage}
+                />
+              ))}
+            </ScrollView>
+            <View style={styles.fullScreenNav}>
+              <TouchableOpacity
+                onPress={() => {
+                  const newIndex =
+                    fullScreenImageIndex > 0
+                      ? fullScreenImageIndex - 1
+                      : fullScreenImages.length - 1;
+                  setFullScreenImageIndex(newIndex);
+                }}
+                style={styles.navButton}
+              >
+                <Text style={styles.navButtonText}>‹</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  const newIndex =
+                    fullScreenImageIndex < fullScreenImages.length - 1
+                      ? fullScreenImageIndex + 1
+                      : 0;
+                  setFullScreenImageIndex(newIndex);
+                }}
+                style={styles.navButton}
+              >
+                <Text style={styles.navButtonText}>›</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -645,23 +711,23 @@ const styles = StyleSheet.create({
   },
   // New styles for card-based UI
   imageContainer: {
-    height: 200, // Increased for larger images
+    height: 300, // Increased for larger images
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
   },
   userImage: {
-    width: 200,
-    height: 200,
-    maxWidth: 200,
-    maxHeight: 200,
+    width: 300,
+    height: 300,
+    maxWidth: 300,
+    maxHeight: 300,
     borderRadius: 0, // Square instead of circular
     borderWidth: 3,
     borderColor: "#e1e5e9",
   },
   placeholderImage: {
-    width: 200,
-    height: 200,
+    width: 300,
+    height: 300,
     borderRadius: 0, // Square instead of circular
     justifyContent: "center",
     alignItems: "center",
@@ -726,11 +792,11 @@ const styles = StyleSheet.create({
   photoScrollView: {
     width: Dimensions.get("window").width * 0.95 - 30, // Card width minus padding
     maxWidth: 420, // Max width minus padding
-    height: 200,
+    height: 300, // Increased to match image height
   },
   photoImage: {
-    width: 200,
-    height: 200,
+    width: 300, // Increased from 200
+    height: 300, // Increased from 200
     borderRadius: 0,
     borderWidth: 3,
     borderColor: "#e1e5e9",
@@ -771,5 +837,74 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 18,
     fontWeight: "bold",
+  },
+  // Full-Screen Image Viewer styles
+  fullScreenContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0, 0, 0, 0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  fullScreenOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  fullScreenContent: {
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  closeButton: {
+    position: "absolute",
+    top: 40,
+    right: 20,
+    zIndex: 1001,
+  },
+  closeButtonText: {
+    color: "white",
+    fontSize: 24,
+    fontWeight: "bold",
+  },
+  fullScreenScrollView: {
+    width: "100%",
+    height: "100%",
+    flexDirection: "row",
+  },
+  fullScreenImage: {
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height,
+    resizeMode: "contain",
+  },
+  fullScreenNav: {
+    position: "absolute",
+    top: "50%",
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    zIndex: 1001,
+  },
+  navButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "rgba(255, 255, 255, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  navButtonText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "black",
   },
 });
