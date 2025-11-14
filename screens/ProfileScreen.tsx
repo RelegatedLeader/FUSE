@@ -123,40 +123,8 @@ export default function ProfileScreen() {
       const urls = await FirebaseService.getUserPhotoUrls(address);
       setPhotoUrls(urls);
 
-      // Load and decrypt photos for display
-      const decryptedPhotos: string[] = [];
-      const validUrls: string[] = [];
-
-      for (const url of urls) {
-        try {
-          // Check if it's an Arweave URL (starts with arweave.net)
-          if (url.includes("arweave.net")) {
-            const decryptedUri =
-              await FirebaseService.downloadUserImageFromStorage(url);
-            decryptedPhotos.push(decryptedUri);
-            validUrls.push(url);
-          } else {
-            // Fallback for old Firebase Storage URLs
-            const decryptedUri = await FirebaseService.downloadUserImage(
-              url,
-              address
-            );
-            decryptedPhotos.push(decryptedUri);
-            validUrls.push(url);
-          }
-        } catch (error) {
-          console.error("Failed to decrypt photo:", error);
-          // Skip invalid URLs instead of breaking
-        }
-      }
-
-      // Update with only valid URLs
-      if (validUrls.length !== urls.length) {
-        await FirebaseService.updateUserPhotoUrls(address, validUrls);
-      }
-
-      setPhotos(decryptedPhotos);
-      setPhotoUrls(validUrls);
+      // Since images are now stored unencrypted, we can use the URLs directly
+      setPhotos(urls);
     } catch (error) {
       console.error("Error loading photos:", error);
     }
@@ -302,8 +270,8 @@ export default function ProfileScreen() {
       const newPhotoUrls = [...photoUrls, downloadUrl];
       await FirebaseService.updateUserPhotoUrls(address, newPhotoUrls);
 
-      // Add to photos
-      setPhotos([...photos, dataUrl]);
+      // Add the Firebase URL to photos for display
+      setPhotos([...photos, downloadUrl]);
       setPhotoUrls(newPhotoUrls);
 
       showCustomModal("Success", "Photo uploaded successfully!", [

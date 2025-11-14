@@ -598,51 +598,31 @@ export class FirebaseService {
     imageUrl: string,
     walletAddress: string
   ): Promise<string> {
-    if (!this.userKeys) {
-      throw new Error("User keys not initialized");
-    }
-
     try {
-      // Download encrypted data as text (data URL format)
+      console.log("📥 Downloading image from Firebase Storage...");
+
+      // Fetch the image directly from Firebase Storage
       const response = await fetch(imageUrl);
-      const dataUrlText = await response.text();
-
-      // Extract base64 from data URL
-      const base64Match = dataUrlText.match(
-        /^data:application\/octet-stream;base64,(.+)$/
-      );
-      if (!base64Match) {
-        throw new Error("Invalid data URL format");
-      }
-      const encryptedBase64 = base64Match[1];
-
-      // Convert base64 to Uint8Array
-      const encryptedBinaryString = atob(encryptedBase64);
-      const encryptedData = new Uint8Array(encryptedBinaryString.length);
-      for (let i = 0; i < encryptedBinaryString.length; i++) {
-        encryptedData[i] = encryptedBinaryString.charCodeAt(i);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch from Firebase: ${response.status}`);
       }
 
-      // Decrypt the data (now handles chunking internally)
-      const decryptedData = EncryptionService.decryptData(
-        encryptedData,
-        this.userKeys.dataKey
-      );
+      // Get the response as array buffer
+      const arrayBuffer = await response.arrayBuffer();
 
-      // Convert back to base64 for display (in chunks to avoid stack overflow)
-      let decryptedBinaryString = "";
-      const DECRYPTED_CHUNK_SIZE = 8192; // 8KB chunks
-      for (let i = 0; i < decryptedData.length; i += DECRYPTED_CHUNK_SIZE) {
-        const chunk = decryptedData.slice(i, i + DECRYPTED_CHUNK_SIZE);
-        decryptedBinaryString += String.fromCharCode(...chunk);
+      // Convert to base64 for display
+      const uint8Array = new Uint8Array(arrayBuffer);
+      let binaryString = '';
+      for (let i = 0; i < uint8Array.length; i++) {
+        binaryString += String.fromCharCode(uint8Array[i]);
       }
-      const decryptedBase64 = btoa(decryptedBinaryString);
+      const base64 = btoa(binaryString);
 
-      const dataUrl = `data:image/jpeg;base64,${decryptedBase64}`;
+      console.log("✅ Image downloaded successfully");
 
-      return dataUrl;
+      return `data:image/jpeg;base64,${base64}`;
     } catch (error) {
-      console.error("Failed to download/decrypt image:", error);
+      console.error("❌ Failed to download image:", error);
       throw error;
     }
   }
@@ -829,17 +809,13 @@ export class FirebaseService {
   }
 
   /**
-   * Upload encrypted image to Firebase Storage
+   * Upload image to Firebase Storage (publicly viewable)
    */
   static async uploadUserImageFromBase64(
     base64Data: string,
     walletAddress: string,
     imageIndex: number
   ): Promise<string> {
-    if (!this.userKeys) {
-      throw new Error("User keys not initialized");
-    }
-
     try {
       console.log("🔄 Starting Firebase Storage upload...");
 
@@ -867,40 +843,15 @@ export class FirebaseService {
         }
       }
 
-      console.log("🔐 Encrypting image data...");
+      console.log("� Uploading image to Firebase Storage...");
 
-      // Encrypt the image data (now handles chunking internally)
-      const encryptedData = EncryptionService.encryptData(
-        uint8Array,
-        this.userKeys.dataKey
-      );
-
-      console.log("📦 Encrypted data size:", encryptedData.length);
-
-      // Convert encrypted data to base64 using the proper method
-      const encryptedBase64 =
-        EncryptionService.uint8ArrayToBase64(encryptedData);
-
-      // Create metadata for the upload
-      const imageData = {
-        walletAddress,
-        imageIndex,
-        timestamp: Date.now(),
-        encryptedImage: encryptedBase64,
-        version: "1.0",
-      };
-
-      const dataString = JSON.stringify(imageData);
-
-      console.log("📤 Uploading to Firebase Storage...");
-
-      // Use XMLHttpRequest for direct upload to avoid blob issues in React Native
-      const fileName = `users/${walletAddress}/images/${imageIndex}_${Date.now()}.enc`;
-      const downloadUrl = await this.uploadViaXMLHttpRequest(encryptedData, fileName);
+      // Upload directly without encryption for public viewing
+      const fileName = `users/${walletAddress}/images/${imageIndex}_${Date.now()}.jpg`;
+      const downloadUrl = await this.uploadViaXMLHttpRequest(uint8Array, fileName);
 
       console.log(`✅ Image uploaded to Firebase Storage: ${downloadUrl}`);
       console.log(
-        `📸 Uploaded encrypted image ${imageIndex} for user:`,
+        `📸 Uploaded image ${imageIndex} for user:`,
         walletAddress
       );
       return downloadUrl;
@@ -967,46 +918,5 @@ export class FirebaseService {
       const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
       xhr.send(arrayBuffer);
     });
-  }
-  static async downloadUserImageFromStorage(
-    firebaseUrl: string
-  ): Promise<string> {
-    if (!this.userKeys) {
-      throw new Error("User keys not initialized");
-    }
-
-    try {
-      console.log("📥 Downloading image from Firebase Storage...");
-
-      // Fetch the base64 string from Firebase Storage
-      const response = await fetch(firebaseUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch from Firebase: ${response.status}`);
-      }
-
-      const encryptedBase64 = await response.text();
-
-      // Convert base64 to Uint8Array
-      const encryptedData =
-        EncryptionService.base64ToUint8Array(encryptedBase64);
-
-      // Decrypt the image
-      console.log("🔓 Decrypting image data...");
-      const decryptedData = EncryptionService.decryptData(
-        encryptedData,
-        this.userKeys.dataKey
-      );
-
-      // Convert back to base64 for display
-      const decryptedBase64 =
-        EncryptionService.uint8ArrayToBase64(decryptedData);
-
-      console.log("✅ Image decrypted successfully");
-
-      return `data:image/jpeg;base64,${decryptedBase64}`;
-    } catch (error) {
-      console.error("❌ Failed to download/decrypt image:", error);
-      throw error;
-    }
   }
 }
