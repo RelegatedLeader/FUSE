@@ -29,7 +29,7 @@ export default function ProfileScreen() {
     balance: string;
     costPerImage: { matic: number; usd: number };
   } | null>(null);
-  const [placeholderImages, setPlaceholderImages] = useState<string[]>([]); // Images waiting for upload
+  const [placeholderImages, setPlaceholderImages] = useState<string[]>([]); // Not used anymore, but keeping for compatibility
   const [preferences, setPreferences] = useState<Record<string, boolean>>({
     showAge: true,
     showLocation: true,
@@ -132,7 +132,7 @@ export default function ProfileScreen() {
           // Check if it's an Arweave URL (starts with arweave.net)
           if (url.includes("arweave.net")) {
             const decryptedUri =
-              await FirebaseService.downloadUserImageFromArweave(url);
+              await FirebaseService.downloadUserImageFromStorage(url);
             decryptedPhotos.push(decryptedUri);
             validUrls.push(url);
           } else {
@@ -208,96 +208,12 @@ export default function ProfileScreen() {
           return;
         }
 
-        setPlaceholderImages([...placeholderImages, dataUrl]);
-
-        showCustomModal(
-          "Image Added",
-          "Perfect! Your photo is ready. Just a tiny $0.0008 fee secures it forever on decentralized storage.",
-          [
-            {
-              text: "OK",
-              onPress: () => setModalVisible(false),
-            },
-          ]
-        );
+        // Upload immediately
+        await uploadImageDirectly(dataUrl);
       }
     } catch (error) {
       console.error("Error picking image:", error);
       showCustomModal("Error", "Failed to pick image");
-    }
-  };
-
-  const finalizePlaceholderImages = async () => {
-    if (placeholderImages.length === 0) return;
-
-    try {
-      setUploading(true);
-      await uploadPlaceholderImages();
-    } catch (error) {
-      console.error("Error finalizing images:", error);
-      showCustomModal("Error", "Failed to upload images");
-      setUploading(false);
-    }
-  };
-
-  const uploadPlaceholderImages = async (paidAmount?: number) => {
-    try {
-      // Initialize Firebase user keys if needed
-      await FirebaseService.initializeUser(address);
-
-      const uploadedUrls: string[] = [];
-
-      for (let i = 0; i < placeholderImages.length; i++) {
-        const placeholderImage = placeholderImages[i];
-        const imageIndex = photos.length + i;
-
-        // Extract base64 from data URL
-        const base64Match = placeholderImage.match(
-          /^data:image\/[^;]+;base64,(.+)$/
-        );
-        if (!base64Match) continue;
-
-        const base64Data = base64Match[1];
-
-        // Upload to Firebase Storage
-        const downloadUrl = await FirebaseService.uploadUserImageFromBase64(
-          base64Data,
-          address,
-          imageIndex
-        );
-
-        uploadedUrls.push(downloadUrl);
-      }
-
-      // Update photo URLs in Firebase
-      const newPhotoUrls = [...photoUrls, ...uploadedUrls];
-      await FirebaseService.updateUserPhotoUrls(address, newPhotoUrls);
-
-      // Move placeholder images to photos
-      setPhotos([...photos, ...placeholderImages]);
-      setPhotoUrls(newPhotoUrls);
-      setPlaceholderImages([]);
-
-      showCustomModal(
-        "Success",
-        `${uploadedUrls.length} image(s) uploaded successfully!`,
-        [
-          {
-            text: "OK",
-            onPress: () => setModalVisible(false),
-          },
-        ]
-      );
-    } catch (error) {
-      console.error("Error uploading placeholder images:", error);
-      showCustomModal("Error", "Failed to upload some images", [
-        {
-          text: "OK",
-          onPress: () => setModalVisible(false),
-        },
-      ]);
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -355,13 +271,50 @@ export default function ProfileScreen() {
         return true;
       }
     }
-    // Check against placeholder images
-    for (const existingUri of placeholderImages) {
-      if (existingUri === newImageUri) {
-        return true;
-      }
-    }
     return false;
+  };
+
+  const uploadImageDirectly = async (dataUrl: string) => {
+    try {
+      setUploading(true);
+
+      // Initialize Firebase user keys if needed
+      await FirebaseService.initializeUser(address);
+
+      // Extract base64 from data URL
+      const base64Match = dataUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
+      if (!base64Match) {
+        showCustomModal("Error", "Failed to process image");
+        return;
+      }
+
+      const base64Data = base64Match[1];
+      const imageIndex = photos.length;
+
+      // Upload to Firebase Storage
+      const downloadUrl = await FirebaseService.uploadUserImageFromBase64(
+        base64Data,
+        address,
+        imageIndex
+      );
+
+      // Update photo URLs in Firebase
+      const newPhotoUrls = [...photoUrls, downloadUrl];
+      await FirebaseService.updateUserPhotoUrls(address, newPhotoUrls);
+
+      // Add to photos
+      setPhotos([...photos, dataUrl]);
+      setPhotoUrls(newPhotoUrls);
+
+      showCustomModal("Success", "Photo uploaded successfully!", [
+        { text: "OK", onPress: () => setModalVisible(false) },
+      ]);
+    } catch (error) {
+      console.error("Error uploading image:", error);
+      showCustomModal("Error", "Failed to upload photo");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const togglePreference = (key: string) => {
@@ -449,7 +402,7 @@ export default function ProfileScreen() {
             marginBottom: 10,
           }}
         >
-          📸 Your Photos ({photos.length + placeholderImages.length}/4 pieces)
+          📸 Your Photos ({photos.length}/4 pieces)
         </Text>
         <View style={styles.photosGrid}>
           {/* Render existing photos */}
@@ -458,29 +411,26 @@ export default function ProfileScreen() {
               <Image source={{ uri }} style={styles.photo} />
               <TouchableOpacity
                 style={styles.deleteButton}
-                onPress={() => deletePhoto(index)}
-                disabled={uploading}
-              >
-                <Text style={styles.deleteText}>❌</Text>
-              </TouchableOpacity>
-            </View>
-          ))}
-
-          {/* Render placeholder images */}
-          {placeholderImages.map((uri, index) => (
-            <View key={`placeholder-${index}`} style={styles.photoContainer}>
-              <Image
-                source={{ uri }}
-                style={[styles.photo, styles.placeholderPhoto]}
-              />
-              <View style={styles.placeholderOverlay}>
-                <Text style={styles.placeholderText}>⏳ Ready to Upload</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.deleteButton}
                 onPress={() => {
-                  // Remove this placeholder image
-                  setPlaceholderImages(placeholderImages.filter((_, i) => i !== index));
+                  showCustomModal(
+                    "Remove Photo",
+                    "Are you sure you want to remove this photo?",
+                    [
+                      {
+                        text: "Cancel",
+                        style: "cancel",
+                        onPress: () => setModalVisible(false),
+                      },
+                      {
+                        text: "Remove",
+                        style: "destructive",
+                        onPress: () => {
+                          setModalVisible(false);
+                          deletePhoto(index);
+                        },
+                      },
+                    ]
+                  );
                 }}
                 disabled={uploading}
               >
@@ -492,7 +442,7 @@ export default function ProfileScreen() {
           {/* Render empty slots for adding photos */}
           {Array.from(
             {
-              length: Math.max(0, 4 - photos.length - placeholderImages.length),
+              length: Math.max(0, 4 - photos.length),
             },
             (_, index) => (
               <TouchableOpacity
@@ -519,22 +469,6 @@ export default function ProfileScreen() {
           >
             Uploading photo...
           </Text>
-        )}
-
-        {placeholderImages.length > 0 && (
-          <TouchableOpacity
-            onPress={finalizePlaceholderImages}
-            style={[
-              theme.button,
-              { marginTop: 10, backgroundColor: "#4CAF50" },
-            ]}
-            disabled={uploading}
-          >
-            <Text style={theme.buttonTextStyle}>
-              � Upload {placeholderImages.length} Photo
-              {placeholderImages.length > 1 ? "s" : ""}
-            </Text>
-          </TouchableOpacity>
         )}
       </View>
       <View style={styles.preferencesContainer}>
@@ -584,7 +518,11 @@ const styles = StyleSheet.create({
   bioText: { fontSize: 14, marginBottom: 10 },
   immutableNote: { fontStyle: "italic", color: "red" },
   photosContainer: { marginBottom: 20 },
-  photosGrid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+  photosGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
   photoContainer: { width: "23%", aspectRatio: 1, marginBottom: 10 },
   photo: { width: "100%", height: "100%", borderRadius: 8 },
   deleteButton: {

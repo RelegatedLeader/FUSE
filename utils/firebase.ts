@@ -28,7 +28,7 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firebase services
 export const db = getFirestore(app);
 export const auth = getAuth(app);
-export const storage = getStorage(app);
+export const storage = getStorage(app, "gs://fuse-ede12.firebasestorage.app");
 
 // Initialize anonymous authentication
 export const initializeFirebaseAuth = async () => {

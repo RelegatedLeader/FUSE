@@ -360,7 +360,7 @@ export class EncryptionService {
   }
 
   // Helper method to convert Uint8Array to base64 safely
-  private static uint8ArrayToBase64(data: Uint8Array): string {
+  static uint8ArrayToBase64(data: Uint8Array): string {
     // Process in chunks to avoid stack overflow
     const chunkSize = 8192; // 8KB chunks
     let result = "";
@@ -372,5 +372,15 @@ export class EncryptionService {
     }
 
     return btoa(result);
+  }
+
+  // Helper method to convert base64 to Uint8Array safely
+  static base64ToUint8Array(base64: string): Uint8Array {
+    const binaryString = atob(base64);
+    const uint8Array = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+      uint8Array[i] = binaryString.charCodeAt(i);
+    }
+    return uint8Array;
   }
 }

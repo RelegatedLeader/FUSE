@@ -754,16 +754,24 @@ export class FirebaseService {
       console.log(`💸 Funding Arweave storage with ${amountMatic} MATIC...`);
 
       if (!signClient || !sessionTopic || !address) {
-        throw new Error("Wallet connection not available. Please connect your wallet first.");
+        throw new Error(
+          "Wallet connection not available. Please connect your wallet first."
+        );
       }
 
-      console.log("Wallet connection validated:", { address, hasSignClient: !!signClient, hasSessionTopic: !!sessionTopic });
+      console.log("Wallet connection validated:", {
+        address,
+        hasSignClient: !!signClient,
+        hasSessionTopic: !!sessionTopic,
+      });
 
       // Check if session is active
       const sessions = signClient.session.getAll();
       const activeSession = sessions.find((s: any) => s.topic === sessionTopic);
       if (!activeSession) {
-        throw new Error("WalletConnect session is not active. Please reconnect your wallet.");
+        throw new Error(
+          "WalletConnect session is not active. Please reconnect your wallet."
+        );
       }
 
       console.log("Active session found:", activeSession.peer.metadata.name);
@@ -798,7 +806,15 @@ export class FirebaseService {
 
       // Add timeout to prevent hanging
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Payment timeout - MetaMask didn't respond within 60 seconds")), 60000);
+        setTimeout(
+          () =>
+            reject(
+              new Error(
+                "Payment timeout - MetaMask didn't respond within 60 seconds"
+              )
+            ),
+          60000
+        );
       });
 
       const txHash = await Promise.race([txPromise, timeoutPromise]);
@@ -825,7 +841,7 @@ export class FirebaseService {
     }
 
     try {
-      console.log("🔄 Starting Arweave upload via Irys HTTP API...");
+      console.log("🔄 Starting Firebase Storage upload...");
 
       // Strip data URL prefix if present
       let cleanBase64 = base64Data;
@@ -861,13 +877,9 @@ export class FirebaseService {
 
       console.log("📦 Encrypted data size:", encryptedData.length);
 
-      // Convert encrypted data back to base64 for upload
-      let encryptedBase64 = "";
-      const OUTPUT_CHUNK_SIZE = 8192; // 8KB chunks
-      for (let i = 0; i < encryptedData.length; i += OUTPUT_CHUNK_SIZE) {
-        const chunk = encryptedData.slice(i, i + OUTPUT_CHUNK_SIZE);
-        encryptedBase64 += btoa(String.fromCharCode(...chunk));
-      }
+      // Convert encrypted data to base64 using the proper method
+      const encryptedBase64 =
+        EncryptionService.uint8ArrayToBase64(encryptedData);
 
       // Create metadata for the upload
       const imageData = {
@@ -882,24 +894,81 @@ export class FirebaseService {
 
       console.log("📤 Uploading to Firebase Storage...");
 
-      // Upload encrypted data to Firebase Storage
-      const storageRef = ref(storage, `users/${walletAddress}/images/${imageIndex}_${Date.now()}.enc`);
-      await uploadBytes(storageRef, encryptedData);
-      const downloadUrl = await getDownloadURL(storageRef);
+      // Use XMLHttpRequest for direct upload to avoid blob issues in React Native
+      const fileName = `users/${walletAddress}/images/${imageIndex}_${Date.now()}.enc`;
+      const downloadUrl = await this.uploadViaXMLHttpRequest(encryptedData, fileName);
 
       console.log(`✅ Image uploaded to Firebase Storage: ${downloadUrl}`);
-      console.log(`📸 Uploaded encrypted image ${imageIndex} for user:`, walletAddress);
+      console.log(
+        `📸 Uploaded encrypted image ${imageIndex} for user:`,
+        walletAddress
+      );
       return downloadUrl;
     } catch (error) {
-      console.error("❌ Failed to upload image to Arweave:", error);
+      console.error("❌ Failed to upload image to Firebase:", error);
       throw error;
     }
   }
 
   /**
-   * Download and decrypt image from Firebase Storage
+   * Upload encrypted data directly to Firebase Storage using XMLHttpRequest
+   * This bypasses the Firebase SDK's blob creation issues in React Native
    */
-  static async downloadUserImageFromArweave(
+  private static async uploadViaXMLHttpRequest(
+    data: Uint8Array,
+    fileName: string
+  ): Promise<string> {
+    // Get Firebase auth token
+    const auth = getAuth();
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error("User not authenticated");
+    }
+
+    const token = await getIdToken(user);
+
+    // Firebase Storage REST API endpoint - simple media upload
+    const bucket = "fuse-ede12.firebasestorage.app";
+    const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?name=${encodeURIComponent(fileName)}&uploadType=media`;
+
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+
+      xhr.open('POST', uploadUrl, true);
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+      xhr.setRequestHeader('Content-Length', data.length.toString());
+
+      xhr.onload = () => {
+        if (xhr.status === 200) {
+          try {
+            const response = JSON.parse(xhr.responseText);
+            const downloadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(fileName)}?alt=media&token=${response.downloadTokens}`;
+            resolve(downloadUrl);
+          } catch (error) {
+            reject(new Error('Failed to parse upload response'));
+          }
+        } else {
+          reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.responseText}`));
+        }
+      };
+
+      xhr.onerror = () => {
+        reject(new Error('Network error during upload'));
+      };
+
+      xhr.ontimeout = () => {
+        reject(new Error('Upload timeout'));
+      };
+
+      xhr.timeout = 30000; // 30 second timeout
+
+      // Send the ArrayBuffer directly
+      const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+      xhr.send(arrayBuffer);
+    });
+  }
+  static async downloadUserImageFromStorage(
     firebaseUrl: string
   ): Promise<string> {
     if (!this.userKeys) {
@@ -909,13 +978,17 @@ export class FirebaseService {
     try {
       console.log("📥 Downloading image from Firebase Storage...");
 
-      // Fetch encrypted data from Firebase Storage
+      // Fetch the base64 string from Firebase Storage
       const response = await fetch(firebaseUrl);
       if (!response.ok) {
         throw new Error(`Failed to fetch from Firebase: ${response.status}`);
       }
 
-      const encryptedData = new Uint8Array(await response.arrayBuffer());
+      const encryptedBase64 = await response.text();
+
+      // Convert base64 to Uint8Array
+      const encryptedData =
+        EncryptionService.base64ToUint8Array(encryptedBase64);
 
       // Decrypt the image
       console.log("🔓 Decrypting image data...");
@@ -925,12 +998,8 @@ export class FirebaseService {
       );
 
       // Convert back to base64 for display
-      let decryptedBase64 = "";
-      const CHUNK_SIZE = 8192;
-      for (let i = 0; i < decryptedData.length; i += CHUNK_SIZE) {
-        const chunk = decryptedData.slice(i, i + CHUNK_SIZE);
-        decryptedBase64 += btoa(String.fromCharCode(...chunk));
-      }
+      const decryptedBase64 =
+        EncryptionService.uint8ArrayToBase64(decryptedData);
 
       console.log("✅ Image decrypted successfully");
 
