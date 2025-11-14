@@ -208,7 +208,9 @@ export default function ProfileScreen() {
               setUploading(true);
 
               // Initialize Firebase auth first
-              const { initializeFirebaseAuth } = await import("../utils/firebase");
+              const { initializeFirebaseAuth } = await import(
+                "../utils/firebase"
+              );
               await initializeFirebaseAuth();
 
               // Remove from Firebase completely
@@ -291,10 +293,13 @@ export default function ProfileScreen() {
       ]);
     } catch (error) {
       console.error("Error uploading image:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      showCustomModal("Upload Failed", `Failed to upload photo: ${errorMessage}`, [
-        { text: "OK", onPress: () => setModalVisible(false) },
-      ]);
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      showCustomModal(
+        "Upload Failed",
+        `Failed to upload photo: ${errorMessage}`,
+        [{ text: "OK", onPress: () => setModalVisible(false) }]
+      );
     } finally {
       setUploading(false);
     }

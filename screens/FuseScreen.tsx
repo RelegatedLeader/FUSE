@@ -38,6 +38,7 @@ export default function FuseScreen() {
   const [users, setUsers] = useState<User[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [showBio, setShowBio] = useState(false);
+  const [isLoading, setIsLoading] = useState(true); // Add loading state
   const fuseAnim = useState(new Animated.Value(0))[0];
   const flatListRef = useRef<FlatList<User>>(null);
 
@@ -49,6 +50,72 @@ export default function FuseScreen() {
   const [fullScreenImageUri, setFullScreenImageUri] = useState<string>("");
   const [fullScreenImageIndex, setFullScreenImageIndex] = useState(0);
   const [fullScreenImages, setFullScreenImages] = useState<string[]>([]);
+
+  // Rocket loading animation
+  const rocketRotation = useState(new Animated.Value(0))[0];
+  const rocketScale = useState(new Animated.Value(1))[0];
+  const trailOpacity1 = useState(new Animated.Value(1))[0];
+  const trailOpacity2 = useState(new Animated.Value(0.7))[0];
+  const trailOpacity3 = useState(new Animated.Value(0.4))[0];
+
+  // Start rocket animation when loading
+  useEffect(() => {
+    if (isLoading) {
+      // Continuous rotation
+      Animated.loop(
+        Animated.timing(rocketRotation, {
+          toValue: 1,
+          duration: 2000,
+          useNativeDriver: true,
+        })
+      ).start();
+
+      // Pulsing scale effect
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(rocketScale, {
+            toValue: 1.2,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(rocketScale, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      // Twinkling trail particles
+      const animateTrail = (trailAnim: Animated.Value, delay: number) => {
+        Animated.loop(
+          Animated.sequence([
+            Animated.delay(delay),
+            Animated.timing(trailAnim, {
+              toValue: 1,
+              duration: 500,
+              useNativeDriver: true,
+            }),
+            Animated.timing(trailAnim, {
+              toValue: 0.3,
+              duration: 500,
+              useNativeDriver: true,
+            }),
+          ])
+        ).start();
+      };
+
+      animateTrail(trailOpacity1, 0);
+      animateTrail(trailOpacity2, 200);
+      animateTrail(trailOpacity3, 400);
+    } else {
+      rocketRotation.setValue(0);
+      rocketScale.setValue(1);
+      trailOpacity1.setValue(1);
+      trailOpacity2.setValue(0.7);
+      trailOpacity3.setValue(0.4);
+    }
+  }, [isLoading, rocketRotation, rocketScale, trailOpacity1, trailOpacity2, trailOpacity3]);
 
   const loadUserPhotos = async (userAddress: string): Promise<string[]> => {
     try {
@@ -73,6 +140,7 @@ export default function FuseScreen() {
       if (!address) return;
 
       try {
+        setIsLoading(true); // Start loading
         console.log("Fetching matches for user:", address);
 
         // First check if user has migrated their profile to Firebase
@@ -86,74 +154,80 @@ export default function FuseScreen() {
         if (!userProfile) {
           console.log("User profile not found in Firebase - needs migration");
           setUsers([]);
+          setIsLoading(false);
           return;
         }
 
         const matches = await MatchingEngine.findMatchesForUser(address);
         console.log("Found matches:", matches.length);
 
-        // Convert MatchResult to User format
+        // Convert MatchResult to User format - optimize by processing in parallel
         const formattedUsers: User[] = [];
-        for (const match of matches.filter(
-          (match) => !skippedUsers.has(match.address)
-        )) {
-          console.log("Processing match:", match.address, match.profile);
+        const photoPromises = matches
+          .filter((match) => !skippedUsers.has(match.address))
+          .map(async (match) => {
+            console.log("Processing match:", match.address, match.profile);
 
-          // Calculate age from birthdate
-          let age = 25; // default
-          if (match.profile?.birthdate) {
-            try {
-              // Handle MM/DD/YYYY format
-              const [month, day, year] = match.profile.birthdate.split("/");
-              const birthDate = new Date(
-                parseInt(year),
-                parseInt(month) - 1,
-                parseInt(day)
-              );
-              const today = new Date();
-              age = today.getFullYear() - birthDate.getFullYear();
-              const monthDiff = today.getMonth() - birthDate.getMonth();
-              if (
-                monthDiff < 0 ||
-                (monthDiff === 0 && today.getDate() < birthDate.getDate())
-              ) {
-                age--;
+            // Calculate age from birthdate
+            let age = 25; // default
+            if (match.profile?.birthdate) {
+              try {
+                // Handle MM/DD/YYYY format
+                const [month, day, year] = match.profile.birthdate.split("/");
+                const birthDate = new Date(
+                  parseInt(year),
+                  parseInt(month) - 1,
+                  parseInt(day)
+                );
+                const today = new Date();
+                age = today.getFullYear() - birthDate.getFullYear();
+                const monthDiff = today.getMonth() - birthDate.getMonth();
+                if (
+                  monthDiff < 0 ||
+                  (monthDiff === 0 && today.getDate() < birthDate.getDate())
+                ) {
+                  age--;
+                }
+              } catch (error) {
+                console.warn("Error parsing birthdate:", match.profile.birthdate);
               }
-            } catch (error) {
-              console.warn("Error parsing birthdate:", match.profile.birthdate);
             }
-          }
 
-          // Format name from firstName and lastName
-          const name =
-            match.profile?.firstName && match.profile?.lastName
-              ? `${match.profile.firstName} ${match.profile.lastName}`
-              : match.profile?.firstName ||
-                match.profile?.lastName ||
-                "Unknown User";
+            // Format name from firstName and lastName
+            const name =
+              match.profile?.firstName && match.profile?.lastName
+                ? `${match.profile.firstName} ${match.profile.lastName}`
+                : match.profile?.firstName ||
+                  match.profile?.lastName ||
+                  "Unknown User";
 
-          // Load photos from local storage
-          const photos = await loadUserPhotos(match.address);
+            // Load photos from local storage
+            const photos = await loadUserPhotos(match.address);
 
-          const userData: User = {
-            address: match.address,
-            name: name,
-            age: age,
-            city: match.profile?.location || "Unknown",
-            bio:
-              match.profile?.bio ||
-              match.profile?.traits?.bio ||
-              "This user hasn't written a bio yet",
-            photos: photos,
-            compatibilityScore: match.compatibilityScore,
-            skipped: false,
-          };
+            const userData: User = {
+              address: match.address,
+              name: name,
+              age: age,
+              city: match.profile?.location || "Unknown",
+              bio:
+                match.profile?.bio ||
+                match.profile?.traits?.bio ||
+                "This user hasn't written a bio yet",
+              photos: photos,
+              compatibilityScore: match.compatibilityScore,
+              skipped: false,
+            };
 
-          console.log("Formatted user data:", userData);
-          formattedUsers.push(userData);
-        }
+            console.log("Formatted user data:", userData);
+            return userData;
+          });
+
+        // Wait for all photo loading to complete in parallel
+        const results = await Promise.all(photoPromises);
+        formattedUsers.push(...results);
 
         setUsers(formattedUsers);
+        setIsLoading(false); // Stop loading
       } catch (error) {
         console.error("Error fetching matches:", error);
         Alert.alert(
@@ -161,6 +235,7 @@ export default function FuseScreen() {
           "Failed to load potential matches. Please try again."
         );
         setUsers([]);
+        setIsLoading(false);
       }
     };
 
@@ -247,7 +322,11 @@ export default function FuseScreen() {
     setUsers((prev) => prev.filter((user) => user.address !== userAddress));
   };
 
-  const openFullScreenImage = (uri: string, index: number, images: string[]) => {
+  const openFullScreenImage = (
+    uri: string,
+    index: number,
+    images: string[]
+  ) => {
     setFullScreenImageUri(uri);
     setFullScreenImageIndex(index);
     setFullScreenImages(images);
@@ -365,12 +444,11 @@ export default function FuseScreen() {
                 {user.photos.map((photo, index) => (
                   <TouchableOpacity
                     key={index}
-                    onPress={() => openFullScreenImage(photo, index, user.photos)}
+                    onPress={() =>
+                      openFullScreenImage(photo, index, user.photos)
+                    }
                   >
-                    <Image
-                      source={{ uri: photo }}
-                      style={styles.photoImage}
-                    />
+                    <Image source={{ uri: photo }} style={styles.photoImage} />
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -548,7 +626,41 @@ export default function FuseScreen() {
         Find Your Fuse
       </Text>
 
-      {users.length === 0 ? (
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <Animated.View
+            style={[
+              styles.rocketContainer,
+              {
+                transform: [
+                  {
+                    rotate: rocketRotation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ["0deg", "360deg"],
+                    }),
+                  },
+                  {
+                    scale: rocketScale,
+                  },
+                ],
+              },
+            ]}
+          >
+            <Text style={styles.rocketEmoji}>🚀</Text>
+            <View style={styles.rocketTrail}>
+              <Animated.Text style={[styles.trailParticle, { opacity: trailOpacity1 }]}>✨</Animated.Text>
+              <Animated.Text style={[styles.trailParticle, { opacity: trailOpacity2 }]}>💫</Animated.Text>
+              <Animated.Text style={[styles.trailParticle, { opacity: trailOpacity3 }]}>⭐</Animated.Text>
+            </View>
+          </Animated.View>
+          <Text style={[styles.loadingText, { color: theme?.textColor || "#333" }]}>
+            Finding your perfect matches...
+          </Text>
+          <Text style={[styles.loadingSubtext, { color: theme?.textColor || "#666" }]}>
+            This may take a moment while we analyze compatibility
+          </Text>
+        </View>
+      ) : users.length === 0 ? (
         <View style={styles.centerContainer}>
           <Text
             style={[styles.centerText, { color: theme?.textColor || "#333" }]}
@@ -902,9 +1014,43 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  navButtonText: {
-    fontSize: 24,
+  // Loading animation styles
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  rocketContainer: {
+    marginBottom: 30,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rocketEmoji: {
+    fontSize: 80,
+    textAlign: "center",
+  },
+  rocketTrail: {
+    position: "absolute",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    bottom: -20,
+  },
+  trailParticle: {
+    fontSize: 20,
+    marginHorizontal: 5,
+    opacity: 0.8,
+  },
+  loadingText: {
+    fontSize: 20,
     fontWeight: "bold",
-    color: "black",
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  loadingSubtext: {
+    fontSize: 16,
+    textAlign: "center",
+    opacity: 0.8,
   },
 });

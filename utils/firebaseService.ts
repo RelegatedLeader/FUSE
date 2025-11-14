@@ -601,15 +601,15 @@ export class FirebaseService {
     try {
       // Extract the file path from the Firebase Storage URL
       // URL format: https://firebasestorage.googleapis.com/v0/b/bucket/o/path?alt=media
-      const urlParts = imageUrl.split('/o/');
+      const urlParts = imageUrl.split("/o/");
       if (urlParts.length < 2) {
-        throw new Error('Invalid Firebase Storage URL format');
+        throw new Error("Invalid Firebase Storage URL format");
       }
 
-      const encodedPath = urlParts[1].split('?')[0]; // Remove query parameters
+      const encodedPath = urlParts[1].split("?")[0]; // Remove query parameters
       const filePath = decodeURIComponent(encodedPath);
 
-      console.log('Deleting image at path:', filePath);
+      console.log("Deleting image at path:", filePath);
 
       const storageRef = ref(storage, filePath);
       await deleteObject(storageRef);
@@ -885,22 +885,31 @@ export class FirebaseService {
             resolve(downloadUrl);
           } catch (error) {
             console.error("❌ Failed to parse upload response:", error);
-            reject(new Error('Failed to parse upload response'));
+            reject(new Error("Failed to parse upload response"));
           }
         } else {
-          console.error("❌ Upload failed with status:", xhr.status, "response:", xhr.responseText);
-          reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.responseText}`));
+          console.error(
+            "❌ Upload failed with status:",
+            xhr.status,
+            "response:",
+            xhr.responseText
+          );
+          reject(
+            new Error(
+              `Upload failed with status ${xhr.status}: ${xhr.responseText}`
+            )
+          );
         }
       };
 
       xhr.onerror = () => {
         console.error("❌ Network error during upload");
-        reject(new Error('Network error during upload'));
+        reject(new Error("Network error during upload"));
       };
 
       xhr.ontimeout = () => {
         console.error("⏰ Upload timeout");
-        reject(new Error('Upload timeout'));
+        reject(new Error("Upload timeout"));
       };
 
       xhr.timeout = 30000; // 30 second timeout
@@ -937,7 +946,12 @@ export class FirebaseService {
       let isTextData = true;
       for (let i = 0; i < Math.min(uint8Array.length, 1000); i++) {
         const charCode = uint8Array[i];
-        if (charCode < 32 && charCode !== 10 && charCode !== 13 && charCode !== 9) {
+        if (
+          charCode < 32 &&
+          charCode !== 10 &&
+          charCode !== 13 &&
+          charCode !== 9
+        ) {
           // Non-printable character, likely binary data
           isTextData = false;
           break;
