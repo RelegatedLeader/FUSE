@@ -295,52 +295,9 @@ export default function SettingsScreen() {
   };
 
   const handleImproveAlgorithm = async () => {
-    if (!address) {
-      Alert.alert("Error", "Please connect your wallet first.");
-      return;
-    }
-
     Alert.alert(
-      "Improve Algorithm",
-      "Help us improve the matching algorithm by allowing AI analysis of your conversation patterns? This will store anonymized interaction summaries on Arweave for algorithm training.\n\nCost: 0.001 MATIC",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Enable",
-          onPress: async () => {
-            try {
-              // Initialize Firebase if needed
-              const { initializeFirebaseAuth } = await import("../utils/firebase");
-              await initializeFirebaseAuth();
-              await FirebaseService.initializeUser(address);
-
-              // Fund Arweave storage (this will prompt MetaMask)
-              await FirebaseService.fundArweaveStorage(0.001);
-
-              // Store user's opt-in preference
-              await FirebaseService.storeInteraction({
-                interactionType: "algorithm_improvement_opt_in",
-                targetUser: address,
-                metadata: {
-                  optedIn: true,
-                  timestamp: Date.now(),
-                },
-              });
-
-              Alert.alert(
-                "Thank You!",
-                "Your conversation summaries will now be stored on Arweave to help improve the matching algorithm. You can opt out anytime in settings."
-              );
-            } catch (error) {
-              console.error("Failed to enable algorithm improvement:", error);
-              Alert.alert(
-                "Error",
-                "Failed to enable algorithm improvement. Please try again."
-              );
-            }
-          },
-        },
-      ]
+      "Coming Soon",
+      "AI algorithm improvement features will be available in a future update. For now, focus on connecting with matches!"
     );
   };
 

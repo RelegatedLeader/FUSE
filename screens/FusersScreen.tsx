@@ -48,26 +48,77 @@ export default function FusersScreen() {
   >(null);
   const rocketAnim = useRef(new Animated.Value(0)).current;
   const blackHoleAnim = useRef(new Animated.Value(0)).current;
+  const [requestListener, setRequestListener] = useState<(() => void) | null>(
+    null
+  );
 
   useEffect(() => {
     // Load connection requests and matched users from storage
     loadRequestsAndMatches();
   }, [address]);
 
+  useEffect(() => {
+    return () => {
+      // Cleanup listener on unmount
+      if (requestListener) {
+        requestListener();
+      }
+    };
+  }, [requestListener]);
+
   const loadRequestsAndMatches = async () => {
     if (!address) return;
 
     try {
-      // Load connection requests
-      const requestsData = await AsyncStorage.getItem(
-        `fuse_requests_${address}`
+      console.log(
+        `FusersScreen: Loading requests and matches for user: ${address}`
       );
-      if (requestsData) {
-        const decrypted = CryptoJS.AES.decrypt(requestsData, address).toString(
-          CryptoJS.enc.Utf8
-        );
-        setRequests(JSON.parse(decrypted));
-      }
+
+      // Initialize Firebase auth first
+      const { initializeFirebaseAuth } = await import("../utils/firebase");
+      await initializeFirebaseAuth();
+
+      // Set up real-time listener for fuse requests
+      const { FirebaseService } = await import("../utils/firebaseService");
+      await FirebaseService.initializeUser(address);
+      
+      const unsubscribe = FirebaseService.listenToFuseRequests(
+        address,
+        async (requests) => {
+          console.log("FusersScreen: Received fuse requests:", requests);
+          // Convert Firestore timestamps to Date objects
+          const requestsWithDates = requests.map((request: any) => ({
+            ...request,
+            timestamp: request.timestamp?.toDate ? request.timestamp.toDate() : new Date(request.timestamp),
+          }));
+          
+          // Filter out users who are already matched by checking AsyncStorage
+          const filteredRequests = [];
+          for (const request of requestsWithDates) {
+            const matchesData = await AsyncStorage.getItem(`matched_users_${address}`);
+            let isAlreadyMatched = false;
+            
+            if (matchesData) {
+              try {
+                const decrypted = CryptoJS.AES.decrypt(matchesData, address).toString(CryptoJS.enc.Utf8);
+                const matches = JSON.parse(decrypted);
+                isAlreadyMatched = matches.some((match: any) => match.address === request.requesterAddress);
+              } catch (error) {
+                console.warn("Error checking matches for filtering:", error);
+              }
+            }
+            
+            if (!isAlreadyMatched) {
+              filteredRequests.push(request);
+            }
+          }
+          
+          setRequests(filteredRequests);
+        }
+      );
+      
+      // Store unsubscribe function for cleanup
+      setRequestListener(() => unsubscribe);
 
       // Load matched users
       const matchesData = await AsyncStorage.getItem(
@@ -77,7 +128,13 @@ export default function FusersScreen() {
         const decrypted = CryptoJS.AES.decrypt(matchesData, address).toString(
           CryptoJS.enc.Utf8
         );
-        setMatchedUsers(JSON.parse(decrypted));
+        const parsedMatches = JSON.parse(decrypted);
+        // Convert matchedDate strings back to Date objects
+        const matchesWithDates = parsedMatches.map((match: any) => ({
+          ...match,
+          matchedDate: new Date(match.matchedDate),
+        }));
+        setMatchedUsers(matchesWithDates);
       }
     } catch (error) {
       console.error("Error loading requests and matches:", error);
@@ -108,10 +165,16 @@ export default function FusersScreen() {
       setAnimationType(null);
 
       try {
-        // Load the matched user's profile data
-        const profileData = await AsyncStorage.getItem(
-          `user_profile_${request.address}`
-        );
+        // Initialize Firebase auth first
+        const { initializeFirebaseAuth } = await import("../utils/firebase");
+        await initializeFirebaseAuth();
+
+        // Remove the request from Firebase
+        const { FirebaseService } = await import("../utils/firebaseService");
+        await FirebaseService.initializeUser(address);
+        await FirebaseService.removeFuseRequest(address, request.address);
+
+        // Load the matched user's photos (keep this for now)
         let userPhotos = [];
         try {
           const photosData = await AsyncStorage.getItem(
@@ -232,20 +295,11 @@ export default function FusersScreen() {
         return;
       }
 
-      // Remove from requests
-      const updatedRequests = requests.filter((_, i) => i !== index);
-      setRequests(updatedRequests);
-
-      // Save updated requests
-      try {
-        const encrypted = CryptoJS.AES.encrypt(
-          JSON.stringify(updatedRequests),
-          address
-        ).toString();
-        await AsyncStorage.setItem(`fuse_requests_${address}`, encrypted);
-      } catch (error) {
-        console.error("Error saving requests:", error);
-      }
+      // The Firebase listener will automatically remove from requests
+      Alert.alert(
+        "Fuse Accepted! 🚀",
+        "You are now connected! Check your Fusers tab to start chatting."
+      );
     });
   };
 
@@ -271,21 +325,32 @@ export default function FusersScreen() {
       setAnimatingIndex(null);
       setAnimationType(null);
 
-      // Remove from requests
-      const updatedRequests = requests.filter((_, i) => i !== index);
-      setRequests(updatedRequests);
-
-      // Save updated requests
       try {
-        const encrypted = CryptoJS.AES.encrypt(
-          JSON.stringify(updatedRequests),
-          address
-        ).toString();
-        await AsyncStorage.setItem(`fuse_requests_${address}`, encrypted);
+        // Initialize Firebase auth first
+        const { initializeFirebaseAuth } = await import("../utils/firebase");
+        await initializeFirebaseAuth();
+
+        // Remove the request from Firebase
+        const { FirebaseService } = await import("../utils/firebaseService");
+        await FirebaseService.initializeUser(address);
+        await FirebaseService.removeFuseRequest(address, requests[index].address);
+        
+        // The Firebase listener will automatically update the requests
+        Alert.alert("Request Rejected", "The fuse request has been declined.");
       } catch (error) {
-        console.error("Error saving requests:", error);
+        console.error("Error rejecting request:", error);
+        Alert.alert("Error", "Failed to reject the request. Please try again.");
       }
     });
+  };
+
+  const viewUserProfile = (userAddress: string, userName: string) => {
+    // For now, just show an alert with user info
+    // TODO: Navigate to a profile screen or show modal
+    Alert.alert(
+      `${userName}'s Profile`,
+      `Address: ${userAddress}\n\nProfile viewing will be implemented in the next update.`
+    );
   };
 
   const rocketTranslateY = rocketAnim.interpolate({
@@ -363,7 +428,7 @@ export default function FusersScreen() {
             ) : (
               requests.map((request, index) => (
                 <Animated.View
-                  key={request.address}
+                  key={`${request.requesterAddress}-${request.targetAddress}-${index}`}
                   style={[
                     styles.requestCard,
                     animatingIndex === index &&
@@ -381,9 +446,13 @@ export default function FusersScreen() {
                   ]}
                 >
                   <View style={styles.requestInfo}>
-                    <Text style={styles.requestName}>
-                      {request.name}, {request.age}
-                    </Text>
+                    <TouchableOpacity
+                      onPress={() => viewUserProfile(request.address, request.name)}
+                    >
+                      <Text style={styles.requestName}>
+                        {request.name}, {request.age}
+                      </Text>
+                    </TouchableOpacity>
                     <Text style={styles.requestLocation}>{request.city}</Text>
                     <Text style={styles.requestBio}>{request.bio}</Text>
                   </View>

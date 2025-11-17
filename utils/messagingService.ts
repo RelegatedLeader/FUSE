@@ -163,10 +163,15 @@ export class MessagingService {
       );
 
       // Get the original message to preserve metadata
-      const messages = await FirebaseService.getConversationMessages(conversationId);
-      const originalMessage = messages.find(msg => msg.id === messageId);
+      const messages = await FirebaseService.getConversationMessages(
+        conversationId
+      );
+      const originalMessage = messages.find((msg) => msg.id === messageId);
 
-      if (!originalMessage || originalMessage.senderAddress !== this.currentUser) {
+      if (
+        !originalMessage ||
+        originalMessage.senderAddress !== this.currentUser
+      ) {
         throw new Error("Message not found or not owned by user");
       }
 
@@ -174,7 +179,10 @@ export class MessagingService {
       try {
         originalData = JSON.parse(originalMessage.message);
       } catch {
-        originalData = { content: originalMessage.message, messageType: "text" };
+        originalData = {
+          content: originalMessage.message,
+          messageType: "text",
+        };
       }
 
       // Update the content and mark as edited
@@ -222,10 +230,15 @@ export class MessagingService {
       );
 
       // Get the original message
-      const messages = await FirebaseService.getConversationMessages(conversationId);
-      const originalMessage = messages.find(msg => msg.id === messageId);
+      const messages = await FirebaseService.getConversationMessages(
+        conversationId
+      );
+      const originalMessage = messages.find((msg) => msg.id === messageId);
 
-      if (!originalMessage || originalMessage.senderAddress !== this.currentUser) {
+      if (
+        !originalMessage ||
+        originalMessage.senderAddress !== this.currentUser
+      ) {
         throw new Error("Message not found or not owned by user");
       }
 
@@ -233,7 +246,10 @@ export class MessagingService {
       try {
         originalData = JSON.parse(originalMessage.message);
       } catch {
-        originalData = { content: originalMessage.message, messageType: "text" };
+        originalData = {
+          content: originalMessage.message,
+          messageType: "text",
+        };
       }
 
       // Mark as deleted
@@ -280,7 +296,9 @@ export class MessagingService {
       );
 
       // Get conversation messages
-      const messages = await FirebaseService.getConversationMessages(conversationId);
+      const messages = await FirebaseService.getConversationMessages(
+        conversationId
+      );
 
       if (messages.length === 0) {
         return { insights: "No messages to analyze" };
@@ -289,15 +307,21 @@ export class MessagingService {
       // Basic AI analysis (in production, this would use a real AI service)
       const analysis = {
         conversationLength: messages.length,
-        averageMessageLength: messages.reduce((acc, msg) => {
-          const content = typeof msg.message === "string" 
-            ? msg.message 
-            : JSON.parse(msg.message).content || "";
-          return acc + content.length;
-        }, 0) / messages.length,
-        userMessageCount: messages.filter(msg => msg.senderAddress === this.currentUser).length,
-        recipientMessageCount: messages.filter(msg => msg.senderAddress === recipientAddress).length,
-        hasMedia: messages.some(msg => {
+        averageMessageLength:
+          messages.reduce((acc, msg) => {
+            const content =
+              typeof msg.message === "string"
+                ? msg.message
+                : JSON.parse(msg.message).content || "";
+            return acc + content.length;
+          }, 0) / messages.length,
+        userMessageCount: messages.filter(
+          (msg) => msg.senderAddress === this.currentUser
+        ).length,
+        recipientMessageCount: messages.filter(
+          (msg) => msg.senderAddress === recipientAddress
+        ).length,
+        hasMedia: messages.some((msg) => {
           try {
             const parsed = JSON.parse(msg.message);
             return parsed.mediaUrl;
@@ -305,9 +329,10 @@ export class MessagingService {
             return false;
           }
         }),
-        conversationDuration: messages.length > 1 
-          ? messages[messages.length - 1].timestamp - messages[0].timestamp
-          : 0,
+        conversationDuration:
+          messages.length > 1
+            ? messages[messages.length - 1].timestamp - messages[0].timestamp
+            : 0,
         sentiment: "neutral", // Would be calculated by AI service
         topics: [], // Would be extracted by AI service
         compatibility: Math.random() * 100, // Mock compatibility score
@@ -325,7 +350,10 @@ export class MessagingService {
           };
 
           // TODO: Implement Arweave storage for AI analysis
-          console.log("📊 Would store conversation analysis on Arweave:", anonymizedAnalysis);
+          console.log(
+            "📊 Would store conversation analysis on Arweave:",
+            anonymizedAnalysis
+          );
         } catch (arweaveError) {
           console.warn("Failed to store analysis on Arweave:", arweaveError);
           // Don't fail the whole analysis if Arweave storage fails

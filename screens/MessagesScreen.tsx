@@ -40,16 +40,33 @@ interface MatchedUser {
   matchedDate: Date;
 }
 
+interface FuseRequest {
+  address: string;
+  name: string;
+  age: number;
+  city: string;
+  bio: string;
+  timestamp: Date;
+  requesterAddress: string;
+  targetAddress: string;
+}
+
 export default function MessagesScreen() {
   const { address } = useWallet();
   const { theme } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [matchedUsers, setMatchedUsers] = useState<MatchedUser[]>([]);
+  const [fuseRequests, setFuseRequests] = useState<FuseRequest[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<
     string | null
   >(null);
   const [newMessage, setNewMessage] = useState("");
-  const [messageListener, setMessageListener] = useState<(() => void) | null>(null);
+  const [messageListener, setMessageListener] = useState<(() => void) | null>(
+    null
+  );
+  const [requestListener, setRequestListener] = useState<(() => void) | null>(
+    null
+  );
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
@@ -69,16 +86,20 @@ export default function MessagesScreen() {
 
     initializeMessaging();
     loadMatchedUsers();
+    loadFuseRequests();
   }, [address]);
 
   useEffect(() => {
     return () => {
-      // Cleanup listener on unmount
+      // Cleanup listeners on unmount
       if (messageListener) {
         messageListener();
       }
+      if (requestListener) {
+        requestListener();
+      }
     };
-  }, [messageListener]);
+  }, [messageListener, requestListener]);
 
   const setupRealTimeListener = () => {
     if (!selectedConversation || !address) return;
@@ -132,11 +153,278 @@ export default function MessagesScreen() {
         const decrypted = CryptoJS.AES.decrypt(matchesData, address).toString(
           CryptoJS.enc.Utf8
         );
-        setMatchedUsers(JSON.parse(decrypted));
+        const parsedMatches = JSON.parse(decrypted);
+        // Convert matchedDate strings back to Date objects
+        const matchesWithDates = parsedMatches.map((match: any) => ({
+          ...match,
+          matchedDate: new Date(match.matchedDate),
+        }));
+        setMatchedUsers(matchesWithDates);
       }
     } catch (error) {
       console.error("Error loading matched users:", error);
     }
+  };
+
+  const loadFuseRequests = async () => {
+    if (!address) return;
+
+    try {
+      console.log(`Loading fuse requests for user: ${address}`);
+      
+      // Initialize Firebase auth first
+      const { initializeFirebaseAuth } = await import("../utils/firebase");
+      await initializeFirebaseAuth();
+
+      const { FirebaseService } = await import("../utils/firebaseService");
+      await FirebaseService.initializeUser(address);
+      
+      // Set up real-time listener for fuse requests
+      const unsubscribe = FirebaseService.listenToFuseRequests(
+        address,
+        (requests) => {
+          console.log("Received fuse requests:", requests);
+          // Convert Firestore timestamps to Date objects
+          const requestsWithDates = requests.map((request: any) => ({
+            ...request,
+            timestamp: request.timestamp?.toDate ? request.timestamp.toDate() : new Date(request.timestamp),
+          }));
+          setFuseRequests(requestsWithDates);
+        }
+      );
+      
+      // Store unsubscribe function for cleanup
+      setRequestListener(() => unsubscribe);
+    } catch (error) {
+      console.error("Error loading fuse requests:", error);
+      setFuseRequests([]);
+    }
+  };
+
+  const acceptFuseRequest = async (requestIndex: number) => {
+    if (!address) return;
+
+    const request = fuseRequests[requestIndex];
+    if (!request) return;
+
+    try {
+      // Initialize Firebase auth first
+      const { initializeFirebaseAuth } = await import("../utils/firebase");
+      await initializeFirebaseAuth();
+
+      // Remove the request from Firebase
+      const { FirebaseService } = await import("../utils/firebaseService");
+      await FirebaseService.initializeUser(address);
+      await FirebaseService.removeFuseRequest(address, request.requesterAddress);
+
+      // Create mutual match for current user
+      const currentUserMatch = {
+        address: request.requesterAddress,
+        name: request.name,
+        age: request.age,
+        city: request.city,
+        bio: request.bio,
+        photos: [], // Will be loaded when needed
+        matchedDate: new Date(),
+      };
+
+      // Load existing matches for current user
+      const existingMatchesData = await AsyncStorage.getItem(
+        `matched_users_${address}`
+      );
+      let existingMatches = [];
+      if (existingMatchesData) {
+        const decrypted = CryptoJS.AES.decrypt(
+          existingMatchesData,
+          address
+        ).toString(CryptoJS.enc.Utf8);
+        existingMatches = JSON.parse(decrypted);
+      }
+
+      // Add new match
+      existingMatches.push(currentUserMatch);
+
+      // Save back to storage
+      const encrypted = CryptoJS.AES.encrypt(
+        JSON.stringify(existingMatches),
+        address
+      ).toString();
+      await AsyncStorage.setItem(`matched_users_${address}`, encrypted);
+
+      // Create mutual match for the requester (with real user data)
+      // Load current user's profile data
+      const currentUserProfileData = await AsyncStorage.getItem(
+        `user_profile_${address}`
+      );
+      let currentUserName = "Unknown User";
+      let currentUserAge: number | string = "N/A";
+      let currentUserCity = "Unknown";
+      let currentUserBio = "No bio available";
+
+      if (currentUserProfileData) {
+        const profileDecrypted = CryptoJS.AES.decrypt(
+          currentUserProfileData,
+          address
+        ).toString(CryptoJS.enc.Utf8);
+        const profile = JSON.parse(profileDecrypted);
+        currentUserName =
+          profile.firstName && profile.lastName
+            ? `${profile.firstName} ${profile.lastName}`
+            : profile.firstName || profile.lastName || "Unknown User";
+        currentUserAge = profile.birthdate
+          ? new Date().getFullYear() -
+            new Date(profile.birthdate).getFullYear()
+          : "N/A";
+        currentUserCity = profile.location || "Unknown";
+        currentUserBio = profile.bio || "No bio available";
+      }
+
+      const requesterMatch = {
+        address: address,
+        name: currentUserName,
+        age: currentUserAge,
+        city: currentUserCity,
+        bio: currentUserBio,
+        photos: [], // Will be loaded when needed
+        matchedDate: new Date(),
+      };
+
+      const requesterMatchesData = await AsyncStorage.getItem(
+        `matched_users_${request.requesterAddress}`
+      );
+      let requesterMatches = [];
+      if (requesterMatchesData) {
+        const decrypted = CryptoJS.AES.decrypt(
+          requesterMatchesData,
+          request.requesterAddress
+        ).toString(CryptoJS.enc.Utf8);
+        requesterMatches = JSON.parse(decrypted);
+      }
+
+      requesterMatches.push(requesterMatch);
+
+      const requesterEncrypted = CryptoJS.AES.encrypt(
+        JSON.stringify(requesterMatches),
+        request.requesterAddress
+      ).toString();
+      await AsyncStorage.setItem(
+        `matched_users_${request.requesterAddress}`,
+        requesterEncrypted
+      );
+
+      // Update state - the listener will handle removing from fuseRequests
+      loadMatchedUsers(); // Refresh matches
+
+      Alert.alert(
+        "Fuse Accepted! 🎉",
+        "You are now connected! Start a conversation to get to know each other."
+      );
+    } catch (error) {
+      console.error("Error accepting fuse request:", error);
+      Alert.alert("Error", "Failed to accept fuse request. Please try again.");
+    }
+  };
+
+  const rejectFuseRequest = async (requestIndex: number) => {
+    if (!address) return;
+
+    const request = fuseRequests[requestIndex];
+    if (!request) return;
+
+    try {
+      // Initialize Firebase auth first
+      const { initializeFirebaseAuth } = await import("../utils/firebase");
+      await initializeFirebaseAuth();
+
+      // Remove the request from Firebase
+      const { FirebaseService } = await import("../utils/firebaseService");
+      await FirebaseService.initializeUser(address);
+      await FirebaseService.removeFuseRequest(address, request.requesterAddress);
+
+      // The listener will automatically update the state
+      Alert.alert("Request Rejected", "The fuse request has been declined.");
+    } catch (error) {
+      console.error("Error rejecting fuse request:", error);
+      Alert.alert("Error", "Failed to reject fuse request. Please try again.");
+    }
+  };
+
+  const viewUserProfile = (userAddress: string, userName: string) => {
+    // For now, just show an alert with user info
+    // TODO: Navigate to a profile screen or show modal
+    Alert.alert(
+      `${userName}'s Profile`,
+      `Address: ${userAddress}\n\nProfile viewing will be implemented in the next update.`
+    );
+  };
+
+  const unfuseUser = async (userAddress: string) => {
+    if (!address) return;
+
+    Alert.alert(
+      "Unfuse User",
+      "Are you sure you want to unfuse with this user? This will remove them from your matches and end the conversation.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Unfuse",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Remove from current user's matches
+              const updatedMatches = matchedUsers.filter(
+                (user) => user.address !== userAddress
+              );
+              const encrypted = CryptoJS.AES.encrypt(
+                JSON.stringify(updatedMatches),
+                address
+              ).toString();
+              await AsyncStorage.setItem(`matched_users_${address}`, encrypted);
+
+              // Remove from other user's matches
+              const otherUserMatchesData = await AsyncStorage.getItem(
+                `matched_users_${userAddress}`
+              );
+              if (otherUserMatchesData) {
+                const decrypted = CryptoJS.AES.decrypt(
+                  otherUserMatchesData,
+                  userAddress
+                ).toString(CryptoJS.enc.Utf8);
+                const otherUserMatches = JSON.parse(decrypted);
+                const updatedOtherMatches = otherUserMatches.filter(
+                  (match: any) => match.address !== address
+                );
+                const otherEncrypted = CryptoJS.AES.encrypt(
+                  JSON.stringify(updatedOtherMatches),
+                  userAddress
+                ).toString();
+                await AsyncStorage.setItem(
+                  `matched_users_${userAddress}`,
+                  otherEncrypted
+                );
+              }
+
+              // Update state
+              setMatchedUsers(updatedMatches);
+
+              // If currently chatting with this user, go back to main view
+              if (selectedConversation === userAddress) {
+                setSelectedConversation(null);
+                setMessages([]);
+              }
+
+              Alert.alert(
+                "Unfused",
+                "You are no longer connected with this user."
+              );
+            } catch (error) {
+              console.error("Error unfusing user:", error);
+              Alert.alert("Error", "Failed to unfuse user. Please try again.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const loadMessages = async () => {
@@ -186,9 +474,13 @@ export default function MessagesScreen() {
 
     try {
       // Request permissions
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== "granted") {
-        Alert.alert("Permission needed", "Please grant access to your photos to send images.");
+        Alert.alert(
+          "Permission needed",
+          "Please grant access to your photos to send images."
+        );
         return;
       }
 
@@ -203,7 +495,7 @@ export default function MessagesScreen() {
 
       if (!result.canceled && result.assets[0].base64) {
         const base64Data = `data:image/jpeg;base64,${result.assets[0].base64}`;
-        
+
         await MessagingService.sendMediaMessage(
           selectedConversation,
           base64Data,
@@ -251,10 +543,16 @@ export default function MessagesScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              await MessagingService.deleteMessage(selectedConversation, messageId);
+              await MessagingService.deleteMessage(
+                selectedConversation,
+                messageId
+              );
             } catch (error) {
               console.error("Error deleting message:", error);
-              Alert.alert("Error", "Failed to delete message. Please try again.");
+              Alert.alert(
+                "Error",
+                "Failed to delete message. Please try again."
+              );
             }
           },
         },
@@ -264,7 +562,7 @@ export default function MessagesScreen() {
 
   const startEditingMessage = (message: Message) => {
     if (message.from !== address || message.deleted) return;
-    
+
     setEditingMessageId(message.id);
     setEditingText(message.message);
   };
@@ -273,7 +571,7 @@ export default function MessagesScreen() {
     if (!isTyping && selectedConversation) {
       setIsTyping(true);
       MessagingService.sendTypingIndicator(selectedConversation, true);
-      
+
       // Auto-stop typing after 3 seconds of inactivity
       setTimeout(() => {
         handleTypingStop();
@@ -295,7 +593,9 @@ export default function MessagesScreen() {
       // For now, this is a placeholder
       const checkTypingStatus = async () => {
         try {
-          const isTypingNow = await MessagingService.getUserOnlineStatus(selectedConversation);
+          const isTypingNow = await MessagingService.getUserOnlineStatus(
+            selectedConversation
+          );
           setRecipientTyping(isTypingNow);
         } catch (error) {
           console.warn("Failed to check typing status:", error);
@@ -353,15 +653,19 @@ export default function MessagesScreen() {
                 message.deleted && styles.deletedMessage,
               ]}
             >
-              {message.mediaUrl && message.mediaType === "image" && !message.deleted && (
-                <Image
-                  source={{ uri: message.mediaUrl }}
-                  style={styles.messageImage}
-                  resizeMode="cover"
-                />
-              )}
+              {message.mediaUrl &&
+                message.mediaType === "image" &&
+                !message.deleted && (
+                  <Image
+                    source={{ uri: message.mediaUrl }}
+                    style={styles.messageImage}
+                    resizeMode="cover"
+                  />
+                )}
               {message.message && !message.deleted && (
-                <Text style={{ color: theme.buttonText }}>{message.message}</Text>
+                <Text style={{ color: theme.buttonText }}>
+                  {message.message}
+                </Text>
               )}
               {message.deleted && (
                 <Text style={{ color: theme.buttonText, fontStyle: "italic" }}>
@@ -370,7 +674,12 @@ export default function MessagesScreen() {
               )}
               <View style={styles.messageFooter}>
                 {message.edited && !message.deleted && (
-                  <Text style={[styles.editedLabel, { color: theme.buttonText, opacity: 0.7 }]}>
+                  <Text
+                    style={[
+                      styles.editedLabel,
+                      { color: theme.buttonText, opacity: 0.7 },
+                    ]}
+                  >
                     edited
                   </Text>
                 )}
@@ -388,14 +697,21 @@ export default function MessagesScreen() {
                   onPress={() => handleDeleteMessage(message.id)}
                   style={styles.deleteButton}
                 >
-                  <Text style={{ color: theme.buttonText, fontSize: 12 }}>🗑️</Text>
+                  <Text style={{ color: theme.buttonText, fontSize: 12 }}>
+                    🗑️
+                  </Text>
                 </TouchableOpacity>
               )}
             </TouchableOpacity>
           ))}
-          
+
           {recipientTyping && (
-            <View style={[styles.typingIndicator, { backgroundColor: theme.card.backgroundColor }]}>
+            <View
+              style={[
+                styles.typingIndicator,
+                { backgroundColor: theme.card.backgroundColor },
+              ]}
+            >
               <Text style={{ color: theme.textColor, fontSize: 14 }}>
                 💬 Typing...
               </Text>
@@ -416,10 +732,7 @@ export default function MessagesScreen() {
                   setEditingMessageId(null);
                   setEditingText("");
                 }}
-                style={[
-                  styles.cancelButton,
-                  { backgroundColor: "#dc3545" },
-                ]}
+                style={[styles.cancelButton, { backgroundColor: "#dc3545" }]}
               >
                 <Text style={{ color: "#fff" }}>✕</Text>
               </TouchableOpacity>
@@ -500,6 +813,80 @@ export default function MessagesScreen() {
       <Text style={theme.title}>Chats</Text>
       <Text style={theme.subtitle}>Connect through conversation</Text>
 
+      {/* Fuse Requests Section */}
+      {fuseRequests.length > 0 && (
+        <View style={styles.fuseRequestsContainer}>
+          <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
+            Fuse Requests 🔥
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.fuseRequestsScroll}
+          >
+            {fuseRequests.map((request, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.fuseRequestCard,
+                  { backgroundColor: theme.card.backgroundColor },
+                ]}
+              >
+                <View style={styles.requestInfo}>
+                  <TouchableOpacity
+                    onPress={() => viewUserProfile(request.requesterAddress, request.name)}
+                  >
+                    <Text
+                      style={[styles.requestName, { color: theme.textColor }]}
+                      numberOfLines={1}
+                    >
+                      {request.name}
+                    </Text>
+                  </TouchableOpacity>
+                  <Text
+                    style={[styles.requestDetails, { color: theme.textColor }]}
+                  >
+                    {request.age} • {request.city}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.requestTime,
+                      { color: theme.textColor, opacity: 0.6 },
+                    ]}
+                  >
+                    {request.timestamp.toLocaleDateString()}
+                  </Text>
+                </View>
+                <View style={styles.requestActions}>
+                  <TouchableOpacity
+                    onPress={() => acceptFuseRequest(index)}
+                    style={[
+                      styles.acceptButton,
+                      { backgroundColor: "#28a745" },
+                    ]}
+                  >
+                    <Text style={{ color: "#fff", fontSize: 12 }}>
+                      ✓ Accept
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => rejectFuseRequest(index)}
+                    style={[
+                      styles.rejectButton,
+                      { backgroundColor: "#dc3545" },
+                    ]}
+                  >
+                    <Text style={{ color: "#fff", fontSize: 12 }}>
+                      ✕ Reject
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       {/* Matched Users Section */}
       {matchedUsers.length > 0 && (
         <View style={styles.matchedUsersContainer}>
@@ -512,39 +899,47 @@ export default function MessagesScreen() {
             style={styles.matchedUsersScroll}
           >
             {matchedUsers.map((user) => (
-              <TouchableOpacity
+              <View
                 key={user.address}
                 style={[
                   styles.matchedUserCard,
                   { backgroundColor: theme.card.backgroundColor },
                 ]}
-                onPress={() => {
-                  // Navigate to user profile/chat
-                  // For now, just set as selected conversation
-                  setSelectedConversation(user.address);
-                }}
               >
-                <Image
-                  source={{
-                    uri:
-                      user.photos && user.photos.length > 0
-                        ? user.photos[0]
-                        : "https://via.placeholder.com/60x60?text=👤",
+                <TouchableOpacity
+                  style={styles.matchedUserContent}
+                  onPress={() => {
+                    setSelectedConversation(user.address);
                   }}
-                  style={styles.matchedUserImage}
-                />
-                <Text
-                  style={[styles.matchedUserName, { color: theme.textColor }]}
-                  numberOfLines={1}
                 >
-                  {user.name}
-                </Text>
-                <Text
-                  style={[styles.matchedUserAge, { color: theme.textColor }]}
+                  <Image
+                    source={{
+                      uri:
+                        user.photos && user.photos.length > 0
+                          ? user.photos[0]
+                          : "https://via.placeholder.com/60x60?text=👤",
+                    }}
+                    style={styles.matchedUserImage}
+                  />
+                  <Text
+                    style={[styles.matchedUserName, { color: theme.textColor }]}
+                    numberOfLines={1}
+                  >
+                    {user.name}
+                  </Text>
+                  <Text
+                    style={[styles.matchedUserAge, { color: theme.textColor }]}
+                  >
+                    {user.age}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => unfuseUser(user.address)}
+                  style={[styles.unfuseButton, { backgroundColor: "#dc3545" }]}
                 >
-                  {user.age}
-                </Text>
-              </TouchableOpacity>
+                  <Text style={{ color: "#fff", fontSize: 10 }}>Unfuse</Text>
+                </TouchableOpacity>
+              </View>
             ))}
           </ScrollView>
         </View>
@@ -776,5 +1171,63 @@ const styles = StyleSheet.create({
   matchedUserAge: {
     fontSize: 12,
     color: "#666",
+  },
+  matchedUserContent: {
+    alignItems: "center",
+    flex: 1,
+  },
+  unfuseButton: {
+    marginTop: 5,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  fuseRequestsContainer: {
+    marginBottom: 20,
+  },
+  fuseRequestsScroll: {
+    marginBottom: 10,
+  },
+  fuseRequestCard: {
+    width: 200,
+    padding: 15,
+    borderRadius: 10,
+    marginRight: 15,
+  },
+  requestInfo: {
+    marginBottom: 10,
+  },
+  requestName: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
+  requestDetails: {
+    fontSize: 14,
+    marginBottom: 5,
+  },
+  requestTime: {
+    fontSize: 12,
+  },
+  requestActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  acceptButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 5,
+    alignItems: "center",
+    marginRight: 5,
+  },
+  rejectButton: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 5,
+    alignItems: "center",
+    marginLeft: 5,
   },
 });

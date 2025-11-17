@@ -988,4 +988,81 @@ export class FirebaseService {
       throw error;
     }
   }
+
+  // Store fuse request in Firebase
+  static async storeFuseRequest(targetAddress: string, requestData: any): Promise<void> {
+    try {
+      const requestsRef = doc(db, "fuse_requests", targetAddress);
+      const requestSnap = await getDoc(requestsRef);
+      
+      let requests = [];
+      if (requestSnap.exists()) {
+        requests = requestSnap.data().requests || [];
+      }
+      
+      // Add new request
+      requests.push({
+        ...requestData,
+        timestamp: Timestamp.now(),
+      });
+      
+      await setDoc(requestsRef, {
+        requests,
+        lastUpdated: Timestamp.now(),
+      });
+      
+      console.log("🔥 Fuse request stored in Firebase for:", targetAddress);
+    } catch (error) {
+      console.error("Failed to store fuse request:", error);
+      throw error;
+    }
+  }
+
+  // Get fuse requests for a user with real-time listener
+  static listenToFuseRequests(
+    userAddress: string,
+    callback: (requests: any[]) => void
+  ): () => void {
+    const requestsRef = doc(db, "fuse_requests", userAddress);
+    
+    const unsubscribe = onSnapshot(requestsRef, (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        callback(data.requests || []);
+      } else {
+        callback([]);
+      }
+    }, (error) => {
+      console.error("Error listening to fuse requests:", error);
+      callback([]);
+    });
+    
+    return unsubscribe;
+  }
+
+  // Remove fuse request (when accepted or rejected)
+  static async removeFuseRequest(targetAddress: string, requesterAddress: string): Promise<void> {
+    try {
+      const requestsRef = doc(db, "fuse_requests", targetAddress);
+      const requestSnap = await getDoc(requestsRef);
+      
+      if (requestSnap.exists()) {
+        const data = requestSnap.data();
+        const requests = data.requests || [];
+        const filteredRequests = requests.filter(
+          (req: any) => req.requesterAddress !== requesterAddress
+        );
+        
+        await setDoc(requestsRef, {
+          requests: filteredRequests,
+          lastUpdated: Timestamp.now(),
+        });
+      }
+      
+      console.log("🗑️ Fuse request removed for:", targetAddress);
+    } catch (error) {
+      console.error("Failed to remove fuse request:", error);
+      throw error;
+    }
+  }
 }

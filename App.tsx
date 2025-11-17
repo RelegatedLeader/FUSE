@@ -467,6 +467,10 @@ function AppNavigator() {
 
   React.useEffect(() => {
     const initializeApp = async () => {
+      // Initialize Firebase auth first
+      const { initializeFirebaseAuth } = await import("./utils/firebase");
+      await initializeFirebaseAuth();
+      
       if (address) {
         await checkRegistration();
       }

@@ -45,6 +45,17 @@ export default function FuseScreen() {
   // Track which users have been skipped
   const [skippedUsers, setSkippedUsers] = useState<Set<string>>(new Set());
 
+  // Track sent requests and matches for filtering
+  const [sentRequests, setSentRequests] = useState<Set<string>>(new Set());
+  const [matchedAddresses, setMatchedAddresses] = useState<Set<string>>(
+    new Set()
+  );
+
+  // Track incoming fuse requests for rocket indicator
+  const [incomingRequests, setIncomingRequests] = useState<Set<string>>(
+    new Set()
+  );
+
   // Full-screen image viewer state
   const [fullScreenImageVisible, setFullScreenImageVisible] = useState(false);
   const [fullScreenImageUri, setFullScreenImageUri] = useState<string>("");
@@ -168,10 +179,71 @@ export default function FuseScreen() {
         const matches = await MatchingEngine.findMatchesForUser(address);
         console.log("Found matches:", matches.length);
 
+        // Load current user's sent requests and matched users to filter them out
+        try {
+          // Load sent requests
+          const sentRequestsData = await AsyncStorage.getItem(
+            `fuse_requests_${address}`
+          );
+          if (sentRequestsData) {
+            const decrypted = CryptoJS.AES.decrypt(
+              sentRequestsData,
+              address
+            ).toString(CryptoJS.enc.Utf8);
+            const requests = JSON.parse(decrypted);
+            const targetAddresses = requests.map(
+              (req: any) => req.targetAddress || req.address
+            );
+            setSentRequests(new Set(targetAddresses));
+          } else {
+            setSentRequests(new Set());
+          }
+
+          // Load matched users
+          const matchedUsersData = await AsyncStorage.getItem(
+            `matched_users_${address}`
+          );
+          if (matchedUsersData) {
+            const decrypted = CryptoJS.AES.decrypt(
+              matchedUsersData,
+              address
+            ).toString(CryptoJS.enc.Utf8);
+            const matches = JSON.parse(decrypted);
+            const addresses = matches.map((match: any) => match.address);
+            setMatchedAddresses(new Set(addresses));
+          } else {
+            setMatchedAddresses(new Set());
+          }
+        } catch (error) {
+          console.warn("Error loading sent requests and matches:", error);
+          setSentRequests(new Set());
+          setMatchedAddresses(new Set());
+        }
+
+        // Load incoming fuse requests for rocket indicator
+        try {
+          const incomingRequestsData = await FirebaseService.listenToFuseRequests(
+            address,
+            (requests) => {
+              const requesterAddresses = requests.map((req: any) => req.requesterAddress);
+              setIncomingRequests(new Set(requesterAddresses));
+            }
+          );
+          // Note: We don't store the unsubscribe function here as it's handled by the listener
+        } catch (error) {
+          console.warn("Error loading incoming requests:", error);
+          setIncomingRequests(new Set());
+        }
+
         // Convert MatchResult to User format - optimize by processing in parallel
         const formattedUsers: User[] = [];
         const photoPromises = matches
-          .filter((match) => !skippedUsers.has(match.address))
+          .filter(
+            (match) =>
+              !skippedUsers.has(match.address) &&
+              !sentRequests.has(match.address) &&
+              !matchedAddresses.has(match.address)
+          )
           .map(async (match) => {
             console.log("Processing match:", match.address, match.profile);
 
@@ -272,52 +344,43 @@ export default function FuseScreen() {
         useNativeDriver: true,
       }),
     ]).start(async () => {
-      // Create connection request for the other user
-      const connectionRequest = {
-        address: address, // Current user is requesting connection
-        name: "Anonymous", // For privacy, we'll use anonymous until accepted
-        age: 0, // Will be filled when profile is viewed
-        city: "Unknown",
-        bio: "Someone wants to connect with you!",
-        timestamp: new Date(),
-        requesterAddress: address,
-        targetAddress: userAddress,
-      };
-
       try {
-        // Load existing requests for the target user
-        const existingRequestsData = await AsyncStorage.getItem(
-          `fuse_requests_${userAddress}`
+        // Initialize Firebase auth first
+        const { initializeFirebaseAuth } = await import("../utils/firebase");
+        await initializeFirebaseAuth();
+
+        // Store request in Firebase
+        const { FirebaseService } = await import("../utils/firebaseService");
+        await FirebaseService.initializeUser(address);
+        
+        const requestData = {
+          address: address,
+          name: user.name,
+          age: user.age,
+          city: user.city,
+          bio: user.bio,
+          photos: user.photos,
+          requesterAddress: address,
+          targetAddress: userAddress,
+        };
+        
+        await FirebaseService.storeFuseRequest(userAddress, requestData);
+
+        console.log(`Fuse request sent from ${address} to ${userAddress}`);
+        console.log("Request data:", requestData);
+
+        // Update local state to filter this user out immediately
+        setSentRequests(
+          (prev) => new Set(Array.from(prev).concat(userAddress))
         );
-        let existingRequests = [];
-        if (existingRequestsData) {
-          const decrypted = CryptoJS.AES.decrypt(
-            existingRequestsData,
-            userAddress
-          ).toString(CryptoJS.enc.Utf8);
-          existingRequests = JSON.parse(decrypted);
-        }
-
-        // Add new request
-        existingRequests.push(connectionRequest);
-
-        // Save back to storage
-        const encrypted = CryptoJS.AES.encrypt(
-          JSON.stringify(existingRequests),
-          userAddress
-        ).toString();
-        await AsyncStorage.setItem(`fuse_requests_${userAddress}`, encrypted);
 
         Alert.alert(
-          "Request Sent!",
-          "Your connection request has been sent. Check back later to see if they accept!"
+          "Fuse Request Sent! 🔥",
+          "Your fuse request has been sent. Check back later to see if they accept!"
         );
       } catch (error) {
         console.error("Error sending connection request:", error);
-        Alert.alert(
-          "Error",
-          "Failed to send connection request. Please try again."
-        );
+        Alert.alert("Error", "Failed to send fuse request. Please try again.");
       }
 
       // Remove this user from the list
@@ -356,6 +419,7 @@ export default function FuseScreen() {
     onSkip: (address: string) => void;
     theme: any;
     fuseAnim: Animated.Value;
+    hasIncomingRequest: boolean;
   }
 
   const UserCard: React.FC<UserCardProps> = ({
@@ -364,6 +428,7 @@ export default function FuseScreen() {
     onSkip,
     theme,
     fuseAnim,
+    hasIncomingRequest,
   }) => {
     const pan = useRef(new Animated.ValueXY()).current;
     const scrollViewRef = useRef<ScrollView>(null);
@@ -501,9 +566,14 @@ export default function FuseScreen() {
 
         {/* User Info */}
         <View style={styles.userInfo}>
-          <Text style={[{ color: theme?.textColor || "#333" }, styles.name]}>
-            {String(user.name || "Unknown User")}, {String(user.age || "N/A")}
-          </Text>
+          <View style={styles.nameContainer}>
+            <Text style={[{ color: theme?.textColor || "#333" }, styles.name]}>
+              {String(user.name || "Unknown User")}, {String(user.age || "N/A")}
+            </Text>
+            {hasIncomingRequest && (
+              <Text style={styles.rocketIndicator}>🚀</Text>
+            )}
+          </View>
           <Text
             style={[{ color: theme?.textColor || "#666" }, styles.location]}
           >
@@ -543,10 +613,6 @@ export default function FuseScreen() {
                 backgroundColor: fuseAnim.interpolate({
                   inputRange: [0, 1],
                   outputRange: ["#ff4757", "#ff3838"],
-                }),
-                shadowColor: fuseAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: ["#ff4757", "#ff6b6b"],
                 }),
                 shadowOpacity: fuseAnim.interpolate({
                   inputRange: [0, 1],
@@ -592,15 +658,6 @@ export default function FuseScreen() {
                   color: fuseAnim.interpolate({
                     inputRange: [0, 1],
                     outputRange: ["#ffffff", "#ff6b6b"],
-                  }),
-                  textShadowColor: fuseAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ["transparent", "rgba(255, 107, 107, 0.8)"],
-                  }),
-                  textShadowOffset: { width: 0, height: 0 },
-                  textShadowRadius: fuseAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 10],
                   }),
                 },
               ]}
@@ -711,6 +768,7 @@ export default function FuseScreen() {
                 onSkip={handleSkip}
                 theme={theme}
                 fuseAnim={fuseAnim}
+                hasIncomingRequest={incomingRequests.has(item.address)}
               />
             );
           }}
@@ -1034,6 +1092,15 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     zIndex: 1001,
+  },
+  nameContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 5,
+  },
+  rocketIndicator: {
+    fontSize: 18,
+    marginLeft: 8,
   },
   navButton: {
     width: 50,
