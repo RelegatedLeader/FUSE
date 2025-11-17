@@ -83,6 +83,272 @@ export class MessagingService {
     }
   }
 
+  // Send media message (image, GIF, file)
+  static async sendMediaMessage(
+    recipientAddress: string,
+    mediaUri: string,
+    mediaType: "image" | "gif" | "file",
+    caption?: string
+  ): Promise<void> {
+    if (!this.currentUser || !this.userKeys) {
+      throw new Error("Messaging service not initialized");
+    }
+
+    try {
+      // Upload media to Firebase Storage first
+      const mediaUrl = await FirebaseService.uploadUserImageFromBase64(
+        mediaUri,
+        this.currentUser,
+        Date.now() // Use timestamp as image index for messaging
+      );
+
+      const messageData = {
+        content: caption || "",
+        mediaUrl,
+        mediaType,
+        metadata: {
+          timestamp: Date.now(),
+          sender: this.currentUser,
+        },
+      };
+
+      const encryptedMessage = EncryptionService.encryptMessage(
+        JSON.stringify(messageData),
+        this.userKeys.messagingKey,
+        this.userKeys.messagingKey
+      );
+
+      const conversationId = this.generateConversationId(
+        this.currentUser,
+        recipientAddress
+      );
+
+      await FirebaseService.sendMessage(
+        conversationId,
+        encryptedMessage,
+        this.currentUser,
+        recipientAddress
+      );
+
+      // Store interaction
+      await FirebaseService.storeInteraction({
+        interactionType: "send_media",
+        targetUser: recipientAddress,
+        metadata: {
+          mediaType,
+          hasCaption: !!caption,
+        },
+      });
+
+      console.log("📎 Media message sent to:", recipientAddress);
+    } catch (error) {
+      throw new Error("Failed to send media message: " + error);
+    }
+  }
+
+  // Edit message
+  static async editMessage(
+    recipientAddress: string,
+    messageId: string,
+    newContent: string
+  ): Promise<void> {
+    if (!this.currentUser || !this.userKeys) {
+      throw new Error("Messaging service not initialized");
+    }
+
+    try {
+      const conversationId = this.generateConversationId(
+        this.currentUser,
+        recipientAddress
+      );
+
+      // Get the original message to preserve metadata
+      const messages = await FirebaseService.getConversationMessages(conversationId);
+      const originalMessage = messages.find(msg => msg.id === messageId);
+
+      if (!originalMessage || originalMessage.senderAddress !== this.currentUser) {
+        throw new Error("Message not found or not owned by user");
+      }
+
+      let originalData;
+      try {
+        originalData = JSON.parse(originalMessage.message);
+      } catch {
+        originalData = { content: originalMessage.message, messageType: "text" };
+      }
+
+      // Update the content and mark as edited
+      const updatedData = {
+        ...originalData,
+        content: newContent,
+        edited: true,
+        editedAt: Date.now(),
+      };
+
+      const encryptedMessage = EncryptionService.encryptMessage(
+        JSON.stringify(updatedData),
+        this.userKeys.messagingKey,
+        this.userKeys.messagingKey
+      );
+
+      // Note: In a production app, you'd update the existing document
+      // For now, we'll create a new message with edited status
+      await FirebaseService.sendMessage(
+        conversationId,
+        encryptedMessage,
+        this.currentUser,
+        recipientAddress
+      );
+
+      console.log("✏️ Message edited:", messageId);
+    } catch (error) {
+      throw new Error("Failed to edit message: " + error);
+    }
+  }
+
+  // Delete message (mark as deleted)
+  static async deleteMessage(
+    recipientAddress: string,
+    messageId: string
+  ): Promise<void> {
+    if (!this.currentUser || !this.userKeys) {
+      throw new Error("Messaging service not initialized");
+    }
+
+    try {
+      const conversationId = this.generateConversationId(
+        this.currentUser,
+        recipientAddress
+      );
+
+      // Get the original message
+      const messages = await FirebaseService.getConversationMessages(conversationId);
+      const originalMessage = messages.find(msg => msg.id === messageId);
+
+      if (!originalMessage || originalMessage.senderAddress !== this.currentUser) {
+        throw new Error("Message not found or not owned by user");
+      }
+
+      let originalData;
+      try {
+        originalData = JSON.parse(originalMessage.message);
+      } catch {
+        originalData = { content: originalMessage.message, messageType: "text" };
+      }
+
+      // Mark as deleted
+      const deletedData = {
+        ...originalData,
+        content: "This message was deleted",
+        deleted: true,
+        deletedAt: Date.now(),
+      };
+
+      const encryptedMessage = EncryptionService.encryptMessage(
+        JSON.stringify(deletedData),
+        this.userKeys.messagingKey,
+        this.userKeys.messagingKey
+      );
+
+      // Create a replacement message
+      await FirebaseService.sendMessage(
+        conversationId,
+        encryptedMessage,
+        this.currentUser,
+        recipientAddress
+      );
+
+      console.log("🗑️ Message deleted:", messageId);
+    } catch (error) {
+      throw new Error("Failed to delete message: " + error);
+    }
+  }
+
+  // Analyze conversation for AI insights (optional Arweave storage)
+  static async analyzeConversationForAI(
+    recipientAddress: string,
+    storeOnArweave: boolean = false
+  ): Promise<any> {
+    if (!this.currentUser || !this.userKeys) {
+      throw new Error("Messaging service not initialized");
+    }
+
+    try {
+      const conversationId = this.generateConversationId(
+        this.currentUser,
+        recipientAddress
+      );
+
+      // Get conversation messages
+      const messages = await FirebaseService.getConversationMessages(conversationId);
+
+      if (messages.length === 0) {
+        return { insights: "No messages to analyze" };
+      }
+
+      // Basic AI analysis (in production, this would use a real AI service)
+      const analysis = {
+        conversationLength: messages.length,
+        averageMessageLength: messages.reduce((acc, msg) => {
+          const content = typeof msg.message === "string" 
+            ? msg.message 
+            : JSON.parse(msg.message).content || "";
+          return acc + content.length;
+        }, 0) / messages.length,
+        userMessageCount: messages.filter(msg => msg.senderAddress === this.currentUser).length,
+        recipientMessageCount: messages.filter(msg => msg.senderAddress === recipientAddress).length,
+        hasMedia: messages.some(msg => {
+          try {
+            const parsed = JSON.parse(msg.message);
+            return parsed.mediaUrl;
+          } catch {
+            return false;
+          }
+        }),
+        conversationDuration: messages.length > 1 
+          ? messages[messages.length - 1].timestamp - messages[0].timestamp
+          : 0,
+        sentiment: "neutral", // Would be calculated by AI service
+        topics: [], // Would be extracted by AI service
+        compatibility: Math.random() * 100, // Mock compatibility score
+      };
+
+      // If user opted in for algorithm improvement, store on Arweave
+      if (storeOnArweave) {
+        try {
+          // Store anonymized analysis on Arweave (simplified - would need Arweave integration)
+          const anonymizedAnalysis = {
+            ...analysis,
+            userId: "anonymous", // Remove personal identifiers
+            timestamp: Date.now(),
+            conversationId: "hashed_" + conversationId.substring(0, 10),
+          };
+
+          // TODO: Implement Arweave storage for AI analysis
+          console.log("📊 Would store conversation analysis on Arweave:", anonymizedAnalysis);
+        } catch (arweaveError) {
+          console.warn("Failed to store analysis on Arweave:", arweaveError);
+          // Don't fail the whole analysis if Arweave storage fails
+        }
+      }
+
+      // Store analysis locally for user's reference
+      await FirebaseService.storeInteraction({
+        interactionType: "conversation_analysis",
+        targetUser: recipientAddress,
+        metadata: {
+          analysis,
+          storedOnArweave: storeOnArweave,
+        },
+      });
+
+      console.log("🧠 Conversation analyzed for AI insights");
+      return analysis;
+    } catch (error) {
+      throw new Error("Failed to analyze conversation: " + error);
+    }
+  }
+
   // Get conversation messages
   static async getConversationMessages(
     recipientAddress: string

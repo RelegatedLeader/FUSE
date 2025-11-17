@@ -115,7 +115,14 @@ export default function FuseScreen() {
       trailOpacity2.setValue(0.7);
       trailOpacity3.setValue(0.4);
     }
-  }, [isLoading, rocketRotation, rocketScale, trailOpacity1, trailOpacity2, trailOpacity3]);
+  }, [
+    isLoading,
+    rocketRotation,
+    rocketScale,
+    trailOpacity1,
+    trailOpacity2,
+    trailOpacity3,
+  ]);
 
   const loadUserPhotos = async (userAddress: string): Promise<string[]> => {
     try {
@@ -189,7 +196,10 @@ export default function FuseScreen() {
                   age--;
                 }
               } catch (error) {
-                console.warn("Error parsing birthdate:", match.profile.birthdate);
+                console.warn(
+                  "Error parsing birthdate:",
+                  match.profile.birthdate
+                );
               }
             }
 
@@ -648,15 +658,34 @@ export default function FuseScreen() {
           >
             <Text style={styles.rocketEmoji}>🚀</Text>
             <View style={styles.rocketTrail}>
-              <Animated.Text style={[styles.trailParticle, { opacity: trailOpacity1 }]}>✨</Animated.Text>
-              <Animated.Text style={[styles.trailParticle, { opacity: trailOpacity2 }]}>💫</Animated.Text>
-              <Animated.Text style={[styles.trailParticle, { opacity: trailOpacity3 }]}>⭐</Animated.Text>
+              <Animated.Text
+                style={[styles.trailParticle, { opacity: trailOpacity1 }]}
+              >
+                ✨
+              </Animated.Text>
+              <Animated.Text
+                style={[styles.trailParticle, { opacity: trailOpacity2 }]}
+              >
+                💫
+              </Animated.Text>
+              <Animated.Text
+                style={[styles.trailParticle, { opacity: trailOpacity3 }]}
+              >
+                ⭐
+              </Animated.Text>
             </View>
           </Animated.View>
-          <Text style={[styles.loadingText, { color: theme?.textColor || "#333" }]}>
+          <Text
+            style={[styles.loadingText, { color: theme?.textColor || "#333" }]}
+          >
             Finding your perfect matches...
           </Text>
-          <Text style={[styles.loadingSubtext, { color: theme?.textColor || "#666" }]}>
+          <Text
+            style={[
+              styles.loadingSubtext,
+              { color: theme?.textColor || "#666" },
+            ]}
+          >
             This may take a moment while we analyze compatibility
           </Text>
         </View>

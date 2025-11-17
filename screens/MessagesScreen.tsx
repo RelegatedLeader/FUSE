@@ -8,12 +8,14 @@ import {
   TextInput,
   Image,
   Alert,
+  Platform,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CryptoJS from "crypto-js";
 import { MessagingService } from "../utils/messagingService";
+import * as ImagePicker from "expo-image-picker";
 
 interface Message {
   id: string;
@@ -22,6 +24,10 @@ interface Message {
   message: string;
   timestamp: Date;
   isRead: boolean;
+  mediaUrl?: string;
+  mediaType?: "image" | "gif" | "file";
+  edited?: boolean;
+  deleted?: boolean;
 }
 
 interface MatchedUser {
@@ -43,6 +49,11 @@ export default function MessagesScreen() {
     string | null
   >(null);
   const [newMessage, setNewMessage] = useState("");
+  const [messageListener, setMessageListener] = useState<(() => void) | null>(null);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [recipientTyping, setRecipientTyping] = useState(false);
 
   useEffect(() => {
     const initializeMessaging = async () => {
@@ -61,8 +72,54 @@ export default function MessagesScreen() {
   }, [address]);
 
   useEffect(() => {
-    loadMessages();
-  }, [selectedConversation]);
+    return () => {
+      // Cleanup listener on unmount
+      if (messageListener) {
+        messageListener();
+      }
+    };
+  }, [messageListener]);
+
+  const setupRealTimeListener = () => {
+    if (!selectedConversation || !address) return;
+
+    // Clean up existing listener
+    if (messageListener) {
+      messageListener();
+    }
+
+    // Set up real-time listener
+    const unsubscribe = MessagingService.listenToConversation(
+      selectedConversation,
+      (newMessages) => {
+        setMessages(
+          newMessages.map((msg) => {
+            let parsedMessage;
+            try {
+              parsedMessage = JSON.parse(msg.message);
+            } catch {
+              parsedMessage = { content: msg.message, messageType: "text" };
+            }
+
+            return {
+              id: msg.id,
+              from: msg.senderAddress,
+              fromName: msg.senderAddress === address ? "You" : "Them",
+              message: parsedMessage.content || "",
+              timestamp: msg.timestamp,
+              isRead: true,
+              mediaUrl: parsedMessage.mediaUrl,
+              mediaType: parsedMessage.mediaType,
+              edited: parsedMessage.edited,
+              deleted: parsedMessage.deleted,
+            };
+          })
+        );
+      }
+    );
+
+    setMessageListener(() => unsubscribe);
+  };
 
   const loadMatchedUsers = async () => {
     if (!address) return;
@@ -116,26 +173,140 @@ export default function MessagesScreen() {
         newMessage.trim()
       );
 
-      // Add the message to local state immediately for UI feedback
-      const newMsg: Message = {
-        id: `temp_${Date.now()}`,
-        from: address,
-        fromName: "You",
-        message: newMessage.trim(),
-        timestamp: new Date(),
-        isRead: true,
-      };
-
-      setMessages((prev) => [...prev, newMsg]);
+      // Clear input - real-time listener will update the messages
       setNewMessage("");
-
-      // Reload messages to get the real one from Firebase
-      setTimeout(() => loadMessages(), 1000);
     } catch (error) {
       console.error("Error sending message:", error);
       Alert.alert("Error", "Failed to send message. Please try again.");
     }
   };
+
+  const handleSendMedia = async () => {
+    if (!selectedConversation || !address) return;
+
+    try {
+      // Request permissions
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Please grant access to your photos to send images.");
+        return;
+      }
+
+      // Pick image
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (!result.canceled && result.assets[0].base64) {
+        const base64Data = `data:image/jpeg;base64,${result.assets[0].base64}`;
+        
+        await MessagingService.sendMediaMessage(
+          selectedConversation,
+          base64Data,
+          "image",
+          newMessage.trim() || undefined
+        );
+
+        // Clear input if it was used as caption
+        setNewMessage("");
+      }
+    } catch (error) {
+      console.error("Error sending media:", error);
+      Alert.alert("Error", "Failed to send image. Please try again.");
+    }
+  };
+
+  const handleEditMessage = async () => {
+    if (!editingMessageId || !selectedConversation || !address) return;
+
+    try {
+      await MessagingService.editMessage(
+        selectedConversation,
+        editingMessageId,
+        editingText.trim()
+      );
+
+      setEditingMessageId(null);
+      setEditingText("");
+    } catch (error) {
+      console.error("Error editing message:", error);
+      Alert.alert("Error", "Failed to edit message. Please try again.");
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!selectedConversation || !address) return;
+
+    Alert.alert(
+      "Delete Message",
+      "Are you sure you want to delete this message?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await MessagingService.deleteMessage(selectedConversation, messageId);
+            } catch (error) {
+              console.error("Error deleting message:", error);
+              Alert.alert("Error", "Failed to delete message. Please try again.");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const startEditingMessage = (message: Message) => {
+    if (message.from !== address || message.deleted) return;
+    
+    setEditingMessageId(message.id);
+    setEditingText(message.message);
+  };
+
+  const handleTypingStart = () => {
+    if (!isTyping && selectedConversation) {
+      setIsTyping(true);
+      MessagingService.sendTypingIndicator(selectedConversation, true);
+      
+      // Auto-stop typing after 3 seconds of inactivity
+      setTimeout(() => {
+        handleTypingStop();
+      }, 3000);
+    }
+  };
+
+  const handleTypingStop = () => {
+    if (isTyping && selectedConversation) {
+      setIsTyping(false);
+      MessagingService.sendTypingIndicator(selectedConversation, false);
+    }
+  };
+
+  // Listen for typing indicators (simplified - would need real-time listener)
+  useEffect(() => {
+    if (selectedConversation) {
+      // In a real implementation, you'd set up a listener for typing indicators
+      // For now, this is a placeholder
+      const checkTypingStatus = async () => {
+        try {
+          const isTypingNow = await MessagingService.getUserOnlineStatus(selectedConversation);
+          setRecipientTyping(isTypingNow);
+        } catch (error) {
+          console.warn("Failed to check typing status:", error);
+        }
+      };
+
+      checkTypingStatus();
+      const interval = setInterval(checkTypingStatus, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [selectedConversation]);
 
   const markAsRead = (messageId: string) => {
     setMessages(
@@ -173,24 +344,63 @@ export default function MessagesScreen() {
 
         <ScrollView style={styles.messagesContainer}>
           {conversationMessages.map((message) => (
-            <View
+            <TouchableOpacity
               key={message.id}
+              onLongPress={() => startEditingMessage(message)}
               style={[
                 styles.messageBubble,
                 { backgroundColor: theme.buttonBackground },
+                message.deleted && styles.deletedMessage,
               ]}
             >
-              <Text style={{ color: theme.buttonText }}>{message.message}</Text>
-              <Text
-                style={[
-                  styles.timestamp,
-                  { color: theme.buttonText, opacity: 0.7 },
-                ]}
-              >
-                {message.timestamp.toLocaleTimeString()}
+              {message.mediaUrl && message.mediaType === "image" && !message.deleted && (
+                <Image
+                  source={{ uri: message.mediaUrl }}
+                  style={styles.messageImage}
+                  resizeMode="cover"
+                />
+              )}
+              {message.message && !message.deleted && (
+                <Text style={{ color: theme.buttonText }}>{message.message}</Text>
+              )}
+              {message.deleted && (
+                <Text style={{ color: theme.buttonText, fontStyle: "italic" }}>
+                  {message.message}
+                </Text>
+              )}
+              <View style={styles.messageFooter}>
+                {message.edited && !message.deleted && (
+                  <Text style={[styles.editedLabel, { color: theme.buttonText, opacity: 0.7 }]}>
+                    edited
+                  </Text>
+                )}
+                <Text
+                  style={[
+                    styles.timestamp,
+                    { color: theme.buttonText, opacity: 0.7 },
+                  ]}
+                >
+                  {message.timestamp.toLocaleTimeString()}
+                </Text>
+              </View>
+              {message.from === address && !message.deleted && (
+                <TouchableOpacity
+                  onPress={() => handleDeleteMessage(message.id)}
+                  style={styles.deleteButton}
+                >
+                  <Text style={{ color: theme.buttonText, fontSize: 12 }}>🗑️</Text>
+                </TouchableOpacity>
+              )}
+            </TouchableOpacity>
+          ))}
+          
+          {recipientTyping && (
+            <View style={[styles.typingIndicator, { backgroundColor: theme.card.backgroundColor }]}>
+              <Text style={{ color: theme.textColor, fontSize: 14 }}>
+                💬 Typing...
               </Text>
             </View>
-          ))}
+          )}
         </ScrollView>
 
         <View
@@ -199,29 +409,85 @@ export default function MessagesScreen() {
             { backgroundColor: theme.card.backgroundColor },
           ]}
         >
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.input.backgroundColor,
-                color: theme.textColor,
-              },
-            ]}
-            placeholder="Type a message..."
-            placeholderTextColor={theme.textColor}
-            value={newMessage}
-            onChangeText={setNewMessage}
-            multiline
-          />
-          <TouchableOpacity
-            onPress={handleSendMessage}
-            style={[
-              styles.sendButton,
-              { backgroundColor: theme.buttonBackground },
-            ]}
-          >
-            <Text style={{ color: theme.buttonText }}>📤</Text>
-          </TouchableOpacity>
+          {editingMessageId ? (
+            <>
+              <TouchableOpacity
+                onPress={() => {
+                  setEditingMessageId(null);
+                  setEditingText("");
+                }}
+                style={[
+                  styles.cancelButton,
+                  { backgroundColor: "#dc3545" },
+                ]}
+              >
+                <Text style={{ color: "#fff" }}>✕</Text>
+              </TouchableOpacity>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.input.backgroundColor,
+                    color: theme.textColor,
+                  },
+                ]}
+                placeholder="Edit message..."
+                placeholderTextColor={theme.textColor}
+                value={editingText}
+                onChangeText={setEditingText}
+                multiline
+                autoFocus
+              />
+              <TouchableOpacity
+                onPress={handleEditMessage}
+                style={[
+                  styles.sendButton,
+                  { backgroundColor: theme.buttonBackground },
+                ]}
+              >
+                <Text style={{ color: theme.buttonText }}>✓</Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity
+                onPress={handleSendMedia}
+                style={[
+                  styles.mediaButton,
+                  { backgroundColor: theme.buttonBackground },
+                ]}
+              >
+                <Text style={{ color: theme.buttonText }}>📎</Text>
+              </TouchableOpacity>
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: theme.input.backgroundColor,
+                    color: theme.textColor,
+                  },
+                ]}
+                placeholder="Type a message..."
+                placeholderTextColor={theme.textColor}
+                value={newMessage}
+                onChangeText={(text) => {
+                  setNewMessage(text);
+                  handleTypingStart();
+                }}
+                onBlur={handleTypingStop}
+                multiline
+              />
+              <TouchableOpacity
+                onPress={handleSendMessage}
+                style={[
+                  styles.sendButton,
+                  { backgroundColor: theme.buttonBackground },
+                ]}
+              >
+                <Text style={{ color: theme.buttonText }}>📤</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </View>
     );
@@ -397,6 +663,43 @@ const styles = StyleSheet.create({
     maxWidth: "80%",
     alignSelf: "flex-start",
   },
+  deletedMessage: {
+    opacity: 0.6,
+  },
+  messageImage: {
+    width: 200,
+    height: 200,
+    borderRadius: 10,
+    marginBottom: 5,
+  },
+  messageFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 5,
+  },
+  editedLabel: {
+    fontSize: 10,
+    fontStyle: "italic",
+  },
+  deleteButton: {
+    position: "absolute",
+    top: 5,
+    right: 5,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  typingIndicator: {
+    padding: 10,
+    borderRadius: 15,
+    marginBottom: 10,
+    alignSelf: "flex-start",
+    opacity: 0.7,
+  },
   timestamp: {
     fontSize: 10,
     marginTop: 5,
@@ -408,6 +711,22 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 10,
     marginTop: 10,
+  },
+  mediaButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  cancelButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
   },
   input: {
     flex: 1,
