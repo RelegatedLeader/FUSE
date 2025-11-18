@@ -317,12 +317,21 @@ export class MatchingEngine {
         throw new Error("User profile not found");
       }
 
+      // Load matched users to exclude them
+      const matchedUsers = await FirebaseService.loadMatches(userAddress);
+      const matchedAddresses = new Set(matchedUsers.map(m => m.address));
+
       const potentialMatches = await FirebaseService.findMatches(
         userAddress,
         criteria || {}
       );
 
-      const matchesWithScores = potentialMatches.map((match) => ({
+      // Filter out matched users
+      const filteredMatches = potentialMatches.filter(
+        match => !matchedAddresses.has(match.address)
+      );
+
+      const matchesWithScores = filteredMatches.map((match) => ({
         ...match,
         detailedScore: this.calculateDetailedCompatibility(
           userProfile,
