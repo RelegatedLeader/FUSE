@@ -242,8 +242,7 @@ export class FirebaseService {
       const messagesRef = collection(db, "messages");
       const q = query(
         messagesRef,
-        where("conversationId", "==", conversationId),
-        orderBy("timestamp", "asc")
+        where("conversationId", "==", conversationId)
       );
 
       const querySnapshot = await getDocs(q);
@@ -270,6 +269,8 @@ export class FirebaseService {
         }
       }
 
+      // Sort messages by timestamp
+      messages.sort((a, b) => a.timestamp - b.timestamp);
       return messages;
     } catch (error) {
       throw new Error("Failed to get conversation messages: " + error);
@@ -286,12 +287,7 @@ export class FirebaseService {
     }
 
     const messagesRef = collection(db, "messages");
-    const q = query(
-      messagesRef,
-      where("conversationId", "==", conversationId),
-      orderBy("timestamp", "desc"),
-      limit(50)
-    );
+    const q = query(messagesRef, where("conversationId", "==", conversationId));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const messages: any[] = [];
@@ -300,9 +296,9 @@ export class FirebaseService {
         try {
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
-            this.userKeys!.messagingKey
+            this.userKeys.messagingKey
           );
-          messages.unshift({
+          messages.push({
             id: doc.id,
             message: decryptedMessage,
             senderAddress: data.senderAddress,
@@ -310,10 +306,13 @@ export class FirebaseService {
             timestamp: data.timestamp.toDate(),
             status: data.status,
           });
-        } catch (error) {
-          console.warn("Failed to decrypt real-time message:", doc.id);
+        } catch (decryptError) {
+          console.warn("Failed to decrypt message:", doc.id, decryptError);
         }
       });
+
+      // Sort messages by timestamp on client side
+      messages.sort((a, b) => a.timestamp - b.timestamp);
       callback(messages);
     });
 
@@ -516,8 +515,7 @@ export class FirebaseService {
         });
       });
 
-      await batch.commit();
-      console.log("📦 Batch stored user data and interactions");
+      await console.log("📦 Batch stored user data and interactions");
     } catch (error) {
       throw new Error("Failed to batch store user data: " + error);
     }
@@ -1049,7 +1047,16 @@ export class FirebaseService {
 
       // Check for mutual request before adding new request
       const requesterAddress = requestData.requesterAddress;
-      const mutualRequest = requests.find(
+      
+      // Check if the target user has already sent a request to the requester
+      const targetRequestsRef = doc(db, "fuse_requests", requesterAddress);
+      const targetRequestSnap = await getDoc(targetRequestsRef);
+      let targetRequests = [];
+      if (targetRequestSnap.exists()) {
+        targetRequests = targetRequestSnap.data().requests || [];
+      }
+      
+      const mutualRequest = targetRequests.find(
         (req: any) =>
           req.requesterAddress === targetAddress &&
           req.targetAddress === requesterAddress
@@ -1060,6 +1067,7 @@ export class FirebaseService {
         console.log("🔥 Mutual fuse request detected! Creating match...");
 
         // Remove the mutual requests
+        await this.removeFuseRequest(requesterAddress, targetAddress);
         await this.removeFuseRequest(targetAddress, requesterAddress);
         // Don't add the new request since it's mutual
 
@@ -1174,6 +1182,143 @@ export class FirebaseService {
       console.log("🗑️ Fuse request removed for:", targetAddress);
     } catch (error) {
       console.error("Failed to remove fuse request:", error);
+      throw error;
+    }
+  }
+
+  // Store a match in Firebase for a user
+  static async storeMatch(userAddress: string, matchData: any): Promise<void> {
+    try {
+      const matchesRef = doc(db, "user_matches", userAddress);
+      const matchSnap = await getDoc(matchesRef);
+
+      let matches = [];
+      if (matchSnap.exists()) {
+        matches = matchSnap.data().matches || [];
+      }
+
+      // Check if match already exists
+      const existingMatch = matches.find(
+        (match: any) => match.address === matchData.address
+      );
+
+      if (!existingMatch) {
+        matches.push({
+          ...matchData,
+          matchedDate: Timestamp.now(),
+        });
+
+        await setDoc(matchesRef, {
+          matches,
+          lastUpdated: Timestamp.now(),
+        });
+
+        console.log(
+          "💕 Match stored for:",
+          userAddress,
+          "with:",
+          matchData.address
+        );
+      }
+    } catch (error) {
+      console.error("Failed to store match:", error);
+      throw error;
+    }
+  }
+
+  // Load matches from Firebase for a user
+  static async loadMatches(userAddress: string): Promise<any[]> {
+    try {
+      const matchesRef = doc(db, "user_matches", userAddress);
+      const matchSnap = await getDoc(matchesRef);
+
+      if (matchSnap.exists()) {
+        const data = matchSnap.data();
+        return data.matches || [];
+      }
+
+      return [];
+    } catch (error) {
+      console.error("Failed to load matches:", error);
+      return [];
+    }
+  }
+
+  // Listen to matches for real-time updates
+  static listenToMatches(
+    userAddress: string,
+    callback: (matches: any[]) => void
+  ): () => void {
+    const matchesRef = doc(db, "user_matches", userAddress);
+
+    return onSnapshot(matchesRef, (doc) => {
+      if (doc.exists()) {
+        const data = doc.data();
+        callback(data.matches || []);
+      } else {
+        callback([]);
+      }
+    });
+  }
+
+  // Remove a match from Firebase
+  static async removeMatch(
+    userAddress: string,
+    matchAddress: string
+  ): Promise<void> {
+    try {
+      const matchesRef = doc(db, "user_matches", userAddress);
+      const matchSnap = await getDoc(matchesRef);
+
+      if (matchSnap.exists()) {
+        let matches = matchSnap.data().matches || [];
+        matches = matches.filter(
+          (match: any) => match.address !== matchAddress
+        );
+
+        await setDoc(matchesRef, {
+          matches,
+          lastUpdated: Timestamp.now(),
+        });
+
+        console.log(
+          "💔 Match removed for:",
+          userAddress,
+          "with:",
+          matchAddress
+        );
+      }
+    } catch (error) {
+      console.error("Failed to remove match:", error);
+      throw error;
+    }
+  }
+
+  // Clear all fuse data (for testing/reset)
+  static async clearAllFuseData(): Promise<void> {
+    try {
+      console.log("🧹 Clearing all fuse data...");
+
+      // Get all users from users collection
+      const usersRef = collection(db, "users");
+      const usersSnap = await getDocs(usersRef);
+      const userAddresses = usersSnap.docs.map(doc => doc.id);
+
+      // Clear fuse_requests for each user
+      for (const userAddr of userAddresses) {
+        const requestsRef = doc(db, "fuse_requests", userAddr);
+        await setDoc(requestsRef, { requests: [], lastUpdated: Timestamp.now() });
+      }
+
+      // Clear user_matches for each user
+      for (const userAddr of userAddresses) {
+        const matchesRef = doc(db, "user_matches", userAddr);
+        await setDoc(matchesRef, { matches: [], lastUpdated: Timestamp.now() });
+      }
+
+      console.log("✅ All fuse data cleared");
+    } catch (error) {
+      console.error("Failed to clear fuse data:", error);
       throw error;
     }
   }

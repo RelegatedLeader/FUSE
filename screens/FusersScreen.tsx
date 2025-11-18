@@ -11,6 +11,7 @@ import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CryptoJS from "crypto-js";
+import { FirebaseService } from "../utils/firebaseService";
 
 interface ConnectionRequest {
   address: string; // The requester's address
@@ -41,49 +42,39 @@ export default function FusersScreen() {
   const [matchedUsers, setMatchedUsers] = useState<MatchedUser[]>([]);
 
   useEffect(() => {
-    // Load matched users from storage
-    loadMatchedUsers();
+    // Load matched users from Firebase and listen for updates
+    if (address) {
+      loadMatchedUsers();
+      const unsubscribe = FirebaseService.listenToMatches(
+        address,
+        (matches) => {
+          const matchesWithDates = matches.map((match: any) => ({
+            ...match,
+            matchedDate: match.matchedDate
+              ? match.matchedDate.toDate()
+              : new Date(),
+          }));
+          const deduplicatedMatches = deduplicateByAddress(matchesWithDates);
+          setMatchedUsers(deduplicatedMatches);
+        }
+      );
+      return unsubscribe; // Cleanup listener on unmount
+    }
   }, [address]);
 
   const loadMatchedUsers = async () => {
     if (!address) return;
 
     try {
-      // Load matched users
-      const matchesData = await AsyncStorage.getItem(
-        `matched_users_${address}`
-      );
-      if (matchesData) {
-        const decrypted = CryptoJS.AES.decrypt(matchesData, address).toString(
-          CryptoJS.enc.Utf8
-        );
-        const parsedMatches = JSON.parse(decrypted);
-        // Convert matchedDate strings back to Date objects and deduplicate by address
-        const matchesWithDates = parsedMatches.map((match: any) => ({
-          ...match,
-          matchedDate: new Date(match.matchedDate),
-        }));
-
-        const deduplicatedMatches = deduplicateByAddress(matchesWithDates);
-        setMatchedUsers(deduplicatedMatches);
-
-        // If we removed duplicates, save the cleaned data back
-        if (deduplicatedMatches.length !== matchesWithDates.length) {
-          const cleanedEncrypted = CryptoJS.AES.encrypt(
-            JSON.stringify(deduplicatedMatches),
-            address
-          ).toString();
-          await AsyncStorage.setItem(
-            `matched_users_${address}`,
-            cleanedEncrypted
-          );
-          console.log(
-            `Cleaned up ${
-              matchesWithDates.length - deduplicatedMatches.length
-            } duplicate matches`
-          );
-        }
-      }
+      const matches = await FirebaseService.loadMatches(address);
+      const matchesWithDates = matches.map((match: any) => ({
+        ...match,
+        matchedDate: match.matchedDate
+          ? match.matchedDate.toDate()
+          : new Date(),
+      }));
+      const deduplicatedMatches = deduplicateByAddress(matchesWithDates);
+      setMatchedUsers(deduplicatedMatches);
     } catch (error) {
       console.error("Error loading matched users:", error);
     }
@@ -95,6 +86,32 @@ export default function FusersScreen() {
     Alert.alert(
       `${userName}'s Profile`,
       `Address: ${userAddress}\n\nProfile viewing will be implemented in the next update.`
+    );
+  };
+
+  const unfuseUser = async (userAddress: string, userName: string) => {
+    Alert.alert(
+      "Unfuse",
+      `Are you sure you want to unfuse with ${userName}? This will remove them from your matches.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Unfuse",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              // Remove from Firebase
+              await FirebaseService.removeMatch(address, userAddress);
+
+              // Local state will update via the listener
+              Alert.alert("Unfused", `You have unfused with ${userName}.`);
+            } catch (error) {
+              console.error("Error unfusing:", error);
+              Alert.alert("Error", "Failed to unfuse. Please try again.");
+            }
+          },
+        },
+      ]
     );
   };
 
@@ -126,16 +143,24 @@ export default function FusersScreen() {
                   Matched {user.matchedDate.toLocaleDateString()}
                 </Text>
               </View>
-              <TouchableOpacity
-                style={styles.messageButton}
-                onPress={() => {
-                  // Navigate to MessagesScreen with this user selected
-                  // This will be handled by navigation
-                  Alert.alert("Message", `Start chatting with ${user.name}!`);
-                }}
-              >
-                <Text style={styles.buttonText}>💬 Message</Text>
-              </TouchableOpacity>
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                  style={styles.messageButton}
+                  onPress={() => {
+                    // Navigate to MessagesScreen with this user selected
+                    // This will be handled by navigation
+                    Alert.alert("Message", `Start chatting with ${user.name}!`);
+                  }}
+                >
+                  <Text style={styles.buttonText}>💬 Message</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.unfuseButton}
+                  onPress={() => unfuseUser(user.address, user.name)}
+                >
+                  <Text style={styles.unfuseButtonText}>Unfuse</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           ))
         )}
@@ -194,6 +219,23 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 15,
     alignItems: "center",
+    marginRight: 10,
+  },
+  buttonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  unfuseButton: {
+    backgroundColor: "#dc3545",
+    borderRadius: 25,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    alignItems: "center",
+  },
+  unfuseButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
   buttonText: {
     color: "#fff",

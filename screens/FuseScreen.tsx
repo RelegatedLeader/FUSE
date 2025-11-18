@@ -51,6 +51,9 @@ export default function FuseScreen() {
     new Set()
   );
 
+  // Track users who have had requests sent (for button state)
+  const [requestedUsers, setRequestedUsers] = useState<Set<string>>(new Set());
+
   // Track incoming fuse requests for rocket indicator
   const [incomingRequests, setIncomingRequests] = useState<Set<string>>(
     new Set()
@@ -181,9 +184,9 @@ export default function FuseScreen() {
 
         // Load current user's sent requests and matched users to filter them out
         try {
-          // Load sent requests
+          // Load sent requests (still local)
           const sentRequestsData = await AsyncStorage.getItem(
-            `fuse_requests_${address}`
+            `sent_requests_${address}`
           );
           if (sentRequestsData) {
             const decrypted = CryptoJS.AES.decrypt(
@@ -191,29 +194,15 @@ export default function FuseScreen() {
               address
             ).toString(CryptoJS.enc.Utf8);
             const requests = JSON.parse(decrypted);
-            const targetAddresses = requests.map(
-              (req: any) => req.targetAddress || req.address
-            );
-            setSentRequests(new Set(targetAddresses));
+            setSentRequests(new Set(requests));
           } else {
             setSentRequests(new Set());
           }
 
-          // Load matched users
-          const matchedUsersData = await AsyncStorage.getItem(
-            `matched_users_${address}`
-          );
-          if (matchedUsersData) {
-            const decrypted = CryptoJS.AES.decrypt(
-              matchedUsersData,
-              address
-            ).toString(CryptoJS.enc.Utf8);
-            const matches = JSON.parse(decrypted);
-            const addresses = matches.map((match: any) => match.address);
-            setMatchedAddresses(new Set(addresses));
-          } else {
-            setMatchedAddresses(new Set());
-          }
+          // Load matched users from Firebase
+          const matches = await FirebaseService.loadMatches(address);
+          const addresses = matches.map((match: any) => match.address);
+          setMatchedAddresses(new Set(addresses));
         } catch (error) {
           console.warn("Error loading sent requests and matches:", error);
           setSentRequests(new Set());
@@ -338,6 +327,12 @@ export default function FuseScreen() {
     const user = users.find((u) => u.address === userAddress);
     if (!user) return;
 
+    // Prevent self-fusing
+    if (address === userAddress) {
+      Alert.alert("Cannot Fuse", "You cannot fuse with yourself.");
+      return;
+    }
+
     // Animate fusing
     Animated.sequence([
       Animated.timing(fuseAnim, {
@@ -360,13 +355,17 @@ export default function FuseScreen() {
         const { FirebaseService } = await import("../utils/firebaseService");
         await FirebaseService.initializeUser(address);
 
+        // Get current user profile data
+        const currentUserProfile = await FirebaseService.getUserProfile(address);
+        const currentUserPhotos = await FirebaseService.getUserPhotoUrls(address);
+
         const requestData = {
           address: address,
-          name: user.name,
-          age: user.age,
-          city: user.city,
-          bio: user.bio,
-          photos: user.photos,
+          name: `${currentUserProfile?.firstName || 'Unknown'} ${currentUserProfile?.lastName || ''}`.trim(),
+          age: currentUserProfile?.birthdate ? new Date().getFullYear() - new Date(currentUserProfile.birthdate).getFullYear() : 25,
+          city: currentUserProfile?.location || 'Unknown',
+          bio: currentUserProfile?.bio || '',
+          photos: currentUserPhotos,
           requesterAddress: address,
           targetAddress: userAddress,
         };
@@ -380,64 +379,37 @@ export default function FuseScreen() {
         console.log("Request data:", requestData);
 
         if (isMutual) {
-          // Mutual match! Create the match locally
-          const matchData = {
+          // Mutual match! Store the match in Firebase for both users
+          const matchDataForCurrent = {
             address: userAddress,
             name: user.name,
             age: user.age,
             city: user.city,
             bio: user.bio,
             photos: user.photos,
-            matchedDate: new Date(),
           };
 
-          // Load existing matches
+          const matchDataForOther = {
+            address: address,
+            name: requestData.name,
+            age: requestData.age,
+            city: requestData.city,
+            bio: requestData.bio,
+            photos: requestData.photos,
+          };
+
           try {
-            const existingMatchesData = await AsyncStorage.getItem(
-              `matched_users_${address}`
-            );
-            let existingMatches = [];
-            if (existingMatchesData) {
-              const decrypted = CryptoJS.AES.decrypt(
-                existingMatchesData,
-                address
-              ).toString(CryptoJS.enc.Utf8);
-              existingMatches = JSON.parse(decrypted);
-            }
-
-            // Check if this match already exists to prevent duplicates
-            const matchExists = existingMatches.some(
-              (match: any) => match.address === userAddress
-            );
-            if (!matchExists) {
-              // Add new match
-              existingMatches.push(matchData);
-
-              // Save back to storage
-              const encrypted = CryptoJS.AES.encrypt(
-                JSON.stringify(existingMatches),
-                address
-              ).toString();
-              await AsyncStorage.setItem(`matched_users_${address}`, encrypted);
-            }
+            // Store for current user
+            await FirebaseService.storeMatch(address, matchDataForCurrent);
+            // Store for the other user
+            await FirebaseService.storeMatch(userAddress, matchDataForOther);
 
             // Update local state
             setMatchedAddresses((prev) => new Set([...prev, userAddress]));
 
-            // Also add reverse match for the other user (this would normally be done server-side)
-            const reverseMatchData = {
-              address: address,
-              name: "You", // Current user doesn't have their own name stored, but this is for the other user
-              age: 25, // Default
-              city: "Unknown",
-              bio: "Mutual match!",
-              photos: [],
-              matchedDate: new Date(),
-            };
-
-            // Note: In a real app, this would be handled by the server or the other user's client
-          } catch (storageError) {
-            console.warn("Error saving mutual match:", storageError);
+            console.log("💕 Mutual match stored for both users");
+          } catch (error) {
+            console.warn("Error storing mutual match:", error);
           }
 
           Alert.alert(
@@ -447,14 +419,24 @@ export default function FuseScreen() {
         } else {
           // Regular one-way request
           // Update local state to filter this user out immediately
-          setSentRequests(
-            (prev) => new Set(Array.from(prev).concat(userAddress))
-          );
-
-          Alert.alert(
-            "Fuse Request Sent! 🔥",
-            "Your fuse request has been sent. Check back later to see if they accept!"
-          );
+          setRequestedUsers((prev) => new Set([...prev, userAddress]));
+          const newSentRequests = new Set([...sentRequests, userAddress]);
+          setSentRequests(newSentRequests);
+          try {
+            const encrypted = CryptoJS.AES.encrypt(
+              JSON.stringify(Array.from(newSentRequests)),
+              address
+            ).toString();
+            await AsyncStorage.setItem(`sent_requests_${address}`, encrypted);
+          } catch (error) {
+            console.warn("Error saving sent requests:", error);
+          }
+          // Remove user after delay to show "Request sent"
+          setTimeout(() => {
+            setUsers((prev) =>
+              prev.filter((user) => user.address !== userAddress)
+            );
+          }, 2000);
         }
       } catch (error) {
         console.error("Error sending connection request:", error);
@@ -498,6 +480,7 @@ export default function FuseScreen() {
     theme: any;
     fuseAnim: Animated.Value;
     hasIncomingRequest: boolean;
+    requestedUsers: Set<string>;
   }
 
   const UserCard: React.FC<UserCardProps> = ({
@@ -507,6 +490,7 @@ export default function FuseScreen() {
     theme,
     fuseAnim,
     hasIncomingRequest,
+    requestedUsers,
   }) => {
     const pan = useRef(new Animated.ValueXY()).current;
     const scrollViewRef = useRef<ScrollView>(null);
@@ -684,14 +668,21 @@ export default function FuseScreen() {
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
           <AnimatedTouchableOpacity
-            onPress={() => onFuse(user.address)}
+            onPress={
+              requestedUsers.has(user.address)
+                ? undefined
+                : () => onFuse(user.address)
+            }
+            disabled={requestedUsers.has(user.address)}
             style={[
               styles.fuseButton,
               {
-                backgroundColor: fuseAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: ["#ff4757", "#ff3838"],
-                }),
+                backgroundColor: requestedUsers.has(user.address)
+                  ? "#ccc"
+                  : fuseAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ["#ff4757", "#ff3838"],
+                    }),
                 shadowOpacity: fuseAnim.interpolate({
                   inputRange: [0, 1],
                   outputRange: [0.3, 0.8],
@@ -733,14 +724,16 @@ export default function FuseScreen() {
                       }),
                     },
                   ],
-                  color: fuseAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ["#ffffff", "#ff6b6b"],
-                  }),
+                  color: requestedUsers.has(user.address)
+                    ? "#666"
+                    : fuseAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ["#ffffff", "#ff6b6b"],
+                      }),
                 },
               ]}
             >
-              FUSE
+              {requestedUsers.has(user.address) ? "Request sent" : "FUSE"}
             </Animated.Text>
           </AnimatedTouchableOpacity>
         </View>
@@ -847,6 +840,7 @@ export default function FuseScreen() {
                 theme={theme}
                 fuseAnim={fuseAnim}
                 hasIncomingRequest={incomingRequests.has(item.address)}
+                requestedUsers={requestedUsers}
               />
             );
           }}
