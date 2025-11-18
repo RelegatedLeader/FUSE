@@ -1,5 +1,5 @@
 import "react-native-get-random-values";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import {
   createStackNavigator,
@@ -40,6 +40,7 @@ import TeamsScreen from "./screens/TeamsScreen";
 import GuildsScreen from "./screens/GuildsScreen";
 import VirtualRealmsScreen from "./screens/VirtualRealmsScreen";
 import NeuralNetworksScreen from "./screens/NeuralNetworksScreen";
+import NavigationService from "./utils/navigationService";
 
 const Stack = createStackNavigator();
 
@@ -66,6 +67,18 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
   const [isLocked, setIsLocked] = useState(true);
 
   const pagerRef = useRef<any>(null);
+
+  useEffect(() => {
+    // Register navigation callback for Chats tab
+    NavigationService.getInstance().registerCallback("FuseChats", () => {
+      pagerRef.current?.setPage(1); // Switch to Fuse page
+      setFuseTab("FuseChats");
+    });
+
+    return () => {
+      // Cleanup if needed
+    };
+  }, []);
 
   const goToFuse = () => {
     pagerRef.current?.setPage(1);

@@ -12,6 +12,7 @@ import {
   limit,
   Timestamp,
   writeBatch,
+  QuerySnapshot,
 } from "firebase/firestore";
 import {
   ref,
@@ -329,15 +330,42 @@ export class FirebaseService {
     }
 
     const messagesRef = collection(db, "messages");
-    const q = query(
+    let allMessages: any[] = [];
+    let callbackScheduled = false;
+
+    const scheduleCallback = () => {
+      if (!callbackScheduled) {
+        callbackScheduled = true;
+        setTimeout(() => {
+          // Remove duplicates and sort
+          const uniqueMessages = allMessages.filter((msg, index, self) =>
+            index === self.findIndex(m => m.id === msg.id)
+          );
+          uniqueMessages.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+          callback(uniqueMessages);
+          callbackScheduled = false;
+        }, 100); // Small delay to batch updates
+      }
+    };
+
+    // Query for received messages
+    const q1 = query(
       messagesRef,
       where("recipientAddress", "==", userAddress),
       orderBy("timestamp", "desc"),
-      limit(100)
+      limit(50)
     );
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const messages: any[] = [];
+    // Query for sent messages
+    const q2 = query(
+      messagesRef,
+      where("senderAddress", "==", userAddress),
+      orderBy("timestamp", "desc"),
+      limit(50)
+    );
+
+    const processSnapshot = (querySnapshot: QuerySnapshot, isReceived: boolean) => {
+      const snapshotMessages: any[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         try {
@@ -345,7 +373,7 @@ export class FirebaseService {
             data.encryptedMessage,
             this.userKeys!.messagingKey
           );
-          messages.unshift({
+          snapshotMessages.push({
             id: doc.id,
             message: decryptedMessage,
             senderAddress: data.senderAddress,
@@ -357,10 +385,26 @@ export class FirebaseService {
           console.warn("Failed to decrypt message:", doc.id);
         }
       });
-      callback(messages);
-    });
 
-    return unsubscribe;
+      // Update allMessages
+      if (isReceived) {
+        // For received messages, replace the received portion
+        allMessages = allMessages.filter(msg => msg.recipientAddress !== userAddress).concat(snapshotMessages);
+      } else {
+        // For sent messages, replace the sent portion
+        allMessages = allMessages.filter(msg => msg.senderAddress !== userAddress).concat(snapshotMessages);
+      }
+
+      scheduleCallback();
+    };
+
+    const unsubscribe1 = onSnapshot(q1, (snapshot) => processSnapshot(snapshot, true));
+    const unsubscribe2 = onSnapshot(q2, (snapshot) => processSnapshot(snapshot, false));
+
+    return () => {
+      unsubscribe1();
+      unsubscribe2();
+    };
   }
 
   // Store encrypted match data
@@ -1290,6 +1334,27 @@ export class FirebaseService {
       }
     } catch (error) {
       console.error("Failed to remove match:", error);
+      throw error;
+    }
+  }
+
+  // Clear all messages (for testing/reset)
+  static async clearAllMessages(): Promise<void> {
+    try {
+      console.log("🧹 Clearing all messages...");
+
+      const messagesRef = collection(db, "messages");
+      const snapshot = await getDocs(messagesRef);
+
+      const batch = writeBatch(db);
+      snapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+      console.log(`✅ Cleared ${snapshot.docs.length} messages`);
+    } catch (error) {
+      console.error("Failed to clear messages:", error);
       throw error;
     }
   }

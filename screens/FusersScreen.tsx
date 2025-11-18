@@ -12,6 +12,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CryptoJS from "crypto-js";
 import { FirebaseService } from "../utils/firebaseService";
+import NavigationService from "../utils/navigationService";
 
 interface ConnectionRequest {
   address: string; // The requester's address
@@ -146,10 +147,11 @@ export default function FusersScreen() {
               <View style={styles.buttonContainer}>
                 <TouchableOpacity
                   style={styles.messageButton}
-                  onPress={() => {
-                    // Navigate to MessagesScreen with this user selected
-                    // This will be handled by navigation
-                    Alert.alert("Message", `Start chatting with ${user.name}!`);
+                  onPress={async () => {
+                    // Set the selected user for messaging
+                    await AsyncStorage.setItem('selected_chat_user', user.address);
+                    // Navigate directly to Chats tab
+                    NavigationService.getInstance().navigateToTab("FuseChats");
                   }}
                 >
                   <Text style={styles.buttonText}>💬 Message</Text>

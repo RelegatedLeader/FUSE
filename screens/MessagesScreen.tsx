@@ -41,10 +41,19 @@ interface MatchedUser {
   matchedDate: Date;
 }
 
+interface Conversation {
+  id: string;
+  otherUser: string;
+  lastMessage: string;
+  timestamp: Date;
+  unread: boolean;
+}
+
 export default function MessagesScreen() {
   const { address } = useWallet();
   const { theme } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [matchedUsers, setMatchedUsers] = useState<MatchedUser[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<
     string | null
@@ -65,9 +74,53 @@ export default function MessagesScreen() {
           await MessagingService.initialize(address);
           console.log("Messaging initialized for:", address);
 
+          // Check if there's a selected chat user
+          const selectedUser = await AsyncStorage.getItem('selected_chat_user');
+          if (selectedUser) {
+            setSelectedConversation(selectedUser);
+            await AsyncStorage.removeItem('selected_chat_user');
+          }
+
           // Set up listener for all user messages (for Chats tab)
           const allMessagesListener = MessagingService.listenToAllUserMessages(
             (newMessages) => {
+              // Process messages into conversations
+              const conversationsMap = new Map<string, Conversation>();
+              newMessages.forEach((msg: any) => {
+                const otherUser = msg.senderAddress === address ? msg.recipientAddress : msg.senderAddress;
+                const convId = [address, otherUser].sort().join('_');
+                let lastMessage = "";
+                try {
+                  const parsed = JSON.parse(msg.message);
+                  lastMessage = parsed.content || "";
+                } catch {
+                  lastMessage = msg.message;
+                }
+                const timestamp = msg.timestamp.toDate ? msg.timestamp.toDate() : new Date(msg.timestamp);
+                const unread = msg.status !== 'read' && msg.recipientAddress === address;
+
+                if (!conversationsMap.has(convId)) {
+                  conversationsMap.set(convId, {
+                    id: convId,
+                    otherUser,
+                    lastMessage,
+                    timestamp,
+                    unread,
+                  });
+                } else {
+                  const conv = conversationsMap.get(convId)!;
+                  if (timestamp > conv.timestamp) {
+                    conv.lastMessage = lastMessage;
+                    conv.timestamp = timestamp;
+                    conv.unread = unread;
+                  }
+                }
+              });
+              const sortedConversations = Array.from(conversationsMap.values()).sort(
+                (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
+              );
+              setConversations(sortedConversations);
+
               // Only update messages state if not in a conversation
               if (!selectedConversation) {
                 setMessages(
@@ -75,11 +128,8 @@ export default function MessagesScreen() {
                     id: msg.id,
                     from: msg.senderAddress,
                     fromName: msg.senderAddress, // TODO: Get real names
-                    message:
-                      typeof msg.message === "string"
-                        ? msg.message
-                        : JSON.parse(msg.message).content,
-                    timestamp: msg.timestamp,
+                    message: typeof msg.message === "string" ? msg.message : JSON.parse(msg.message).content || "",
+                    timestamp: msg.timestamp.toDate ? msg.timestamp.toDate() : new Date(msg.timestamp),
                     isRead: msg.status === "read",
                   }))
                 );
@@ -151,40 +201,17 @@ export default function MessagesScreen() {
     if (!address) return;
 
     try {
-      const matchesData = await AsyncStorage.getItem(
-        `matched_users_${address}`
-      );
-      if (matchesData) {
-        const decrypted = CryptoJS.AES.decrypt(matchesData, address).toString(
-          CryptoJS.enc.Utf8
-        );
-        const parsedMatches = JSON.parse(decrypted);
-        // Convert matchedDate strings back to Date objects and deduplicate by address
-        const matchesWithDates = parsedMatches.map((match: any) => ({
-          ...match,
-          matchedDate: new Date(match.matchedDate),
-        }));
-
-        const deduplicatedMatches = deduplicateByAddress(matchesWithDates);
-        setMatchedUsers(deduplicatedMatches);
-
-        // If we removed duplicates, save the cleaned data back
-        if (deduplicatedMatches.length !== matchesWithDates.length) {
-          const cleanedEncrypted = CryptoJS.AES.encrypt(
-            JSON.stringify(deduplicatedMatches),
-            address
-          ).toString();
-          await AsyncStorage.setItem(
-            `matched_users_${address}`,
-            cleanedEncrypted
-          );
-          console.log(
-            `Cleaned up ${
-              matchesWithDates.length - deduplicatedMatches.length
-            } duplicate matches`
-          );
-        }
-      }
+      const { FirebaseService } = await import("../utils/firebaseService");
+      await FirebaseService.initializeUser(address);
+      const matches = await FirebaseService.loadMatches(address);
+      const matchesWithDates = matches.map((match: any) => ({
+        ...match,
+        matchedDate: match.matchedDate
+          ? match.matchedDate.toDate()
+          : new Date(),
+      }));
+      const deduplicatedMatches = deduplicateByAddress(matchesWithDates);
+      setMatchedUsers(deduplicatedMatches);
     } catch (error) {
       console.error("Error loading matched users:", error);
     }
@@ -430,22 +457,9 @@ export default function MessagesScreen() {
   // Listen for typing indicators (simplified - would need real-time listener)
   useEffect(() => {
     if (selectedConversation) {
-      // In a real implementation, you'd set up a listener for typing indicators
-      // For now, this is a placeholder
-      const checkTypingStatus = async () => {
-        try {
-          const isTypingNow = await MessagingService.getUserOnlineStatus(
-            selectedConversation
-          );
-          setRecipientTyping(isTypingNow);
-        } catch (error) {
-          console.warn("Failed to check typing status:", error);
-        }
-      };
-
-      checkTypingStatus();
-      const interval = setInterval(checkTypingStatus, 2000);
-      return () => clearInterval(interval);
+      // TODO: Implement proper typing indicators with real-time listeners
+      // For now, disable typing indicator
+      setRecipientTyping(false);
     }
   }, [selectedConversation]);
 
@@ -761,7 +775,7 @@ export default function MessagesScreen() {
       </View>
 
       <ScrollView style={styles.messagesList}>
-        {messages.length === 0 ? (
+        {conversations.length === 0 ? (
           <View style={theme.card}>
             <Text
               style={{
@@ -770,33 +784,33 @@ export default function MessagesScreen() {
                 fontSize: 16,
               }}
             >
-              💬 No messages yet.{"\n"}Start fusing to begin conversations!
+              💬 No conversations yet.{"\n"}Start fusing to begin chatting!
             </Text>
           </View>
         ) : (
-          messages.map((message) => (
+          conversations.map((conversation) => (
             <TouchableOpacity
-              key={message.id}
+              key={conversation.id}
               style={[
                 styles.messageItem,
                 { backgroundColor: theme.card.backgroundColor },
               ]}
               onPress={() => {
-                setSelectedConversation(message.from);
-                markAsRead(message.id);
+                setSelectedConversation(conversation.otherUser);
+                // Mark as read if needed
               }}
             >
               <View style={styles.messageHeader}>
                 <Text style={[styles.senderName, { color: theme.textColor }]}>
-                  {message.fromName}
+                  {conversation.otherUser.slice(0, 6)}...{conversation.otherUser.slice(-4)}
                 </Text>
-                {!message.isRead && <View style={styles.unreadDot} />}
+                {conversation.unread && <View style={styles.unreadDot} />}
               </View>
               <Text
                 style={[styles.messagePreview, { color: theme.textColor }]}
                 numberOfLines={2}
               >
-                {message.message}
+                {conversation.lastMessage}
               </Text>
               <Text
                 style={[
@@ -804,7 +818,7 @@ export default function MessagesScreen() {
                   { color: theme.textColor, opacity: 0.6 },
                 ]}
               >
-                {message.timestamp.toLocaleDateString()}
+                {conversation.timestamp.toLocaleDateString()}
               </Text>
             </TouchableOpacity>
           ))

@@ -1,6 +1,16 @@
 import { FirebaseService } from "./firebaseService";
 import { EncryptionService } from "./encryption";
 import { KeyManager } from "./keyManager";
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  onSnapshot,
+  QuerySnapshot,
+} from "firebase/firestore";
+import { db } from "./firebase";
 
 // E2E encrypted messaging service for FUSE
 export class MessagingService {
@@ -27,6 +37,11 @@ export class MessagingService {
     } catch (error) {
       throw new Error("Failed to initialize messaging: " + error);
     }
+  }
+
+  // Generate consistent conversation ID for two users
+  private static generateConversationId(user1: string, user2: string): string {
+    return [user1, user2].sort().join('_');
   }
 
   // Send encrypted message
@@ -594,13 +609,6 @@ export class MessagingService {
     await this.sendMessage(recipientAddress, systemMessage, "system");
   }
 
-  // Generate consistent conversation ID
-  private static generateConversationId(userA: string, userB: string): string {
-    // Sort addresses to ensure consistent conversation ID
-    const [address1, address2] = [userA, userB].sort();
-    return `${address1}_${address2}`;
-  }
-
   // Cleanup all listeners
   static cleanup(): void {
     this.messageListeners.forEach((unsubscribe) => {
@@ -649,6 +657,86 @@ export class MessagingService {
     } catch (error) {
       throw new Error("Failed to search messages: " + error);
     }
+  }
+
+  // Listen to all user messages for chat list
+  static listenToAllUserMessages(
+    callback: (messages: Message[]) => void
+  ): () => void {
+    if (!this.currentUser || !this.userKeys) {
+      throw new Error("Messaging service not initialized");
+    }
+
+    // Query messages where user is sender or recipient, ordered by timestamp desc, limit to recent
+    const messagesRef = collection(db, "messages");
+    const q = query(
+      messagesRef,
+      where("senderAddress", "==", this.currentUser),
+      orderBy("timestamp", "desc"),
+      limit(50)
+    );
+
+    const q2 = query(
+      messagesRef,
+      where("recipientAddress", "==", this.currentUser),
+      orderBy("timestamp", "desc"),
+      limit(50)
+    );
+
+    const unsubscribe1 = onSnapshot(q, (snapshot) => {
+      this.processMessagesSnapshot(snapshot, callback);
+    });
+
+    const unsubscribe2 = onSnapshot(q2, (snapshot) => {
+      this.processMessagesSnapshot(snapshot, callback);
+    });
+
+    return () => {
+      unsubscribe1();
+      unsubscribe2();
+    };
+  }
+
+  private static processMessagesSnapshot(
+    snapshot: QuerySnapshot,
+    callback: (messages: Message[]) => void
+  ) {
+    const messages: Message[] = [];
+
+    snapshot.forEach((doc) => {
+      try {
+        const data = doc.data();
+        const decryptedMessage = EncryptionService.decryptMessage(
+          data.encryptedMessage,
+          this.userKeys!.messagingKey,
+          this.userKeys!.messagingKey
+        );
+
+        const parsedMessage = JSON.parse(decryptedMessage);
+        messages.push({
+          id: doc.id,
+          content: parsedMessage.content,
+          messageType: parsedMessage.messageType || "text",
+          senderAddress: data.senderAddress,
+          recipientAddress: data.recipientAddress,
+          timestamp: data.timestamp.toDate(),
+          status: data.status || "sent",
+          metadata: parsedMessage.metadata,
+        });
+      } catch (error) {
+        console.warn("Failed to decrypt message:", doc.id);
+      }
+    });
+
+    // Sort and deduplicate
+    const sortedMessages = messages
+      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+      .filter(
+        (msg, index, arr) =>
+          arr.findIndex((m) => m.id === msg.id) === index
+      );
+
+    callback(sortedMessages);
   }
 }
 
