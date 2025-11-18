@@ -222,13 +222,13 @@ export default function FuseScreen() {
 
         // Load incoming fuse requests for rocket indicator
         try {
-          const incomingRequestsData = await FirebaseService.listenToFuseRequests(
-            address,
-            (requests) => {
-              const requesterAddresses = requests.map((req: any) => req.requesterAddress);
+          const incomingRequestsData =
+            await FirebaseService.listenToFuseRequests(address, (requests) => {
+              const requesterAddresses = requests.map(
+                (req: any) => req.requesterAddress
+              );
               setIncomingRequests(new Set(requesterAddresses));
-            }
-          );
+            });
           // Note: We don't store the unsubscribe function here as it's handled by the listener
         } catch (error) {
           console.warn("Error loading incoming requests:", error);
@@ -237,72 +237,79 @@ export default function FuseScreen() {
 
         // Convert MatchResult to User format - optimize by processing in parallel
         const formattedUsers: User[] = [];
-        const photoPromises = matches
+
+        // Filter matches after async loading is complete and deduplicate by address
+        const filteredMatches = matches
+          .filter((match, index, arr) => {
+            const isFirst =
+              arr.findIndex((m) => m.address === match.address) === index;
+            if (!isFirst)
+              console.log("Removing duplicate match:", match.address);
+            return isFirst;
+          })
           .filter(
             (match) =>
               !skippedUsers.has(match.address) &&
               !sentRequests.has(match.address) &&
               !matchedAddresses.has(match.address)
-          )
-          .map(async (match) => {
-            console.log("Processing match:", match.address, match.profile);
+          );
 
-            // Calculate age from birthdate
-            let age = 25; // default
-            if (match.profile?.birthdate) {
-              try {
-                // Handle MM/DD/YYYY format
-                const [month, day, year] = match.profile.birthdate.split("/");
-                const birthDate = new Date(
-                  parseInt(year),
-                  parseInt(month) - 1,
-                  parseInt(day)
-                );
-                const today = new Date();
-                age = today.getFullYear() - birthDate.getFullYear();
-                const monthDiff = today.getMonth() - birthDate.getMonth();
-                if (
-                  monthDiff < 0 ||
-                  (monthDiff === 0 && today.getDate() < birthDate.getDate())
-                ) {
-                  age--;
-                }
-              } catch (error) {
-                console.warn(
-                  "Error parsing birthdate:",
-                  match.profile.birthdate
-                );
+        const photoPromises = filteredMatches.map(async (match) => {
+          console.log("Processing match:", match.address, match.profile);
+
+          // Calculate age from birthdate
+          let age = 25; // default
+          if (match.profile?.birthdate) {
+            try {
+              // Handle MM/DD/YYYY format
+              const [month, day, year] = match.profile.birthdate.split("/");
+              const birthDate = new Date(
+                parseInt(year),
+                parseInt(month) - 1,
+                parseInt(day)
+              );
+              const today = new Date();
+              age = today.getFullYear() - birthDate.getFullYear();
+              const monthDiff = today.getMonth() - birthDate.getMonth();
+              if (
+                monthDiff < 0 ||
+                (monthDiff === 0 && today.getDate() < birthDate.getDate())
+              ) {
+                age--;
               }
+            } catch (error) {
+              console.warn("Error parsing birthdate:", match.profile.birthdate);
             }
+          }
 
-            // Format name from firstName and lastName
-            const name =
-              match.profile?.firstName && match.profile?.lastName
-                ? `${match.profile.firstName} ${match.profile.lastName}`
-                : match.profile?.firstName ||
-                  match.profile?.lastName ||
-                  "Unknown User";
+          // Format name from firstName and lastName
+          const name =
+            match.profile?.firstName && match.profile?.lastName
+              ? `${match.profile.firstName} ${match.profile.lastName}`
+              : match.profile?.firstName ||
+                match.profile?.lastName ||
+                "Unknown User";
 
-            // Load photos from local storage
-            const photos = await loadUserPhotos(match.address);
+          // Load photos from local storage
+          const photos = await loadUserPhotos(match.address);
 
-            const userData: User = {
-              address: match.address,
-              name: name,
-              age: age,
-              city: match.profile?.location || "Unknown",
-              bio:
-                match.profile?.bio ||
-                match.profile?.traits?.bio ||
-                "This user hasn't written a bio yet",
-              photos: photos,
-              compatibilityScore: match.compatibilityScore,
-              skipped: false,
-            };
+          const userData: User = {
+            address: match.address,
+            name: name,
+            age: age,
+            city: match.profile?.location || "Unknown",
+            bio:
+              match.profile?.bio ||
+              match.profile?.traits?.bio ||
+              "This user hasn't written a bio yet",
+            photos: photos,
+            compatibilityScore: match.compatibilityScore,
+            skipped: false,
+          };
 
-            console.log("Formatted user data:", userData);
-            return userData;
-          });
+          console.log("Formatted user data:", userData);
+          return userData;
+        });
 
         // Wait for all photo loading to complete in parallel
         const results = await Promise.all(photoPromises);
@@ -352,7 +359,7 @@ export default function FuseScreen() {
         // Store request in Firebase
         const { FirebaseService } = await import("../utils/firebaseService");
         await FirebaseService.initializeUser(address);
-        
+
         const requestData = {
           address: address,
           name: user.name,
@@ -363,21 +370,92 @@ export default function FuseScreen() {
           requesterAddress: address,
           targetAddress: userAddress,
         };
-        
-        await FirebaseService.storeFuseRequest(userAddress, requestData);
+
+        const isMutual = await FirebaseService.storeFuseRequest(
+          userAddress,
+          requestData
+        );
 
         console.log(`Fuse request sent from ${address} to ${userAddress}`);
         console.log("Request data:", requestData);
 
-        // Update local state to filter this user out immediately
-        setSentRequests(
-          (prev) => new Set(Array.from(prev).concat(userAddress))
-        );
+        if (isMutual) {
+          // Mutual match! Create the match locally
+          const matchData = {
+            address: userAddress,
+            name: user.name,
+            age: user.age,
+            city: user.city,
+            bio: user.bio,
+            photos: user.photos,
+            matchedDate: new Date(),
+          };
 
-        Alert.alert(
-          "Fuse Request Sent! 🔥",
-          "Your fuse request has been sent. Check back later to see if they accept!"
-        );
+          // Load existing matches
+          try {
+            const existingMatchesData = await AsyncStorage.getItem(
+              `matched_users_${address}`
+            );
+            let existingMatches = [];
+            if (existingMatchesData) {
+              const decrypted = CryptoJS.AES.decrypt(
+                existingMatchesData,
+                address
+              ).toString(CryptoJS.enc.Utf8);
+              existingMatches = JSON.parse(decrypted);
+            }
+
+            // Check if this match already exists to prevent duplicates
+            const matchExists = existingMatches.some(
+              (match: any) => match.address === userAddress
+            );
+            if (!matchExists) {
+              // Add new match
+              existingMatches.push(matchData);
+
+              // Save back to storage
+              const encrypted = CryptoJS.AES.encrypt(
+                JSON.stringify(existingMatches),
+                address
+              ).toString();
+              await AsyncStorage.setItem(`matched_users_${address}`, encrypted);
+            }
+
+            // Update local state
+            setMatchedAddresses((prev) => new Set([...prev, userAddress]));
+
+            // Also add reverse match for the other user (this would normally be done server-side)
+            const reverseMatchData = {
+              address: address,
+              name: "You", // Current user doesn't have their own name stored, but this is for the other user
+              age: 25, // Default
+              city: "Unknown",
+              bio: "Mutual match!",
+              photos: [],
+              matchedDate: new Date(),
+            };
+
+            // Note: In a real app, this would be handled by the server or the other user's client
+          } catch (storageError) {
+            console.warn("Error saving mutual match:", storageError);
+          }
+
+          Alert.alert(
+            "Mutual Fuse! 🔥❤️",
+            `You and ${user.name} have fused! You're now connected.`
+          );
+        } else {
+          // Regular one-way request
+          // Update local state to filter this user out immediately
+          setSentRequests(
+            (prev) => new Set(Array.from(prev).concat(userAddress))
+          );
+
+          Alert.alert(
+            "Fuse Request Sent! 🔥",
+            "Your fuse request has been sent. Check back later to see if they accept!"
+          );
+        }
       } catch (error) {
         console.error("Error sending connection request:", error);
         Alert.alert("Error", "Failed to send fuse request. Please try again.");
@@ -772,7 +850,7 @@ export default function FuseScreen() {
               />
             );
           }}
-          keyExtractor={(item) => item.address}
+          keyExtractor={(item, index) => `${item.address}-${index}`}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.listContainer}
           ItemSeparatorComponent={() => <View style={styles.separator} />}

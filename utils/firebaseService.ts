@@ -320,6 +320,50 @@ export class FirebaseService {
     return unsubscribe;
   }
 
+  // Listen to all messages for a user (for Chats tab)
+  static listenToAllUserMessages(
+    userAddress: string,
+    callback: (messages: any[]) => void
+  ): () => void {
+    if (!this.userKeys) {
+      throw new Error("User keys not initialized");
+    }
+
+    const messagesRef = collection(db, "messages");
+    const q = query(
+      messagesRef,
+      where("recipientAddress", "==", userAddress),
+      orderBy("timestamp", "desc"),
+      limit(100)
+    );
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const messages: any[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        try {
+          const decryptedMessage = EncryptionService.decryptMessage(
+            data.encryptedMessage,
+            this.userKeys!.messagingKey
+          );
+          messages.unshift({
+            id: doc.id,
+            message: decryptedMessage,
+            senderAddress: data.senderAddress,
+            recipientAddress: data.recipientAddress,
+            timestamp: data.timestamp.toDate(),
+            status: data.status,
+          });
+        } catch (error) {
+          console.warn("Failed to decrypt message:", doc.id);
+        }
+      });
+      callback(messages);
+    });
+
+    return unsubscribe;
+  }
+
   // Store encrypted match data
   static async storeMatchData(matchId: string, matchData: any): Promise<void> {
     if (!this.userKeys) {
@@ -990,31 +1034,92 @@ export class FirebaseService {
   }
 
   // Store fuse request in Firebase
-  static async storeFuseRequest(targetAddress: string, requestData: any): Promise<void> {
+  static async storeFuseRequest(
+    targetAddress: string,
+    requestData: any
+  ): Promise<boolean> {
     try {
       const requestsRef = doc(db, "fuse_requests", targetAddress);
       const requestSnap = await getDoc(requestsRef);
-      
+
       let requests = [];
       if (requestSnap.exists()) {
         requests = requestSnap.data().requests || [];
       }
-      
-      // Add new request
-      requests.push({
-        ...requestData,
-        timestamp: Timestamp.now(),
-      });
-      
+
+      // Check for mutual request before adding new request
+      const requesterAddress = requestData.requesterAddress;
+      const mutualRequest = requests.find(
+        (req: any) =>
+          req.requesterAddress === targetAddress &&
+          req.targetAddress === requesterAddress
+      );
+
+      if (mutualRequest) {
+        // Mutual match found! Remove both requests since they're now matched
+        console.log("🔥 Mutual fuse request detected! Creating match...");
+
+        // Remove the mutual requests
+        await this.removeFuseRequest(targetAddress, requesterAddress);
+        // Don't add the new request since it's mutual
+
+        console.log(
+          "✅ Mutual match detected for:",
+          requesterAddress,
+          "and",
+          targetAddress
+        );
+        return true; // Indicate mutual match
+      }
+
+      // Check for existing request from same user
+      const existingRequest = requests.find(
+        (req: any) => req.requesterAddress === requesterAddress
+      );
+
+      if (existingRequest) {
+        // Update existing request instead of adding duplicate
+        console.log(
+          "🔄 Updating existing fuse request from:",
+          requesterAddress
+        );
+        Object.assign(existingRequest, requestData, {
+          timestamp: Timestamp.now(),
+        });
+      } else {
+        // Add new request (no mutual match found)
+        requests.push({
+          ...requestData,
+          timestamp: Timestamp.now(),
+        });
+      }
+
       await setDoc(requestsRef, {
         requests,
         lastUpdated: Timestamp.now(),
       });
-      
+
       console.log("🔥 Fuse request stored in Firebase for:", targetAddress);
+      return false; // Not mutual
     } catch (error) {
       console.error("Failed to store fuse request:", error);
       throw error;
+    }
+  }
+
+  // Get fuse requests for a user synchronously
+  static async getFuseRequests(userAddress: string): Promise<any[]> {
+    try {
+      const requestsRef = doc(db, "fuse_requests", userAddress);
+      const requestSnap = await getDoc(requestsRef);
+
+      if (requestSnap.exists()) {
+        return requestSnap.data().requests || [];
+      }
+      return [];
+    } catch (error) {
+      console.error("Error getting fuse requests:", error);
+      return [];
     }
   }
 
@@ -1024,41 +1129,48 @@ export class FirebaseService {
     callback: (requests: any[]) => void
   ): () => void {
     const requestsRef = doc(db, "fuse_requests", userAddress);
-    
-    const unsubscribe = onSnapshot(requestsRef, (doc) => {
-      if (doc.exists()) {
-        const data = doc.data();
-        callback(data.requests || []);
-      } else {
+
+    const unsubscribe = onSnapshot(
+      requestsRef,
+      (doc) => {
+        if (doc.exists()) {
+          const data = doc.data();
+          callback(data.requests || []);
+        } else {
+          callback([]);
+        }
+      },
+      (error) => {
+        console.error("Error listening to fuse requests:", error);
         callback([]);
       }
-    }, (error) => {
-      console.error("Error listening to fuse requests:", error);
-      callback([]);
-    });
-    
+    );
+
     return unsubscribe;
   }
 
   // Remove fuse request (when accepted or rejected)
-  static async removeFuseRequest(targetAddress: string, requesterAddress: string): Promise<void> {
+  static async removeFuseRequest(
+    targetAddress: string,
+    requesterAddress: string
+  ): Promise<void> {
     try {
       const requestsRef = doc(db, "fuse_requests", targetAddress);
       const requestSnap = await getDoc(requestsRef);
-      
+
       if (requestSnap.exists()) {
         const data = requestSnap.data();
         const requests = data.requests || [];
         const filteredRequests = requests.filter(
           (req: any) => req.requesterAddress !== requesterAddress
         );
-        
+
         await setDoc(requestsRef, {
           requests: filteredRequests,
           lastUpdated: Timestamp.now(),
         });
       }
-      
+
       console.log("🗑️ Fuse request removed for:", targetAddress);
     } catch (error) {
       console.error("Failed to remove fuse request:", error);

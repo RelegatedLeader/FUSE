@@ -9,6 +9,7 @@ import {
   Image,
   Alert,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -78,6 +79,29 @@ export default function MessagesScreen() {
         try {
           await MessagingService.initialize(address);
           console.log("Messaging initialized for:", address);
+
+          // Set up listener for all user messages (for Chats tab)
+          const allMessagesListener = MessagingService.listenToAllUserMessages(
+            (newMessages) => {
+              // Only update messages state if not in a conversation
+              if (!selectedConversation) {
+                setMessages(
+                  newMessages.slice(0, 20).map((msg) => ({
+                    id: msg.id,
+                    from: msg.senderAddress,
+                    fromName: msg.senderAddress, // TODO: Get real names
+                    message:
+                      typeof msg.message === "string"
+                        ? msg.message
+                        : JSON.parse(msg.message).content,
+                    timestamp: msg.timestamp,
+                    isRead: msg.status === "read",
+                  }))
+                );
+              }
+            }
+          );
+          setMessageListener(allMessagesListener);
         } catch (error) {
           console.error("Failed to initialize messaging:", error);
         }
@@ -154,12 +178,32 @@ export default function MessagesScreen() {
           CryptoJS.enc.Utf8
         );
         const parsedMatches = JSON.parse(decrypted);
-        // Convert matchedDate strings back to Date objects
-        const matchesWithDates = parsedMatches.map((match: any) => ({
-          ...match,
-          matchedDate: new Date(match.matchedDate),
-        }));
-        setMatchedUsers(matchesWithDates);
+        // Convert matchedDate strings back to Date objects and deduplicate by address
+        const matchesWithDates = parsedMatches
+          .map((match: any) => ({
+            ...match,
+            matchedDate: new Date(match.matchedDate),
+          }));
+
+        const deduplicatedMatches = deduplicateByAddress(matchesWithDates);
+        setMatchedUsers(deduplicatedMatches);
+
+        // If we removed duplicates, save the cleaned data back
+        if (deduplicatedMatches.length !== matchesWithDates.length) {
+          const cleanedEncrypted = CryptoJS.AES.encrypt(
+            JSON.stringify(deduplicatedMatches),
+            address
+          ).toString();
+          await AsyncStorage.setItem(
+            `matched_users_${address}`,
+            cleanedEncrypted
+          );
+          console.log(
+            `Cleaned up ${
+              matchesWithDates.length - deduplicatedMatches.length
+            } duplicate matches`
+          );
+        }
       }
     } catch (error) {
       console.error("Error loading matched users:", error);
@@ -171,28 +215,34 @@ export default function MessagesScreen() {
 
     try {
       console.log(`Loading fuse requests for user: ${address}`);
-      
+
       // Initialize Firebase auth first
       const { initializeFirebaseAuth } = await import("../utils/firebase");
       await initializeFirebaseAuth();
 
       const { FirebaseService } = await import("../utils/firebaseService");
       await FirebaseService.initializeUser(address);
-      
+
       // Set up real-time listener for fuse requests
       const unsubscribe = FirebaseService.listenToFuseRequests(
         address,
         (requests) => {
           console.log("Received fuse requests:", requests);
-          // Convert Firestore timestamps to Date objects
-          const requestsWithDates = requests.map((request: any) => ({
-            ...request,
-            timestamp: request.timestamp?.toDate ? request.timestamp.toDate() : new Date(request.timestamp),
-          }));
-          setFuseRequests(requestsWithDates);
+          // Convert Firestore timestamps to Date objects and deduplicate by requesterAddress
+          const requestsWithDates = requests
+            .map((request: any) => ({
+              ...request,
+              timestamp: request.timestamp?.toDate ? request.timestamp.toDate() : new Date(request.timestamp),
+            }));
+          
+          const deduplicatedRequests = deduplicateRequests(requestsWithDates);
+          if (deduplicatedRequests.length !== requestsWithDates.length) {
+            console.log(`Removed ${requestsWithDates.length - deduplicatedRequests.length} duplicate fuse requests`);
+          }
+          setFuseRequests(deduplicatedRequests);
         }
       );
-      
+
       // Store unsubscribe function for cleanup
       setRequestListener(() => unsubscribe);
     } catch (error) {
@@ -215,7 +265,10 @@ export default function MessagesScreen() {
       // Remove the request from Firebase
       const { FirebaseService } = await import("../utils/firebaseService");
       await FirebaseService.initializeUser(address);
-      await FirebaseService.removeFuseRequest(address, request.requesterAddress);
+      await FirebaseService.removeFuseRequest(
+        address,
+        request.requesterAddress
+      );
 
       // Create mutual match for current user
       const currentUserMatch = {
@@ -272,8 +325,7 @@ export default function MessagesScreen() {
             ? `${profile.firstName} ${profile.lastName}`
             : profile.firstName || profile.lastName || "Unknown User";
         currentUserAge = profile.birthdate
-          ? new Date().getFullYear() -
-            new Date(profile.birthdate).getFullYear()
+          ? new Date().getFullYear() - new Date(profile.birthdate).getFullYear()
           : "N/A";
         currentUserCity = profile.location || "Unknown";
         currentUserBio = profile.bio || "No bio available";
@@ -339,7 +391,10 @@ export default function MessagesScreen() {
       // Remove the request from Firebase
       const { FirebaseService } = await import("../utils/firebaseService");
       await FirebaseService.initializeUser(address);
-      await FirebaseService.removeFuseRequest(address, request.requesterAddress);
+      await FirebaseService.removeFuseRequest(
+        address,
+        request.requesterAddress
+      );
 
       // The listener will automatically update the state
       Alert.alert("Request Rejected", "The fuse request has been declined.");
@@ -608,6 +663,12 @@ export default function MessagesScreen() {
     }
   }, [selectedConversation]);
 
+  useEffect(() => {
+    if (selectedConversation) {
+      setupRealTimeListener();
+    }
+  }, [selectedConversation]);
+
   const markAsRead = (messageId: string) => {
     setMessages(
       messages.map((msg) =>
@@ -624,185 +685,195 @@ export default function MessagesScreen() {
     );
 
     return (
-      <View
-        style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
         <View
-          style={[
-            styles.header,
-            { backgroundColor: theme.card.backgroundColor },
-          ]}
+          style={[styles.container, { backgroundColor: theme.backgroundColor }]}
         >
-          <TouchableOpacity onPress={() => setSelectedConversation(null)}>
-            <Text style={{ color: theme.textColor, fontSize: 18 }}>← Back</Text>
-          </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: theme.textColor }]}>
-            {conversationMessages[0]?.fromName || "Chat"}
-          </Text>
-          <View style={{ width: 50 }} />
-        </View>
+          <View
+            style={[
+              styles.header,
+              { backgroundColor: theme.card.backgroundColor },
+            ]}
+          >
+            <TouchableOpacity onPress={() => setSelectedConversation(null)}>
+              <Text style={{ color: theme.textColor, fontSize: 18 }}>
+                ← Back
+              </Text>
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: theme.textColor }]}>
+              {conversationMessages[0]?.fromName || "Chat"}
+            </Text>
+            <View style={{ width: 50 }} />
+          </View>
 
-        <ScrollView style={styles.messagesContainer}>
-          {conversationMessages.map((message) => (
-            <TouchableOpacity
-              key={message.id}
-              onLongPress={() => startEditingMessage(message)}
-              style={[
-                styles.messageBubble,
-                { backgroundColor: theme.buttonBackground },
-                message.deleted && styles.deletedMessage,
-              ]}
-            >
-              {message.mediaUrl &&
-                message.mediaType === "image" &&
-                !message.deleted && (
-                  <Image
-                    source={{ uri: message.mediaUrl }}
-                    style={styles.messageImage}
-                    resizeMode="cover"
-                  />
+          <ScrollView style={styles.messagesContainer}>
+            {conversationMessages.map((message) => (
+              <TouchableOpacity
+                key={message.id}
+                onLongPress={() => startEditingMessage(message)}
+                style={[
+                  styles.messageBubble,
+                  { backgroundColor: theme.buttonBackground },
+                  message.deleted && styles.deletedMessage,
+                ]}
+              >
+                {message.mediaUrl &&
+                  message.mediaType === "image" &&
+                  !message.deleted && (
+                    <Image
+                      source={{ uri: message.mediaUrl }}
+                      style={styles.messageImage}
+                      resizeMode="cover"
+                    />
+                  )}
+                {message.message && !message.deleted && (
+                  <Text style={{ color: theme.buttonText }}>
+                    {message.message}
+                  </Text>
                 )}
-              {message.message && !message.deleted && (
-                <Text style={{ color: theme.buttonText }}>
-                  {message.message}
-                </Text>
-              )}
-              {message.deleted && (
-                <Text style={{ color: theme.buttonText, fontStyle: "italic" }}>
-                  {message.message}
-                </Text>
-              )}
-              <View style={styles.messageFooter}>
-                {message.edited && !message.deleted && (
+                {message.deleted && (
+                  <Text
+                    style={{ color: theme.buttonText, fontStyle: "italic" }}
+                  >
+                    {message.message}
+                  </Text>
+                )}
+                <View style={styles.messageFooter}>
+                  {message.edited && !message.deleted && (
+                    <Text
+                      style={[
+                        styles.editedLabel,
+                        { color: theme.buttonText, opacity: 0.7 },
+                      ]}
+                    >
+                      edited
+                    </Text>
+                  )}
                   <Text
                     style={[
-                      styles.editedLabel,
+                      styles.timestamp,
                       { color: theme.buttonText, opacity: 0.7 },
                     ]}
                   >
-                    edited
+                    {message.timestamp.toLocaleTimeString()}
                   </Text>
+                </View>
+                {message.from === address && !message.deleted && (
+                  <TouchableOpacity
+                    onPress={() => handleDeleteMessage(message.id)}
+                    style={styles.deleteButton}
+                  >
+                    <Text style={{ color: theme.buttonText, fontSize: 12 }}>
+                      🗑️
+                    </Text>
+                  </TouchableOpacity>
                 )}
-                <Text
-                  style={[
-                    styles.timestamp,
-                    { color: theme.buttonText, opacity: 0.7 },
-                  ]}
-                >
-                  {message.timestamp.toLocaleTimeString()}
+              </TouchableOpacity>
+            ))}
+
+            {recipientTyping && (
+              <View
+                style={[
+                  styles.typingIndicator,
+                  { backgroundColor: theme.card.backgroundColor },
+                ]}
+              >
+                <Text style={{ color: theme.textColor, fontSize: 14 }}>
+                  💬 Typing...
                 </Text>
               </View>
-              {message.from === address && !message.deleted && (
+            )}
+          </ScrollView>
+
+          <View
+            style={[
+              styles.inputContainer,
+              { backgroundColor: theme.card.backgroundColor },
+            ]}
+          >
+            {editingMessageId ? (
+              <>
                 <TouchableOpacity
-                  onPress={() => handleDeleteMessage(message.id)}
-                  style={styles.deleteButton}
+                  onPress={() => {
+                    setEditingMessageId(null);
+                    setEditingText("");
+                  }}
+                  style={[styles.cancelButton, { backgroundColor: "#dc3545" }]}
                 >
-                  <Text style={{ color: theme.buttonText, fontSize: 12 }}>
-                    🗑️
-                  </Text>
+                  <Text style={{ color: "#fff" }}>✕</Text>
                 </TouchableOpacity>
-              )}
-            </TouchableOpacity>
-          ))}
-
-          {recipientTyping && (
-            <View
-              style={[
-                styles.typingIndicator,
-                { backgroundColor: theme.card.backgroundColor },
-              ]}
-            >
-              <Text style={{ color: theme.textColor, fontSize: 14 }}>
-                💬 Typing...
-              </Text>
-            </View>
-          )}
-        </ScrollView>
-
-        <View
-          style={[
-            styles.inputContainer,
-            { backgroundColor: theme.card.backgroundColor },
-          ]}
-        >
-          {editingMessageId ? (
-            <>
-              <TouchableOpacity
-                onPress={() => {
-                  setEditingMessageId(null);
-                  setEditingText("");
-                }}
-                style={[styles.cancelButton, { backgroundColor: "#dc3545" }]}
-              >
-                <Text style={{ color: "#fff" }}>✕</Text>
-              </TouchableOpacity>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.input.backgroundColor,
-                    color: theme.textColor,
-                  },
-                ]}
-                placeholder="Edit message..."
-                placeholderTextColor={theme.textColor}
-                value={editingText}
-                onChangeText={setEditingText}
-                multiline
-                autoFocus
-              />
-              <TouchableOpacity
-                onPress={handleEditMessage}
-                style={[
-                  styles.sendButton,
-                  { backgroundColor: theme.buttonBackground },
-                ]}
-              >
-                <Text style={{ color: theme.buttonText }}>✓</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <TouchableOpacity
-                onPress={handleSendMedia}
-                style={[
-                  styles.mediaButton,
-                  { backgroundColor: theme.buttonBackground },
-                ]}
-              >
-                <Text style={{ color: theme.buttonText }}>📎</Text>
-              </TouchableOpacity>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.input.backgroundColor,
-                    color: theme.textColor,
-                  },
-                ]}
-                placeholder="Type a message..."
-                placeholderTextColor={theme.textColor}
-                value={newMessage}
-                onChangeText={(text) => {
-                  setNewMessage(text);
-                  handleTypingStart();
-                }}
-                onBlur={handleTypingStop}
-                multiline
-              />
-              <TouchableOpacity
-                onPress={handleSendMessage}
-                style={[
-                  styles.sendButton,
-                  { backgroundColor: theme.buttonBackground },
-                ]}
-              >
-                <Text style={{ color: theme.buttonText }}>📤</Text>
-              </TouchableOpacity>
-            </>
-          )}
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.input.backgroundColor,
+                      color: theme.textColor,
+                    },
+                  ]}
+                  placeholder="Edit message..."
+                  placeholderTextColor={theme.textColor}
+                  value={editingText}
+                  onChangeText={setEditingText}
+                  multiline
+                  autoFocus
+                />
+                <TouchableOpacity
+                  onPress={handleEditMessage}
+                  style={[
+                    styles.sendButton,
+                    { backgroundColor: theme.buttonBackground },
+                  ]}
+                >
+                  <Text style={{ color: theme.buttonText }}>✓</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  onPress={handleSendMedia}
+                  style={[
+                    styles.mediaButton,
+                    { backgroundColor: theme.buttonBackground },
+                  ]}
+                >
+                  <Text style={{ color: theme.buttonText }}>📎</Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.input.backgroundColor,
+                      color: theme.textColor,
+                    },
+                  ]}
+                  placeholder="Type a message..."
+                  placeholderTextColor={theme.textColor}
+                  value={newMessage}
+                  onChangeText={(text) => {
+                    setNewMessage(text);
+                    handleTypingStart();
+                  }}
+                  onBlur={handleTypingStop}
+                  multiline
+                />
+                <TouchableOpacity
+                  onPress={handleSendMessage}
+                  style={[
+                    styles.sendButton,
+                    { backgroundColor: theme.buttonBackground },
+                  ]}
+                >
+                  <Text style={{ color: theme.buttonText }}>📤</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -826,7 +897,7 @@ export default function MessagesScreen() {
           >
             {fuseRequests.map((request, index) => (
               <View
-                key={index}
+                key={request.requesterAddress || index}
                 style={[
                   styles.fuseRequestCard,
                   { backgroundColor: theme.card.backgroundColor },
@@ -834,7 +905,9 @@ export default function MessagesScreen() {
               >
                 <View style={styles.requestInfo}>
                   <TouchableOpacity
-                    onPress={() => viewUserProfile(request.requesterAddress, request.name)}
+                    onPress={() =>
+                      viewUserProfile(request.requesterAddress, request.name)
+                    }
                   >
                     <Text
                       style={[styles.requestName, { color: theme.textColor }]}
@@ -933,12 +1006,28 @@ export default function MessagesScreen() {
                     {user.age}
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => unfuseUser(user.address)}
-                  style={[styles.unfuseButton, { backgroundColor: "#dc3545" }]}
-                >
-                  <Text style={{ color: "#fff", fontSize: 10 }}>Unfuse</Text>
-                </TouchableOpacity>
+                <View style={styles.matchedUserActions}>
+                  <TouchableOpacity
+                    onPress={() => setSelectedConversation(user.address)}
+                    style={[
+                      styles.messageButton,
+                      { backgroundColor: theme.buttonBackground },
+                    ]}
+                  >
+                    <Text style={{ color: theme.buttonText, fontSize: 10 }}>
+                      💬 Message
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => unfuseUser(user.address)}
+                    style={[
+                      styles.unfuseButton,
+                      { backgroundColor: "#dc3545" },
+                    ]}
+                  >
+                    <Text style={{ color: "#fff", fontSize: 10 }}>Unfuse</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             ))}
           </ScrollView>
@@ -1183,6 +1272,20 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
   },
+  matchedUserActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    marginTop: 8,
+  },
+  messageButton: {
+    flex: 1,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    alignItems: "center",
+    marginRight: 5,
+  },
   fuseRequestsContainer: {
     marginBottom: 20,
   },
@@ -1231,3 +1334,18 @@ const styles = StyleSheet.create({
     marginLeft: 5,
   },
 });
+
+// Utility function to deduplicate array by address
+const deduplicateByAddress = (items: MatchedUser[]): MatchedUser[] => {
+  return items.filter(
+    (item, index, arr) =>
+      arr.findIndex((i) => i.address === item.address) === index
+  );
+};
+
+// Utility function to deduplicate fuse requests by requesterAddress
+const deduplicateRequests = (requests: any[]): any[] => {
+  return requests.filter((request, index, arr) => 
+    arr.findIndex(r => r.requesterAddress === request.requesterAddress) === index
+  );
+};

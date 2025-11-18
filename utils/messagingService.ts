@@ -445,6 +445,26 @@ export class MessagingService {
     }
   }
 
+  // Listen to all messages for current user (for Chats tab)
+  static listenToAllUserMessages(
+    callback: (messages: any[]) => void
+  ): () => void {
+    if (!this.currentUser) {
+      throw new Error("Messaging service not initialized");
+    }
+
+    try {
+      const unsubscribe = FirebaseService.listenToAllUserMessages(
+        this.currentUser,
+        callback
+      );
+
+      return unsubscribe;
+    } catch (error) {
+      throw new Error("Failed to listen to all user messages: " + error);
+    }
+  }
+
   // Get all conversations for current user
   static async getUserConversations(): Promise<any[]> {
     if (!this.currentUser) {
