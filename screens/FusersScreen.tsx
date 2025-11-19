@@ -101,12 +101,26 @@ export default function FusersScreen() {
               }
             }
 
+            // Extract bio properly - blockchain stores traits as bio
+            let bio = blockchainData.bio;
+            if (typeof bio === 'object') {
+              bio = JSON.stringify(bio);
+            }
+            if (typeof bio === 'string' && bio.startsWith('{') && bio.endsWith('}')) {
+              try {
+                const parsed = JSON.parse(bio);
+                bio = parsed.bio || parsed.traits || bio;
+              } catch {
+                // Keep as string if parsing fails
+              }
+            }
+
             const enrichedMatch = {
               ...match,
               name: blockchainData.name || match.name,
               age: blockchainData.age || match.age,
               city: blockchainData.city || match.city,
-              bio: blockchainData.bio || match.bio,
+              bio: bio || match.bio,
               mbti: blockchainData.mbti,
               gender: blockchainData.gender,
               sexuality: match.sexuality, // Keep from Firebase match data
@@ -141,6 +155,20 @@ export default function FusersScreen() {
                   }
                 }
 
+                // Extract bio properly from Firebase profile
+                let bio = firebaseProfile.bio;
+                if (typeof bio === 'object') {
+                  bio = JSON.stringify(bio);
+                }
+                if (typeof bio === 'string' && bio.startsWith('{') && bio.endsWith('}')) {
+                  try {
+                    const parsed = JSON.parse(bio);
+                    bio = parsed.bio || parsed.traits || bio;
+                  } catch {
+                    // Keep as string if parsing fails
+                  }
+                }
+
                 return {
                   ...match,
                   name: firebaseProfile.firstName && firebaseProfile.lastName
@@ -148,7 +176,7 @@ export default function FusersScreen() {
                     : match.name,
                   age: age,
                   city: firebaseProfile.location || match.city,
-                  bio: firebaseProfile.bio || match.bio,
+                  bio: bio || match.bio,
                   mbti: firebaseProfile.mbti,
                   gender: firebaseProfile.gender,
                   sexuality: firebaseProfile.sexuality,
@@ -307,23 +335,34 @@ export default function FusersScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody}>
+            <ScrollView 
+              style={styles.modalBody}
+              showsVerticalScrollIndicator={true}
+              bounces={false}
+            >
               {selectedUser && (
-                <>
+                <View style={styles.profileContent}>
                   {/* Profile Images */}
                   {selectedUser.photos && selectedUser.photos.length > 0 && (
                     <ScrollView
                       horizontal
                       showsHorizontalScrollIndicator={false}
                       style={styles.photosContainer}
+                      bounces={false}
+                      pagingEnabled={false}
                     >
                       {selectedUser.photos.map((photo, index) => (
-                        <Image
-                          key={index}
-                          source={{ uri: photo }}
-                          style={styles.profileImage}
-                          resizeMode="cover"
-                        />
+                        <TouchableOpacity 
+                          key={index} 
+                          activeOpacity={1}
+                          style={styles.photoWrapper}
+                        >
+                          <Image
+                            source={{ uri: photo }}
+                            style={styles.profileImage}
+                            resizeMode="cover"
+                          />
+                        </TouchableOpacity>
                       ))}
                     </ScrollView>
                   )}
@@ -337,7 +376,7 @@ export default function FusersScreen() {
                       📍 {selectedUser.city}
                     </Text>
 
-                    {selectedUser.bio && (
+                    {selectedUser.bio && typeof selectedUser.bio === 'string' && selectedUser.bio.trim() && (
                       <View style={styles.bioSection}>
                         <Text style={[styles.bioLabel, { color: theme.textColor }]}>
                           About
@@ -403,7 +442,7 @@ export default function FusersScreen() {
                       Matched on {selectedUser.matchedDate.toLocaleDateString()}
                     </Text>
                   </View>
-                </>
+                </View>
               )}
             </ScrollView>
           </TouchableOpacity>
@@ -500,12 +539,14 @@ const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: Dimensions.get('window').height * 0.8,
+    borderRadius: 20,
+    maxHeight: Dimensions.get('window').height * 0.9,
+    width: Dimensions.get('window').width * 0.95,
+    maxWidth: 400,
     paddingBottom: 20,
   },
   modalHeader: {
@@ -529,15 +570,16 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     padding: 20,
+    maxHeight: Dimensions.get('window').height * 0.7,
   },
   photosContainer: {
     marginBottom: 20,
+    height: 320, // Fixed height for photo container
   },
   profileImage: {
-    width: 300,
-    height: 300,
+    width: 280,
+    height: 280,
     borderRadius: 15,
-    marginRight: 10,
   },
   profileInfo: {
     marginBottom: 20,
@@ -591,6 +633,12 @@ const styles = StyleSheet.create({
   traitText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  profileContent: {
+    flex: 1,
+  },
+  photoWrapper: {
+    marginRight: 10,
   },
   matchDate: {
     fontSize: 14,
