@@ -1196,7 +1196,7 @@ export default function FuseScreen() {
               snapToInterval={Dimensions.get("window").width}
               snapToAlignment="start"
               decelerationRate="fast"
-              zoomEnabled={true}
+              zoomEnabled={isLargeScreen}
               minimumZoomScale={1}
               maximumZoomScale={3}
               onMomentumScrollEnd={(event) => {
@@ -1215,44 +1215,6 @@ export default function FuseScreen() {
                 />
               ))}
             </ScrollView>
-            <View style={styles.fullScreenNav}>
-              <TouchableOpacity
-                onPress={() => {
-                  const newIndex =
-                    fullScreenImageIndex > 0
-                      ? fullScreenImageIndex - 1
-                      : fullScreenImages.length - 1;
-                  setFullScreenImageIndex(newIndex);
-                  if (fullScreenScrollRef.current) {
-                    fullScreenScrollRef.current.scrollTo({
-                      x: newIndex * Dimensions.get("window").width,
-                      animated: true,
-                    });
-                  }
-                }}
-                style={styles.navButton}
-              >
-                <Text style={styles.navButtonText}>‹</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => {
-                  const newIndex =
-                    fullScreenImageIndex < fullScreenImages.length - 1
-                      ? fullScreenImageIndex + 1
-                      : 0;
-                  setFullScreenImageIndex(newIndex);
-                  if (fullScreenScrollRef.current) {
-                    fullScreenScrollRef.current.scrollTo({
-                      x: newIndex * Dimensions.get("window").width,
-                      animated: true,
-                    });
-                  }
-                }}
-                style={styles.navButton}
-              >
-                <Text style={styles.navButtonText}>›</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       )}
@@ -1707,6 +1669,7 @@ const styles = StyleSheet.create({
   photoScrollView: {
     width: isLargeScreen ? 600 : 400,
     height: isLargeScreen ? 600 : 400,
+    alignSelf: "center",
   },
   photoImage: {
     width: isLargeScreen ? 600 : 400, // Larger on big screens
