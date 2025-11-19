@@ -13,7 +13,11 @@ import {
   Modal,
   PanResponder,
 } from "react-native";
-import { PanGestureHandler, State, ScrollView as GestureScrollView } from "react-native-gesture-handler";
+import {
+  PanGestureHandler,
+  State,
+  ScrollView as GestureScrollView,
+} from "react-native-gesture-handler";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { MatchingEngine } from "../utils/matchingEngine";
@@ -566,7 +570,9 @@ export default function FuseScreen() {
     };
 
     return (
-      <View
+      <TouchableOpacity
+        onPress={viewUserProfile}
+        activeOpacity={0.8}
         style={[
           styles.compactCard,
           { backgroundColor: theme?.card?.backgroundColor || "#ffffff" },
@@ -593,9 +599,7 @@ export default function FuseScreen() {
                 {user.photos.map((photo, index) => (
                   <TouchableOpacity
                     key={index}
-                    onPress={() =>
-                      openFullScreenImage(photo, index, user.photos)
-                    }
+                    activeOpacity={1}
                   >
                     <Image source={{ uri: photo }} style={styles.photoImage} />
                   </TouchableOpacity>
@@ -715,10 +719,7 @@ export default function FuseScreen() {
         </View>
 
         {/* Compact User Info */}
-        <TouchableOpacity
-          style={styles.compactUserInfo}
-          onPress={viewUserProfile}
-        >
+        <View style={styles.compactUserInfo}>
           <View style={styles.nameContainer}>
             <Text
               style={[
@@ -760,7 +761,7 @@ export default function FuseScreen() {
             {String(user.bio || "No bio available")}
           </Text>
           <Text style={styles.tapToViewText}>Tap to view full profile</Text>
-        </TouchableOpacity>
+        </View>
 
         {/* Profile Modal */}
         <Modal
@@ -786,172 +787,215 @@ export default function FuseScreen() {
                   bounces={true}
                   alwaysBounceVertical={true}
                   contentContainerStyle={styles.scrollContent}
-                  onScroll={(event) => setModalScrollY(event.nativeEvent.contentOffset.y)}
+                  onScroll={(event) =>
+                    setModalScrollY(event.nativeEvent.contentOffset.y)
+                  }
                   scrollEventThrottle={16}
                 >
-              <View style={styles.modalHeader}>
-                <View style={styles.headerSpacer} />
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <Text style={[styles.modalTitle, { color: theme.textColor }]}>{user.name}'s Profile</Text>
-                  <TouchableOpacity style={[styles.closeArea, { marginLeft: 10 }]} onPress={() => setShowProfileModal(false)}>
-                    <Text style={[styles.closeButtonText, { color: theme.textColor }]}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={styles.headerSpacer} />
-              </View>
-
-              <View style={styles.profileContent}>
-                {/* Profile Images */}
-                {user.photos && user.photos.length > 0 && (
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.photosContainer}
-                    bounces={false}
-                    pagingEnabled={false}
-                  >
-                    {user.photos.map((photo, index) => (
+                  <View style={styles.modalHeader}>
+                    <View style={styles.headerSpacer} />
+                    <View
+                      style={{ flexDirection: "row", alignItems: "center" }}
+                    >
+                      <Text
+                        style={[styles.modalTitle, { color: theme.textColor }]}
+                      >
+                        {user.name}'s Profile
+                      </Text>
                       <TouchableOpacity
-                        key={index}
-                        activeOpacity={1}
-                        style={styles.photoWrapper}
+                        style={[styles.closeArea, { marginLeft: 10 }]}
+                        onPress={() => setShowProfileModal(false)}
                       >
-                        <Image
-                          source={{ uri: photo }}
-                          style={styles.profileImage}
-                          resizeMode="cover"
-                        />
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                )}
-
-                {/* Profile Info */}
-                <View style={styles.profileInfo}>
-                  <Text
-                    style={[styles.profileName, { color: theme.textColor }]}
-                  >
-                    {user.name}, {user.age}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.profileLocation,
-                      { color: theme.textColor, opacity: 0.7 },
-                    ]}
-                  >
-                    📍 {user.city}
-                  </Text>
-
-                  {user.bio &&
-                    typeof user.bio === "string" &&
-                    user.bio.trim() && (
-                      <View style={styles.bioSection}>
-                        <Text
-                          style={[styles.bioLabel, { color: theme.textColor }]}
-                        >
-                          About
-                        </Text>
-                        <Text
-                          style={[styles.bioText, { color: theme.textColor }]}
-                        >
-                          {user.bio}
-                        </Text>
-                      </View>
-                    )}
-
-                  {/* Additional Profile Fields */}
-                  {user.mbti && (
-                    <View style={styles.profileField}>
-                      <Text
-                        style={[styles.fieldLabel, { color: theme.textColor }]}
-                      >
-                        MBTI
-                      </Text>
-                      <Text
-                        style={[styles.fieldValue, { color: theme.textColor }]}
-                      >
-                        {user.mbti}
-                      </Text>
-                    </View>
-                  )}
-
-                  {user.gender && (
-                    <View style={styles.profileField}>
-                      <Text
-                        style={[styles.fieldLabel, { color: theme.textColor }]}
-                      >
-                        Gender
-                      </Text>
-                      <Text
-                        style={[styles.fieldValue, { color: theme.textColor }]}
-                      >
-                        {user.gender}
-                      </Text>
-                    </View>
-                  )}
-
-                  {user.sexuality && (
-                    <View style={styles.profileField}>
-                      <Text
-                        style={[styles.fieldLabel, { color: theme.textColor }]}
-                      >
-                        Sexuality
-                      </Text>
-                      <Text
-                        style={[styles.fieldValue, { color: theme.textColor }]}
-                      >
-                        {user.sexuality}
-                      </Text>
-                    </View>
-                  )}
-
-                  {user.personalityTraits &&
-                    user.personalityTraits.length > 0 && (
-                      <View style={styles.profileField}>
                         <Text
                           style={[
-                            styles.fieldLabel,
+                            styles.closeButtonText,
                             { color: theme.textColor },
                           ]}
                         >
-                          Personality Traits
+                          ✕
                         </Text>
-                        <View style={styles.traitsContainer}>
-                          {user.personalityTraits.map((trait, index) => (
-                            <View key={index} style={styles.traitTag}>
-                              <Text
-                                style={[
-                                  styles.traitText,
-                                  { color: theme.textColor },
-                                ]}
-                              >
-                                {trait}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      </View>
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.headerSpacer} />
+                  </View>
+
+                  <View style={styles.profileContent}>
+                    {/* Profile Images */}
+                    {user.photos && user.photos.length > 0 && (
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.photosContainer}
+                        bounces={false}
+                        pagingEnabled={false}
+                      >
+                        {user.photos.map((photo, index) => (
+                          <TouchableOpacity
+                            key={index}
+                            activeOpacity={1}
+                            style={styles.photoWrapper}
+                          >
+                            <Image
+                              source={{ uri: photo }}
+                              style={styles.profileImage}
+                              resizeMode="cover"
+                            />
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
                     )}
 
-                  {user.compatibilityScore !== undefined &&
-                    user.compatibilityScore !== null && (
+                    {/* Profile Info */}
+                    <View style={styles.profileInfo}>
+                      <Text
+                        style={[styles.profileName, { color: theme.textColor }]}
+                      >
+                        {user.name}, {user.age}
+                      </Text>
                       <Text
                         style={[
-                          { color: theme.textColor, opacity: 0.6 },
-                          styles.compatibilityScore,
+                          styles.profileLocation,
+                          { color: theme.textColor, opacity: 0.7 },
                         ]}
                       >
-                        Compatibility: {Math.round(user.compatibilityScore)}%
+                        📍 {user.city}
                       </Text>
-                    )}
-                </View>
+
+                      {user.bio &&
+                        typeof user.bio === "string" &&
+                        user.bio.trim() && (
+                          <View style={styles.bioSection}>
+                            <Text
+                              style={[
+                                styles.bioLabel,
+                                { color: theme.textColor },
+                              ]}
+                            >
+                              About
+                            </Text>
+                            <Text
+                              style={[
+                                styles.bioText,
+                                { color: theme.textColor },
+                              ]}
+                            >
+                              {user.bio}
+                            </Text>
+                          </View>
+                        )}
+
+                      {/* Additional Profile Fields */}
+                      {user.mbti && (
+                        <View style={styles.profileField}>
+                          <Text
+                            style={[
+                              styles.fieldLabel,
+                              { color: theme.textColor },
+                            ]}
+                          >
+                            MBTI
+                          </Text>
+                          <Text
+                            style={[
+                              styles.fieldValue,
+                              { color: theme.textColor },
+                            ]}
+                          >
+                            {user.mbti}
+                          </Text>
+                        </View>
+                      )}
+
+                      {user.gender && (
+                        <View style={styles.profileField}>
+                          <Text
+                            style={[
+                              styles.fieldLabel,
+                              { color: theme.textColor },
+                            ]}
+                          >
+                            Gender
+                          </Text>
+                          <Text
+                            style={[
+                              styles.fieldValue,
+                              { color: theme.textColor },
+                            ]}
+                          >
+                            {user.gender}
+                          </Text>
+                        </View>
+                      )}
+
+                      {user.sexuality && (
+                        <View style={styles.profileField}>
+                          <Text
+                            style={[
+                              styles.fieldLabel,
+                              { color: theme.textColor },
+                            ]}
+                          >
+                            Sexuality
+                          </Text>
+                          <Text
+                            style={[
+                              styles.fieldValue,
+                              { color: theme.textColor },
+                            ]}
+                          >
+                            {user.sexuality}
+                          </Text>
+                        </View>
+                      )}
+
+                      {user.personalityTraits &&
+                        user.personalityTraits.length > 0 && (
+                          <View style={styles.profileField}>
+                            <Text
+                              style={[
+                                styles.fieldLabel,
+                                { color: theme.textColor },
+                              ]}
+                            >
+                              Personality Traits
+                            </Text>
+                            <View style={styles.traitsContainer}>
+                              {user.personalityTraits.map((trait, index) => (
+                                <View key={index} style={styles.traitTag}>
+                                  <Text
+                                    style={[
+                                      styles.traitText,
+                                      { color: theme.textColor },
+                                    ]}
+                                  >
+                                    {trait}
+                                  </Text>
+                                </View>
+                              ))}
+                            </View>
+                          </View>
+                        )}
+
+                      {user.compatibilityScore !== undefined &&
+                        user.compatibilityScore !== null && (
+                          <Text
+                            style={[
+                              { color: theme.textColor, opacity: 0.6 },
+                              styles.compatibilityScore,
+                            ]}
+                          >
+                            Compatibility: {Math.round(user.compatibilityScore)}
+                            %
+                          </Text>
+                        )}
+                    </View>
+                  </View>
+                </GestureScrollView>
               </View>
-            </GestureScrollView>
-            </View>
-          </PanGestureHandler>
+            </PanGestureHandler>
           </View>
         </Modal>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -1333,7 +1377,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 20,
+    marginTop: 60,
     marginBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255, 255, 255, 0.1)",

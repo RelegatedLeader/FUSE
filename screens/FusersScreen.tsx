@@ -316,17 +316,19 @@ export default function FusersScreen() {
         ) : (
           matchedUsers.map((user, index) => (
             <View key={user.address} style={styles.matchedUserCard}>
-              <View style={styles.matchedUserInfo}>
-                <TouchableOpacity onPress={() => viewUserProfile(user)}>
-                  <Text style={styles.matchedUserName}>
-                    {user.name}, {calculateAge(user.age)}
-                  </Text>
-                </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.matchedUserInfo}
+                onPress={() => viewUserProfile(user)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.matchedUserName}>
+                  {user.name}, {calculateAge(user.age)}
+                </Text>
                 <Text style={styles.matchedUserLocation}>{user.city}</Text>
                 <Text style={styles.matchedUserDate}>
                   Matched {user.matchedDate.toLocaleDateString()}
                 </Text>
-              </View>
+              </TouchableOpacity>
               <View style={styles.buttonContainer}>
                 <TouchableOpacity
                   style={styles.messageButton}
@@ -646,6 +648,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginTop: 60,
     marginBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255, 255, 255, 0.1)",
