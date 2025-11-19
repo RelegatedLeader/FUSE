@@ -9,8 +9,6 @@ import {
   Animated,
   Alert,
   Dimensions,
-  FlatList,
-  PanResponder,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -44,7 +42,7 @@ export default function FuseScreen() {
   const [showBio, setShowBio] = useState(false);
   const [isLoading, setIsLoading] = useState(true); // Add loading state
   const fuseAnim = useState(new Animated.Value(0))[0];
-  const flatListRef = useRef<FlatList<User>>(null);
+  const flatListRef = useRef<ScrollView>(null);
 
   // Track which users have been skipped
   const [skippedUsers, setSkippedUsers] = useState<Set<string>>(new Set());
@@ -521,56 +519,18 @@ export default function FuseScreen() {
     hasIncomingRequest,
     requestedUsers,
   }) => {
-    const pan = useRef(new Animated.ValueXY()).current;
     const scrollViewRef = useRef<ScrollView>(null);
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
 
-    const panResponder = PanResponder.create({
-      onStartShouldSetPanResponder: (evt, gestureState) => {
-        // Only respond to pan gestures that are more vertical than horizontal
-        // This allows horizontal scrolling in the photo carousel
-        return Math.abs(gestureState.dx) < Math.abs(gestureState.dy);
-      },
-      onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
-        useNativeDriver: false,
-      }),
-      onPanResponderRelease: (evt, gestureState) => {
-        if (Math.abs(gestureState.dx) > 120) {
-          // Swipe threshold
-          const direction = gestureState.dx > 0 ? "right" : "left";
-          Animated.spring(pan, {
-            toValue: {
-              x: direction === "right" ? 500 : -500,
-              y: gestureState.dy,
-            },
-            useNativeDriver: false,
-          }).start(() => {
-            if (direction === "right") {
-              onFuse(user.address);
-            } else {
-              onSkip(user.address);
-            }
-            pan.setValue({ x: 0, y: 0 });
-          });
-        } else {
-          // Return to center
-          Animated.spring(pan, {
-            toValue: { x: 0, y: 0 },
-            useNativeDriver: false,
-          }).start();
-        }
-      },
-    });
-
     const handleScroll = (event: any) => {
-      const slideSize = 300; // Updated to match new image width
+      const slideSize = Dimensions.get("window").width - 40; // Updated to match new image width
       const index = Math.round(event.nativeEvent.contentOffset.x / slideSize);
       setCurrentPhotoIndex(index);
     };
 
     const scrollToPhoto = (index: number) => {
       if (scrollViewRef.current) {
-        const slideSize = 300; // Updated to match new image width
+        const slideSize = Dimensions.get("window").width - 40; // Updated to match new image width
         scrollViewRef.current.scrollTo({
           x: index * slideSize,
           animated: true,
@@ -579,18 +539,14 @@ export default function FuseScreen() {
     };
 
     return (
-      <Animated.View
+      <View
         style={[
-          styles.card,
+          styles.fullScreenCard,
           { backgroundColor: theme?.card?.backgroundColor || "#ffffff" },
-          {
-            transform: [{ translateX: pan.x }, { translateY: pan.y }],
-          },
         ]}
-        {...panResponder.panHandlers}
       >
         {/* User Image */}
-        <View style={styles.imageContainer}>
+        <View style={styles.fullScreenImageContainer}>
           {user.photos && user.photos.length > 0 ? (
             <View style={styles.photoCarousel}>
               <ScrollView
@@ -600,8 +556,8 @@ export default function FuseScreen() {
                 showsHorizontalScrollIndicator={true}
                 onScroll={handleScroll}
                 scrollEventThrottle={16}
-                style={styles.photoScrollView}
-                snapToInterval={300}
+                style={styles.fullScreenPhotoScrollView}
+                snapToInterval={Dimensions.get("window").width - 40}
                 decelerationRate="fast"
                 contentContainerStyle={{ alignItems: "center" }}
                 bounces={false}
@@ -614,7 +570,7 @@ export default function FuseScreen() {
                       openFullScreenImage(photo, index, user.photos)
                     }
                   >
-                    <Image source={{ uri: photo }} style={styles.photoImage} />
+                    <Image source={{ uri: photo }} style={styles.fullScreenPhotoImage} />
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -639,14 +595,14 @@ export default function FuseScreen() {
           ) : (
             <View
               style={[
-                styles.placeholderImage,
+                styles.fullScreenPlaceholderImage,
                 { backgroundColor: theme?.buttonBackground || "#8b9dc3" },
               ]}
             >
               <Text
                 style={[
                   { color: theme?.textColor || "#333" },
-                  styles.placeholderEmoji,
+                  styles.fullScreenPlaceholderEmoji,
                 ]}
               >
                 {String("👤")}
@@ -656,9 +612,9 @@ export default function FuseScreen() {
         </View>
 
         {/* User Info */}
-        <View style={styles.userInfo}>
+        <View style={styles.fullScreenUserInfo}>
           <View style={styles.nameContainer}>
-            <Text style={[{ color: theme?.textColor || "#333" }, styles.name]}>
+            <Text style={[{ color: theme?.textColor || "#333" }, styles.fullScreenName]}>
               {String(user.name || "Unknown User")}, {String(user.age || "N/A")}
             </Text>
             {hasIncomingRequest && (
@@ -666,7 +622,7 @@ export default function FuseScreen() {
             )}
           </View>
           <Text
-            style={[{ color: theme?.textColor || "#666" }, styles.location]}
+            style={[{ color: theme?.textColor || "#666" }, styles.fullScreenLocation]}
           >
             {String("Location: " + (user.city || "Unknown Location"))}
           </Text>
@@ -675,7 +631,7 @@ export default function FuseScreen() {
               <Text
                 style={[
                   { color: theme?.textColor || "#666" },
-                  styles.compatibility,
+                  styles.fullScreenCompatibility,
                 ]}
               >
                 {String(
@@ -684,18 +640,32 @@ export default function FuseScreen() {
               </Text>
             )}
           <ScrollView
-            style={styles.bioScrollView}
+            style={styles.fullScreenBioScrollView}
             showsVerticalScrollIndicator={true}
             bounces={false}
           >
-            <Text style={[{ color: theme?.textColor || "#666" }, styles.bio]}>
+            <Text style={[{ color: theme?.textColor || "#666" }, styles.fullScreenBio]}>
               {String(user.bio || "No bio available")}
             </Text>
           </ScrollView>
         </View>
 
         {/* Action Buttons */}
-        <View style={styles.actionButtons}>
+        <View style={styles.fullScreenActionButtons}>
+          <TouchableOpacity
+            onPress={
+              requestedUsers.has(user.address)
+                ? undefined
+                : () => onSkip(user.address)
+            }
+            disabled={requestedUsers.has(user.address)}
+            style={[
+              styles.fullScreenSkipButton,
+              { backgroundColor: requestedUsers.has(user.address) ? "#ccc" : "#666" },
+            ]}
+          >
+            <Text style={styles.fullScreenButtonText}>SKIP</Text>
+          </TouchableOpacity>
           <AnimatedTouchableOpacity
             onPress={
               requestedUsers.has(user.address)
@@ -704,7 +674,7 @@ export default function FuseScreen() {
             }
             disabled={requestedUsers.has(user.address)}
             style={[
-              styles.fuseButton,
+              styles.fullScreenFuseButton,
               {
                 backgroundColor: requestedUsers.has(user.address)
                   ? "#ccc"
@@ -712,47 +682,13 @@ export default function FuseScreen() {
                       inputRange: [0, 1],
                       outputRange: ["#ff4757", "#ff3838"],
                     }),
-                shadowOpacity: fuseAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.3, 0.8],
-                }),
-                shadowRadius: fuseAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [5, 15],
-                }),
-                elevation: fuseAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [5, 15],
-                }),
-                transform: [
-                  {
-                    scale: fuseAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1, 1.05],
-                    }),
-                  },
-                ],
               },
             ]}
           >
             <Animated.Text
               style={[
-                styles.buttonText,
+                styles.fullScreenButtonText,
                 {
-                  transform: [
-                    {
-                      scale: fuseAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [1, 1.3],
-                      }),
-                    },
-                    {
-                      rotate: fuseAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ["0deg", "5deg"],
-                      }),
-                    },
-                  ],
                   color: requestedUsers.has(user.address)
                     ? "#666"
                     : fuseAnim.interpolate({
@@ -766,7 +702,7 @@ export default function FuseScreen() {
             </Animated.Text>
           </AnimatedTouchableOpacity>
         </View>
-      </Animated.View>
+      </View>
     );
   };
 
@@ -857,27 +793,30 @@ export default function FuseScreen() {
           </Text>
         </View>
       ) : (
-        <FlatList
+        <ScrollView
           ref={flatListRef}
-          data={users}
-          renderItem={({ item, index }) => {
-            return (
-              <UserCard
-                user={item}
-                onFuse={handleFuse}
-                onSkip={handleSkip}
-                theme={theme}
-                fuseAnim={fuseAnim}
-                hasIncomingRequest={incomingRequests.has(item.address)}
-                requestedUsers={requestedUsers}
-              />
-            );
-          }}
-          keyExtractor={(item, index) => `${item.address}-${index}`}
+          pagingEnabled
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContainer}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
+          contentContainerStyle={styles.fullScreenListContainer}
+          onMomentumScrollEnd={(event) => {
+            const slideSize = Dimensions.get("window").height;
+            const index = Math.round(event.nativeEvent.contentOffset.y / slideSize);
+            // Handle profile change if needed
+          }}
+        >
+          {users.map((user, index) => (
+            <UserCard
+              key={`${user.address}-${index}`}
+              user={user}
+              onFuse={handleFuse}
+              onSkip={handleSkip}
+              theme={theme}
+              fuseAnim={fuseAnim}
+              hasIncomingRequest={incomingRequests.has(user.address)}
+              requestedUsers={requestedUsers}
+            />
+          ))}
+        </ScrollView>
       )}
 
       {/* Full-Screen Image Viewer */}
@@ -958,6 +897,104 @@ const styles = StyleSheet.create({
     elevation: 5,
     flexDirection: "column",
     alignItems: "stretch",
+  },
+  fullScreenCard: {
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height,
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingTop: 60, // Account for status bar and title
+    paddingHorizontal: 20,
+  },
+  fullScreenImageContainer: {
+    height: Dimensions.get("window").height * 0.5, // Half screen height for images
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  fullScreenPhotoScrollView: {
+    width: Dimensions.get("window").width - 40, // Full width minus padding
+    height: Dimensions.get("window").height * 0.5,
+  },
+  fullScreenPhotoImage: {
+    width: Dimensions.get("window").width - 40,
+    height: Dimensions.get("window").height * 0.5,
+    resizeMode: "cover",
+  },
+  fullScreenPlaceholderImage: {
+    width: Dimensions.get("window").width - 40,
+    height: Dimensions.get("window").height * 0.5,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f0f0f0",
+  },
+  fullScreenPlaceholderEmoji: {
+    fontSize: Dimensions.get("window").width * 0.2,
+  },
+  fullScreenUserInfo: {
+    flex: 1,
+    width: "100%",
+    paddingHorizontal: 10,
+    marginBottom: 20,
+  },
+  fullScreenName: {
+    fontSize: 32,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 10,
+  },
+  fullScreenLocation: {
+    fontSize: 18,
+    textAlign: "center",
+    marginBottom: 5,
+  },
+  fullScreenCompatibility: {
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 15,
+    fontWeight: "bold",
+  },
+  fullScreenBioScrollView: {
+    maxHeight: 150,
+    marginTop: 10,
+  },
+  fullScreenBio: {
+    fontSize: 16,
+    lineHeight: 24,
+    textAlign: "center",
+  },
+  fullScreenActionButtons: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    width: "100%",
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+  fullScreenSkipButton: {
+    padding: 20,
+    backgroundColor: "#666",
+    borderRadius: 15,
+    flex: 1,
+    marginRight: 15,
+    alignItems: "center",
+  },
+  fullScreenFuseButton: {
+    padding: 20,
+    backgroundColor: "#ff4757",
+    borderRadius: 15,
+    flex: 1,
+    marginLeft: 15,
+    alignItems: "center",
+  },
+  fullScreenButtonText: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  fullScreenListContainer: {
+    alignItems: "center",
   },
   leftTap: {
     position: "absolute",
