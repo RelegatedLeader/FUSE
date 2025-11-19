@@ -1421,8 +1421,8 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     borderRadius: 20,
-    width: Dimensions.get("window").width * 0.95,
-    maxWidth: 400,
+    width: isLargeScreen ? screenWidth * 0.9 : screenWidth * 0.95,
+    maxWidth: isLargeScreen ? screenWidth * 0.9 : 400,
     paddingBottom: 20,
   },
   modalHeader: {
@@ -1443,7 +1443,7 @@ const styles = StyleSheet.create({
     width: 30,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: isLargeScreen ? 24 : 20,
     fontWeight: "bold",
   },
   scrollContent: {
@@ -1463,21 +1463,21 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   profileImage: {
-    width: 280,
-    height: 280,
+    width: isLargeScreen ? 400 : 280,
+    height: isLargeScreen ? 400 : 280,
     borderRadius: 15,
   },
   profileInfo: {
     paddingHorizontal: 10,
   },
   profileName: {
-    fontSize: 24,
+    fontSize: isLargeScreen ? 28 : 24,
     fontWeight: "bold",
     textAlign: "center",
     marginBottom: 8,
   },
   profileLocation: {
-    fontSize: 16,
+    fontSize: isLargeScreen ? 18 : 16,
     textAlign: "center",
     marginBottom: 15,
   },
@@ -1490,20 +1490,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   bioText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: isLargeScreen ? 18 : 14,
+    lineHeight: isLargeScreen ? 26 : 20,
   },
   profileField: {
     marginBottom: 15,
   },
   fieldLabel: {
-    fontSize: 14,
+    fontSize: isLargeScreen ? 16 : 14,
     fontWeight: "bold",
     marginBottom: 4,
     opacity: 0.8,
   },
   fieldValue: {
-    fontSize: 16,
+    fontSize: isLargeScreen ? 18 : 16,
   },
   traitsContainer: {
     flexDirection: "row",
