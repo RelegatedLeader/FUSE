@@ -136,17 +136,15 @@ export class EncryptionService {
   // Encrypt message for E2E messaging
   static encryptMessage(
     message: string,
-    senderKey: string,
-    recipientKey: string
+    encryptionKey: string
   ): string {
-    // Use sender's key for encryption
-    const { encrypted, iv, tag } = this.encrypt(message, senderKey);
+    // Use the conversation key for encryption
+    const { encrypted, iv, tag } = this.encrypt(message, encryptionKey);
 
     return JSON.stringify({
       data: encrypted,
       iv: iv,
       tag: tag,
-      senderKey: senderKey, // In production, use key exchange protocol
       timestamp: Date.now(),
     });
   }

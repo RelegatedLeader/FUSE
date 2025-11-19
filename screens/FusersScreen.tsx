@@ -149,7 +149,10 @@ export default function FusersScreen() {
                   style={styles.messageButton}
                   onPress={async () => {
                     // Set the selected user for messaging
-                    await AsyncStorage.setItem('selected_chat_user', user.address);
+                    await AsyncStorage.setItem(
+                      "selected_chat_user",
+                      user.address
+                    );
                     // Navigate directly to Chats tab
                     NavigationService.getInstance().navigateToTab("FuseChats");
                   }}

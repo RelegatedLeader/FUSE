@@ -10,6 +10,7 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
+  RefreshControl,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -66,6 +67,7 @@ export default function MessagesScreen() {
   const [editingText, setEditingText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [recipientTyping, setRecipientTyping] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     const initializeMessaging = async () => {
@@ -75,10 +77,10 @@ export default function MessagesScreen() {
           console.log("Messaging initialized for:", address);
 
           // Check if there's a selected chat user
-          const selectedUser = await AsyncStorage.getItem('selected_chat_user');
+          const selectedUser = await AsyncStorage.getItem("selected_chat_user");
           if (selectedUser) {
             setSelectedConversation(selectedUser);
-            await AsyncStorage.removeItem('selected_chat_user');
+            await AsyncStorage.removeItem("selected_chat_user");
           }
 
           // Set up listener for all user messages (for Chats tab)
@@ -87,8 +89,11 @@ export default function MessagesScreen() {
               // Process messages into conversations
               const conversationsMap = new Map<string, Conversation>();
               newMessages.forEach((msg: any) => {
-                const otherUser = msg.senderAddress === address ? msg.recipientAddress : msg.senderAddress;
-                const convId = [address, otherUser].sort().join('_');
+                const otherUser =
+                  msg.senderAddress === address
+                    ? msg.recipientAddress
+                    : msg.senderAddress;
+                const convId = [address, otherUser].sort().join("_");
                 let lastMessage = "";
                 try {
                   const parsed = JSON.parse(msg.message);
@@ -96,8 +101,11 @@ export default function MessagesScreen() {
                 } catch {
                   lastMessage = msg.message;
                 }
-                const timestamp = msg.timestamp.toDate ? msg.timestamp.toDate() : new Date(msg.timestamp);
-                const unread = msg.status !== 'read' && msg.recipientAddress === address;
+                const timestamp = msg.timestamp.toDate
+                  ? msg.timestamp.toDate()
+                  : new Date(msg.timestamp);
+                const unread =
+                  msg.status !== "read" && msg.recipientAddress === address;
 
                 if (!conversationsMap.has(convId)) {
                   conversationsMap.set(convId, {
@@ -116,9 +124,9 @@ export default function MessagesScreen() {
                   }
                 }
               });
-              const sortedConversations = Array.from(conversationsMap.values()).sort(
-                (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
-              );
+              const sortedConversations = Array.from(
+                conversationsMap.values()
+              ).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
               setConversations(sortedConversations);
 
               // Only update messages state if not in a conversation
@@ -128,8 +136,13 @@ export default function MessagesScreen() {
                     id: msg.id,
                     from: msg.senderAddress,
                     fromName: msg.senderAddress, // TODO: Get real names
-                    message: typeof msg.message === "string" ? msg.message : JSON.parse(msg.message).content || "",
-                    timestamp: msg.timestamp.toDate ? msg.timestamp.toDate() : new Date(msg.timestamp),
+                    message:
+                      typeof msg.message === "string"
+                        ? msg.message
+                        : JSON.parse(msg.message).content || "",
+                    timestamp: msg.timestamp.toDate
+                      ? msg.timestamp.toDate()
+                      : new Date(msg.timestamp),
                     isRead: msg.status === "read",
                   }))
                 );
@@ -214,6 +227,58 @@ export default function MessagesScreen() {
       setMatchedUsers(deduplicatedMatches);
     } catch (error) {
       console.error("Error loading matched users:", error);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      if (address && !selectedConversation) {
+        // Manually fetch messages
+        const { FirebaseService } = await import("../utils/firebaseService");
+        const messages = await FirebaseService.getAllUserMessages(address);
+
+        // Process messages into conversations
+        const conversationsMap = new Map<string, Conversation>();
+        messages.forEach((msg: any) => {
+          const otherUser =
+            msg.senderAddress === address
+              ? msg.recipientAddress
+              : msg.senderAddress;
+          const convId = [address, otherUser].sort().join("_");
+          let lastMessage = "";
+          try {
+            const parsed = JSON.parse(msg.message);
+            lastMessage = parsed.content || "";
+          } catch {
+            lastMessage = msg.message;
+          }
+          const timestamp = msg.timestamp.toDate
+            ? msg.timestamp.toDate()
+            : new Date(msg.timestamp);
+          const unread =
+            msg.status !== "read" && msg.recipientAddress === address;
+
+          const existing = conversationsMap.get(convId);
+          if (!existing || timestamp > existing.timestamp) {
+            conversationsMap.set(convId, {
+              id: convId,
+              otherUser,
+              lastMessage,
+              timestamp,
+              unread,
+            });
+          }
+        });
+        const sortedConversations = Array.from(conversationsMap.values()).sort(
+          (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
+        );
+        setConversations(sortedConversations);
+      }
+    } catch (error) {
+      console.error("Error refreshing conversations:", error);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -329,8 +394,51 @@ export default function MessagesScreen() {
         newMessage.trim()
       );
 
-      // Clear input - real-time listener will update the messages
+      // Clear input
       setNewMessage("");
+
+      // Immediately add the message to the current conversation view
+      const sentMessage = {
+        id: `temp_${Date.now()}`, // Temporary ID until real-time listener updates
+        from: address,
+        fromName: "You",
+        message: newMessage.trim(),
+        timestamp: new Date(),
+        isRead: true,
+      };
+      setMessages((prevMessages) => [...prevMessages, sentMessage]);
+
+      // Manually update conversations to show the sent message immediately
+      setConversations((prevConversations) => {
+        const updatedConversations = [...prevConversations];
+        const convIndex = updatedConversations.findIndex(
+          (conv) => conv.otherUser === selectedConversation
+        );
+
+        if (convIndex >= 0) {
+          // Update existing conversation
+          updatedConversations[convIndex] = {
+            ...updatedConversations[convIndex],
+            lastMessage: newMessage.trim(),
+            timestamp: new Date(),
+            unread: false, // Sent messages are not unread
+          };
+        } else {
+          // Add new conversation
+          updatedConversations.unshift({
+            id: [address, selectedConversation].sort().join("_"),
+            otherUser: selectedConversation,
+            lastMessage: newMessage.trim(),
+            timestamp: new Date(),
+            unread: false,
+          });
+        }
+
+        // Sort by timestamp (most recent first)
+        return updatedConversations.sort(
+          (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
+        );
+      });
     } catch (error) {
       console.error("Error sending message:", error);
       Alert.alert("Error", "Failed to send message. Please try again.");
@@ -684,97 +792,12 @@ export default function MessagesScreen() {
       <Text style={theme.title}>Chats</Text>
       <Text style={theme.subtitle}>Connect through conversation</Text>
 
-      {/* Selected Fusers Section - Matched users for messaging */}
-      {matchedUsers.length > 0 && (
-        <View style={styles.matchedUsersContainer}>
-          <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
-            Selected Fusers 💕
-          </Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.matchedUsersScroll}
-          >
-            {matchedUsers.map((user) => (
-              <View
-                key={user.address}
-                style={[
-                  styles.matchedUserCard,
-                  { backgroundColor: theme.card.backgroundColor },
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.matchedUserContent}
-                  onPress={() => {
-                    setSelectedConversation(user.address);
-                  }}
-                >
-                  <Image
-                    source={{
-                      uri:
-                        user.photos && user.photos.length > 0
-                          ? user.photos[0]
-                          : "https://via.placeholder.com/60x60?text=👤",
-                    }}
-                    style={styles.matchedUserImage}
-                  />
-                  <Text
-                    style={[styles.matchedUserName, { color: theme.textColor }]}
-                    numberOfLines={1}
-                  >
-                    {user.name}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.matchedUserDetails,
-                      { color: theme.textColor, opacity: 0.7 },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {user.age} • {user.city}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Others Section - Discover and fuse with new users */}
-      <View style={styles.othersContainer}>
-        <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
-          Others 🌟
-        </Text>
-        <Text
-          style={[
-            styles.sectionSubtitle,
-            { color: theme.textColor, opacity: 0.7 },
-          ]}
-        >
-          Discover and connect with new people
-        </Text>
-        <TouchableOpacity
-          style={[
-            styles.discoverButton,
-            { backgroundColor: theme.buttonBackground },
-          ]}
-          onPress={() => {
-            // Navigate to fuse/discovery screen
-            Alert.alert(
-              "Discover",
-              "Navigate to discovery screen to find new connections!"
-            );
-          }}
-        >
-          <Text
-            style={[styles.discoverButtonText, { color: theme.buttonText }]}
-          >
-            🔍 Find New Connections
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.messagesList}>
+      <ScrollView
+        style={styles.messagesList}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {conversations.length === 0 ? (
           <View style={theme.card}>
             <Text
@@ -802,7 +825,8 @@ export default function MessagesScreen() {
             >
               <View style={styles.messageHeader}>
                 <Text style={[styles.senderName, { color: theme.textColor }]}>
-                  {conversation.otherUser.slice(0, 6)}...{conversation.otherUser.slice(-4)}
+                  {conversation.otherUser.slice(0, 6)}...
+                  {conversation.otherUser.slice(-4)}
                 </Text>
                 {conversation.unread && <View style={styles.unreadDot} />}
               </View>

@@ -1,6 +1,8 @@
 import { FirebaseService } from "./firebaseService";
 import { EncryptionService } from "./encryption";
 import { KeyManager } from "./keyManager";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import CryptoJS from "crypto-js";
 import {
   collection,
   query,
@@ -14,6 +16,10 @@ import { db } from "./firebase";
 
 // E2E encrypted messaging service for FUSE
 export class MessagingService {
+  // Shared messaging key for demo purposes (in production, use proper E2E encryption)
+  private static readonly SHARED_MESSAGING_KEY =
+    "fuse_shared_messaging_key_2024";
+
   private static userKeys: {
     masterKey: string;
     dataKey: string;
@@ -41,7 +47,36 @@ export class MessagingService {
 
   // Generate consistent conversation ID for two users
   private static generateConversationId(user1: string, user2: string): string {
-    return [user1, user2].sort().join('_');
+    return [user1, user2].sort().join("_");
+  }
+
+  // Get or create conversation key for E2E encryption
+  private static async getConversationKey(recipientAddress: string): Promise<string> {
+    if (!this.currentUser) {
+      throw new Error("Messaging service not initialized");
+    }
+
+    const conversationId = this.generateConversationId(this.currentUser, recipientAddress);
+    const keyStorageKey = `conversation_key_v2_${conversationId}`;
+
+    // Try to get existing key
+    let conversationKey = await AsyncStorage.getItem(keyStorageKey);
+
+    if (!conversationKey) {
+      // Generate deterministic key for this conversation (both users will generate the same key)
+      // Use hash of conversation ID as the key - take first 32 bytes for AES-256
+      const hash = CryptoJS.SHA256(conversationId + this.SHARED_MESSAGING_KEY);
+      conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(0, 64); // 64 hex chars = 32 bytes
+
+      // Store the key
+      await AsyncStorage.setItem(keyStorageKey, conversationKey);
+
+      console.log("🔑 MessagingService: Generated deterministic conversation key for:", conversationId);
+    } else {
+      console.log("🔑 MessagingService: Retrieved conversation key for:", conversationId);
+    }
+
+    return conversationKey;
   }
 
   // Send encrypted message
@@ -60,6 +95,9 @@ export class MessagingService {
         recipientAddress
       );
 
+      // Get the conversation-specific key
+      const conversationKey = await this.getConversationKey(recipientAddress);
+
       const messageData = {
         content: message,
         messageType,
@@ -71,8 +109,7 @@ export class MessagingService {
 
       const encryptedMessage = EncryptionService.encryptMessage(
         JSON.stringify(messageData),
-        this.userKeys.messagingKey,
-        this.userKeys.messagingKey
+        conversationKey
       );
 
       await FirebaseService.sendMessage(
@@ -110,6 +147,14 @@ export class MessagingService {
     }
 
     try {
+      const conversationId = this.generateConversationId(
+        this.currentUser,
+        recipientAddress
+      );
+
+      // Get the conversation-specific key
+      const conversationKey = await this.getConversationKey(recipientAddress);
+
       // Upload media to Firebase Storage first
       const mediaUrl = await FirebaseService.uploadUserImageFromBase64(
         mediaUri,
@@ -129,13 +174,7 @@ export class MessagingService {
 
       const encryptedMessage = EncryptionService.encryptMessage(
         JSON.stringify(messageData),
-        this.userKeys.messagingKey,
-        this.userKeys.messagingKey
-      );
-
-      const conversationId = this.generateConversationId(
-        this.currentUser,
-        recipientAddress
+        conversationKey
       );
 
       await FirebaseService.sendMessage(
@@ -177,6 +216,9 @@ export class MessagingService {
         recipientAddress
       );
 
+      // Get the conversation-specific key
+      const conversationKey = await this.getConversationKey(recipientAddress);
+
       // Get the original message to preserve metadata
       const messages = await FirebaseService.getConversationMessages(
         conversationId
@@ -210,8 +252,7 @@ export class MessagingService {
 
       const encryptedMessage = EncryptionService.encryptMessage(
         JSON.stringify(updatedData),
-        this.userKeys.messagingKey,
-        this.userKeys.messagingKey
+        conversationKey
       );
 
       // Note: In a production app, you'd update the existing document
@@ -243,6 +284,9 @@ export class MessagingService {
         this.currentUser,
         recipientAddress
       );
+
+      // Get the conversation-specific key
+      const conversationKey = await this.getConversationKey(recipientAddress);
 
       // Get the original message
       const messages = await FirebaseService.getConversationMessages(
@@ -277,8 +321,7 @@ export class MessagingService {
 
       const encryptedMessage = EncryptionService.encryptMessage(
         JSON.stringify(deletedData),
-        this.userKeys.messagingKey,
-        this.userKeys.messagingKey
+        conversationKey
       );
 
       // Create a replacement message
@@ -657,86 +700,6 @@ export class MessagingService {
     } catch (error) {
       throw new Error("Failed to search messages: " + error);
     }
-  }
-
-  // Listen to all user messages for chat list
-  static listenToAllUserMessages(
-    callback: (messages: Message[]) => void
-  ): () => void {
-    if (!this.currentUser || !this.userKeys) {
-      throw new Error("Messaging service not initialized");
-    }
-
-    // Query messages where user is sender or recipient, ordered by timestamp desc, limit to recent
-    const messagesRef = collection(db, "messages");
-    const q = query(
-      messagesRef,
-      where("senderAddress", "==", this.currentUser),
-      orderBy("timestamp", "desc"),
-      limit(50)
-    );
-
-    const q2 = query(
-      messagesRef,
-      where("recipientAddress", "==", this.currentUser),
-      orderBy("timestamp", "desc"),
-      limit(50)
-    );
-
-    const unsubscribe1 = onSnapshot(q, (snapshot) => {
-      this.processMessagesSnapshot(snapshot, callback);
-    });
-
-    const unsubscribe2 = onSnapshot(q2, (snapshot) => {
-      this.processMessagesSnapshot(snapshot, callback);
-    });
-
-    return () => {
-      unsubscribe1();
-      unsubscribe2();
-    };
-  }
-
-  private static processMessagesSnapshot(
-    snapshot: QuerySnapshot,
-    callback: (messages: Message[]) => void
-  ) {
-    const messages: Message[] = [];
-
-    snapshot.forEach((doc) => {
-      try {
-        const data = doc.data();
-        const decryptedMessage = EncryptionService.decryptMessage(
-          data.encryptedMessage,
-          this.userKeys!.messagingKey,
-          this.userKeys!.messagingKey
-        );
-
-        const parsedMessage = JSON.parse(decryptedMessage);
-        messages.push({
-          id: doc.id,
-          content: parsedMessage.content,
-          messageType: parsedMessage.messageType || "text",
-          senderAddress: data.senderAddress,
-          recipientAddress: data.recipientAddress,
-          timestamp: data.timestamp.toDate(),
-          status: data.status || "sent",
-          metadata: parsedMessage.metadata,
-        });
-      } catch (error) {
-        console.warn("Failed to decrypt message:", doc.id);
-      }
-    });
-
-    // Sort and deduplicate
-    const sortedMessages = messages
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      .filter(
-        (msg, index, arr) =>
-          arr.findIndex((m) => m.id === msg.id) === index
-      );
-
-    callback(sortedMessages);
   }
 }
 

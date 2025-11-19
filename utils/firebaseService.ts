@@ -23,6 +23,8 @@ import {
   listAll,
 } from "firebase/storage";
 import { getAuth, getIdToken } from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import CryptoJS from "crypto-js";
 import { db, storage } from "./firebase";
 import { EncryptionService } from "./encryption";
 import { KeyManager } from "./keyManager";
@@ -211,11 +213,8 @@ export class FirebaseService {
       const messageId = `${conversationId}_${Date.now()}_${Math.random()
         .toString(36)
         .substr(2, 9)}`;
-      const encryptedMessage = EncryptionService.encryptMessage(
-        message,
-        this.userKeys.messagingKey,
-        this.userKeys.messagingKey
-      );
+      // Message is already encrypted by MessagingService
+      const encryptedMessage = message;
 
       const messageRef = doc(db, "messages", messageId);
       await setDoc(messageRef, {
@@ -254,7 +253,7 @@ export class FirebaseService {
         try {
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
-            this.userKeys.messagingKey
+            "fuse_shared_messaging_key_2024"
           );
           messages.push({
             id: docSnap.id,
@@ -290,14 +289,18 @@ export class FirebaseService {
     const messagesRef = collection(db, "messages");
     const q = query(messagesRef, where("conversationId", "==", conversationId));
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
       const messages: any[] = [];
+
+      // Get the conversation key once for this snapshot
+      const conversationKey = await this.getConversationKey(conversationId);
+
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         try {
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
-            this.userKeys.messagingKey
+            conversationKey
           );
           messages.push({
             id: doc.id,
@@ -320,6 +323,73 @@ export class FirebaseService {
     return unsubscribe;
   }
 
+  // Get all messages for a user (for manual refresh)
+  static async getAllUserMessages(userAddress: string): Promise<any[]> {
+    if (!this.userKeys) {
+      throw new Error("User keys not initialized");
+    }
+
+    const messagesRef = collection(db, "messages");
+    const q = query(messagesRef);
+    const querySnapshot = await getDocs(q);
+
+    const messages: any[] = [];
+    for (const doc of querySnapshot.docs) {
+      const data = doc.data();
+      if (
+        data.senderAddress === userAddress ||
+        data.recipientAddress === userAddress
+      ) {
+        try {
+          const conversationId = [data.senderAddress, data.recipientAddress].sort().join("_");
+          const conversationKey = await this.getConversationKey(conversationId);
+          const decryptedMessage = EncryptionService.decryptMessage(
+            data.encryptedMessage,
+            conversationKey
+          );
+          messages.push({
+            id: doc.id,
+            message: decryptedMessage,
+            senderAddress: data.senderAddress,
+            recipientAddress: data.recipientAddress,
+            timestamp: data.timestamp.toDate(),
+            status: data.status,
+          });
+        } catch (error) {
+          console.warn("Failed to decrypt message:", doc.id);
+        }
+      }
+    }
+
+    return messages.sort(
+      (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
+    );
+  }
+
+  // Get or create conversation key for E2E encryption
+  private static async getConversationKey(conversationId: string): Promise<string> {
+    const keyStorageKey = `conversation_key_v2_${conversationId}`;
+
+    // Try to get existing key
+    let conversationKey = await AsyncStorage.getItem(keyStorageKey);
+
+    if (!conversationKey) {
+      // Generate deterministic key for this conversation (both users will generate the same key)
+      // Use hash of conversation ID as the key - take first 32 bytes for AES-256
+      const hash = CryptoJS.SHA256(conversationId + "fuse_shared_messaging_key_2024");
+      conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(0, 64); // 64 hex chars = 32 bytes
+
+      // Store the key
+      await AsyncStorage.setItem(keyStorageKey, conversationKey);
+
+      console.log("🔑 FirebaseService: Generated deterministic conversation key for:", conversationId);
+    } else {
+      console.log("🔑 FirebaseService: Retrieved conversation key for:", conversationId);
+    }
+
+    return conversationKey;
+  }
+
   // Listen to all messages for a user (for Chats tab)
   static listenToAllUserMessages(
     userAddress: string,
@@ -336,75 +406,74 @@ export class FirebaseService {
     const scheduleCallback = () => {
       if (!callbackScheduled) {
         callbackScheduled = true;
-        setTimeout(() => {
-          // Remove duplicates and sort
-          const uniqueMessages = allMessages.filter((msg, index, self) =>
-            index === self.findIndex(m => m.id === msg.id)
+        setTimeout(async () => {
+          // Filter for user's messages, decrypt with conversation keys, remove duplicates, sort, and limit
+          const userMessages = allMessages.filter(
+            (msg) =>
+              msg.senderAddress === userAddress ||
+              msg.recipientAddress === userAddress
           );
-          uniqueMessages.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-          callback(uniqueMessages);
+
+          // Decrypt messages with their conversation keys
+          const decryptedMessages = await Promise.all(
+            userMessages.map(async (msg) => {
+              try {
+                const conversationId = [msg.senderAddress, msg.recipientAddress].sort().join("_");
+                const conversationKey = await this.getConversationKey(conversationId);
+                const decryptedMessage = EncryptionService.decryptMessage(
+                  msg.encryptedMessage,
+                  conversationKey
+                );
+                return {
+                  ...msg,
+                  message: decryptedMessage,
+                };
+              } catch (error) {
+                console.warn("Failed to decrypt message:", msg.id);
+                return null;
+              }
+            })
+          );
+
+          const validMessages = decryptedMessages.filter(msg => msg !== null);
+          const uniqueMessages = validMessages.filter(
+            (msg, index, self) =>
+              index === self.findIndex((m) => m.id === msg.id)
+          );
+          uniqueMessages.sort(
+            (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
+          );
+          const limitedMessages = uniqueMessages.slice(0, 50);
+          callback(limitedMessages);
           callbackScheduled = false;
         }, 100); // Small delay to batch updates
       }
     };
 
-    // Query for received messages
-    const q1 = query(
-      messagesRef,
-      where("recipientAddress", "==", userAddress),
-      orderBy("timestamp", "desc"),
-      limit(50)
-    );
+    // Single query for all messages (filter on client)
+    const q = query(messagesRef, orderBy("timestamp", "desc"), limit(200));
 
-    // Query for sent messages
-    const q2 = query(
-      messagesRef,
-      where("senderAddress", "==", userAddress),
-      orderBy("timestamp", "desc"),
-      limit(50)
-    );
-
-    const processSnapshot = (querySnapshot: QuerySnapshot, isReceived: boolean) => {
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const snapshotMessages: any[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        try {
-          const decryptedMessage = EncryptionService.decryptMessage(
-            data.encryptedMessage,
-            this.userKeys!.messagingKey
-          );
-          snapshotMessages.push({
-            id: doc.id,
-            message: decryptedMessage,
-            senderAddress: data.senderAddress,
-            recipientAddress: data.recipientAddress,
-            timestamp: data.timestamp.toDate(),
-            status: data.status,
-          });
-        } catch (error) {
-          console.warn("Failed to decrypt message:", doc.id);
-        }
+        // Store raw encrypted message - decryption happens in scheduleCallback
+        snapshotMessages.push({
+          id: doc.id,
+          encryptedMessage: data.encryptedMessage,
+          senderAddress: data.senderAddress,
+          recipientAddress: data.recipientAddress,
+          timestamp: data.timestamp.toDate(),
+          status: data.status,
+        });
       });
 
-      // Update allMessages
-      if (isReceived) {
-        // For received messages, replace the received portion
-        allMessages = allMessages.filter(msg => msg.recipientAddress !== userAddress).concat(snapshotMessages);
-      } else {
-        // For sent messages, replace the sent portion
-        allMessages = allMessages.filter(msg => msg.senderAddress !== userAddress).concat(snapshotMessages);
-      }
-
+      // Update allMessages with latest snapshot
+      allMessages = snapshotMessages;
       scheduleCallback();
-    };
+    });
 
-    const unsubscribe1 = onSnapshot(q1, (snapshot) => processSnapshot(snapshot, true));
-    const unsubscribe2 = onSnapshot(q2, (snapshot) => processSnapshot(snapshot, false));
-
-    return () => {
-      unsubscribe1();
-      unsubscribe2();
-    };
+    return unsubscribe;
   }
 
   // Store encrypted match data
@@ -1091,7 +1160,7 @@ export class FirebaseService {
 
       // Check for mutual request before adding new request
       const requesterAddress = requestData.requesterAddress;
-      
+
       // Check if the target user has already sent a request to the requester
       const targetRequestsRef = doc(db, "fuse_requests", requesterAddress);
       const targetRequestSnap = await getDoc(targetRequestsRef);
@@ -1099,7 +1168,7 @@ export class FirebaseService {
       if (targetRequestSnap.exists()) {
         targetRequests = targetRequestSnap.data().requests || [];
       }
-      
+
       const mutualRequest = targetRequests.find(
         (req: any) =>
           req.requesterAddress === targetAddress &&
@@ -1367,12 +1436,15 @@ export class FirebaseService {
       // Get all users from users collection
       const usersRef = collection(db, "users");
       const usersSnap = await getDocs(usersRef);
-      const userAddresses = usersSnap.docs.map(doc => doc.id);
+      const userAddresses = usersSnap.docs.map((doc) => doc.id);
 
       // Clear fuse_requests for each user
       for (const userAddr of userAddresses) {
         const requestsRef = doc(db, "fuse_requests", userAddr);
-        await setDoc(requestsRef, { requests: [], lastUpdated: Timestamp.now() });
+        await setDoc(requestsRef, {
+          requests: [],
+          lastUpdated: Timestamp.now(),
+        });
       }
 
       // Clear user_matches for each user

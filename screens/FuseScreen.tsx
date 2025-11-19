@@ -356,15 +356,24 @@ export default function FuseScreen() {
         await FirebaseService.initializeUser(address);
 
         // Get current user profile data
-        const currentUserProfile = await FirebaseService.getUserProfile(address);
-        const currentUserPhotos = await FirebaseService.getUserPhotoUrls(address);
+        const currentUserProfile = await FirebaseService.getUserProfile(
+          address
+        );
+        const currentUserPhotos = await FirebaseService.getUserPhotoUrls(
+          address
+        );
 
         const requestData = {
           address: address,
-          name: `${currentUserProfile?.firstName || 'Unknown'} ${currentUserProfile?.lastName || ''}`.trim(),
-          age: currentUserProfile?.birthdate ? new Date().getFullYear() - new Date(currentUserProfile.birthdate).getFullYear() : 25,
-          city: currentUserProfile?.location || 'Unknown',
-          bio: currentUserProfile?.bio || '',
+          name: `${currentUserProfile?.firstName || "Unknown"} ${
+            currentUserProfile?.lastName || ""
+          }`.trim(),
+          age: currentUserProfile?.birthdate
+            ? new Date().getFullYear() -
+              new Date(currentUserProfile.birthdate).getFullYear()
+            : 25,
+          city: currentUserProfile?.location || "Unknown",
+          bio: currentUserProfile?.bio || "",
           photos: currentUserPhotos,
           requesterAddress: address,
           targetAddress: userAddress,

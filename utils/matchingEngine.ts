@@ -319,7 +319,7 @@ export class MatchingEngine {
 
       // Load matched users to exclude them
       const matchedUsers = await FirebaseService.loadMatches(userAddress);
-      const matchedAddresses = new Set(matchedUsers.map(m => m.address));
+      const matchedAddresses = new Set(matchedUsers.map((m) => m.address));
 
       const potentialMatches = await FirebaseService.findMatches(
         userAddress,
@@ -328,7 +328,7 @@ export class MatchingEngine {
 
       // Filter out matched users
       const filteredMatches = potentialMatches.filter(
-        match => !matchedAddresses.has(match.address)
+        (match) => !matchedAddresses.has(match.address)
       );
 
       const matchesWithScores = filteredMatches.map((match) => ({
