@@ -25,6 +25,9 @@ import { MatchingEngine } from "../utils/matchingEngine";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CryptoJS from "crypto-js";
 
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const isLargeScreen = screenWidth > 768;
+
 const AnimatedTouchableOpacity =
   Animated.createAnimatedComponent(TouchableOpacity);
 
@@ -459,7 +462,11 @@ export default function FuseScreen() {
           // Regular one-way request
           // Update local state to filter this user out immediately
           setRequestedUsers((prev) => new Set([...prev, userAddress]));
-          Animated.timing(cardOpacities.current.get(userAddress)!, {toValue: 0, duration: 500, useNativeDriver: true}).start();
+          Animated.timing(cardOpacities.current.get(userAddress)!, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: true,
+          }).start();
           const newSentRequests = new Set([...sentRequests, userAddress]);
           setSentRequests(newSentRequests);
           try {
@@ -604,377 +611,327 @@ export default function FuseScreen() {
             { backgroundColor: theme?.card?.backgroundColor || "#ffffff" },
           ]}
         >
-        {/* Profile Image with Overlay Button */}
-        <View style={styles.imageContainer}>
-          {user.photos && user.photos.length > 0 ? (
-            <View style={styles.photoCarousel}>
-              <ScrollView
-                ref={scrollViewRef}
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                onScroll={handleScroll}
-                scrollEventThrottle={16}
-                style={styles.photoScrollView}
-                snapToInterval={400}
-                decelerationRate="fast"
-                contentContainerStyle={{ alignItems: "center" }}
-                bounces={false}
-                scrollEnabled={true}
-              >
-                {user.photos.map((photo, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    activeOpacity={1}
-                    onPress={() => openFullScreenImage(photo, index, user.photos)}
-                  >
-                    <Image source={{ uri: photo }} style={styles.photoImage} />
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              {user.photos.length > 1 && (
-                <View style={styles.photoIndicators}>
-                  {user.photos.map((_, index) => (
+          {/* Profile Image with Overlay Button */}
+          <View style={styles.imageContainer}>
+            {user.photos && user.photos.length > 0 ? (
+              <View style={styles.photoCarousel}>
+                <ScrollView
+                  ref={scrollViewRef}
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  onScroll={handleScroll}
+                  scrollEventThrottle={16}
+                  style={styles.photoScrollView}
+                  snapToInterval={isLargeScreen ? 600 : 400}
+                  snapToAlignment="start"
+                  decelerationRate="fast"
+                  contentContainerStyle={{ alignItems: "center" }}
+                  bounces={false}
+                  scrollEnabled={true}
+                >
+                  {user.photos.map((photo, index) => (
                     <TouchableOpacity
                       key={index}
-                      style={[
-                        styles.photoIndicator,
-                        {
-                          backgroundColor:
-                            index === currentPhotoIndex ? "#007AFF" : "#ccc",
-                        },
-                      ]}
-                      onPress={() => scrollToPhoto(index)}
-                    />
+                      activeOpacity={1}
+                      onPress={() =>
+                        openFullScreenImage(photo, index, user.photos)
+                      }
+                    >
+                      <Image
+                        source={{ uri: photo }}
+                        style={styles.photoImage}
+                      />
+                    </TouchableOpacity>
                   ))}
-                </View>
-              )}
-              {/* FUSE Button Overlay */}
-              <View style={styles.fuseButtonOverlay}>
-                <AnimatedTouchableOpacity
-                  onPress={
-                    requestedUsers.has(user.address)
-                      ? undefined
-                      : () => onFuse(user.address)
-                  }
-                  disabled={requestedUsers.has(user.address)}
-                  style={[
-                    styles.overlayFuseButton,
-                    {
-                      backgroundColor: requestedUsers.has(user.address)
-                        ? "#ccc"
-                        : fuseAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: ["#ff6347", "#00bfff"],
-                          }),
-                    },
-                    { transform: [{ scale: pulseAnim }] },
-                  ]}
-                >
-                  <Animated.Text
+                </ScrollView>
+                {user.photos.length > 1 && (
+                  <View style={styles.photoIndicators}>
+                    {user.photos.map((_, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.photoIndicator,
+                          {
+                            backgroundColor:
+                              index === currentPhotoIndex ? "#007AFF" : "#ccc",
+                          },
+                        ]}
+                        onPress={() => scrollToPhoto(index)}
+                      />
+                    ))}
+                  </View>
+                )}
+                {/* FUSE Button Overlay */}
+                <View style={styles.fuseButtonOverlay}>
+                  <AnimatedTouchableOpacity
+                    onPress={
+                      requestedUsers.has(user.address)
+                        ? undefined
+                        : () => onFuse(user.address)
+                    }
+                    disabled={requestedUsers.has(user.address)}
                     style={[
-                      styles.overlayButtonText,
+                      styles.overlayFuseButton,
                       {
-                        color: requestedUsers.has(user.address)
-                          ? "#666"
+                        backgroundColor: requestedUsers.has(user.address)
+                          ? "#ccc"
                           : fuseAnim.interpolate({
                               inputRange: [0, 1],
-                              outputRange: ["#ffffff", "#ff6b6b"],
+                              outputRange: ["#ff6347", "#00bfff"],
+                            }),
+                      },
+                      { transform: [{ scale: pulseAnim }] },
+                    ]}
+                  >
+                    <Animated.Text
+                      style={[
+                        styles.overlayButtonText,
+                        {
+                          color: requestedUsers.has(user.address)
+                            ? "#666"
+                            : fuseAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: ["#ffffff", "#ff6b6b"],
+                              }),
+                        },
+                      ]}
+                    >
+                      {requestedUsers.has(user.address) ? "Request sent" : "🚀"}
+                    </Animated.Text>
+                  </AnimatedTouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View
+                style={[
+                  styles.placeholderImage,
+                  { backgroundColor: theme?.buttonBackground || "#8b9dc3" },
+                ]}
+              >
+                <Text
+                  style={[
+                    { color: theme?.textColor || "#333" },
+                    styles.placeholderEmoji,
+                  ]}
+                >
+                  {String("👤")}
+                </Text>
+                {/* FUSE Button Overlay for placeholder */}
+                <View style={styles.fuseButtonOverlay}>
+                  <AnimatedTouchableOpacity
+                    onPress={
+                      requestedUsers.has(user.address)
+                        ? undefined
+                        : () => onFuse(user.address)
+                    }
+                    disabled={requestedUsers.has(user.address)}
+                    style={[
+                      styles.overlayFuseButton,
+                      {
+                        backgroundColor: requestedUsers.has(user.address)
+                          ? "#ccc"
+                          : fuseAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: ["#ff6347", "#00bfff"],
                             }),
                       },
                     ]}
                   >
-                    {requestedUsers.has(user.address) ? "Request sent" : "🚀"}
-                  </Animated.Text>
-                </AnimatedTouchableOpacity>
+                    <Animated.Text
+                      style={[
+                        styles.overlayButtonText,
+                        {
+                          color: requestedUsers.has(user.address)
+                            ? "#666"
+                            : fuseAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: ["#ffffff", "#ff6b6b"],
+                              }),
+                        },
+                      ]}
+                    >
+                      {requestedUsers.has(user.address) ? "Request sent" : "🚀"}
+                    </Animated.Text>
+                  </AnimatedTouchableOpacity>
+                </View>
               </View>
-            </View>
-          ) : (
-            <View
-              style={[
-                styles.placeholderImage,
-                { backgroundColor: theme?.buttonBackground || "#8b9dc3" },
-              ]}
-            >
+            )}
+          </View>
+
+          {/* Compact User Info */}
+          <View style={styles.compactUserInfo}>
+            <View style={styles.nameContainer}>
               <Text
                 style={[
                   { color: theme?.textColor || "#333" },
-                  styles.placeholderEmoji,
+                  styles.compactName,
                 ]}
               >
-                {String("👤")}
+                {String(user.name || "Unknown User")},{" "}
+                {String(user.age || "N/A")}
               </Text>
-              {/* FUSE Button Overlay for placeholder */}
-              <View style={styles.fuseButtonOverlay}>
-                <AnimatedTouchableOpacity
-                  onPress={
-                    requestedUsers.has(user.address)
-                      ? undefined
-                      : () => onFuse(user.address)
-                  }
-                  disabled={requestedUsers.has(user.address)}
-                  style={[
-                    styles.overlayFuseButton,
-                    {
-                      backgroundColor: requestedUsers.has(user.address)
-                        ? "#ccc"
-                        : fuseAnim.interpolate({
-                            inputRange: [0, 1],
-                            outputRange: ["#ff6347", "#00bfff"],
-                          }),
-                    },
-                  ]}
-                >
-                  <Animated.Text
-                    style={[
-                      styles.overlayButtonText,
-                      {
-                        color: requestedUsers.has(user.address)
-                          ? "#666"
-                          : fuseAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: ["#ffffff", "#ff6b6b"],
-                            }),
-                      },
-                    ]}
-                  >
-                    {requestedUsers.has(user.address) ? "Request sent" : "🚀"}
-                  </Animated.Text>
-                </AnimatedTouchableOpacity>
-              </View>
+              {hasIncomingRequest && (
+                <Text style={styles.rocketIndicator}>🚀</Text>
+              )}
             </View>
-          )}
-        </View>
-
-        {/* Compact User Info */}
-        <View style={styles.compactUserInfo}>
-          <View style={styles.nameContainer}>
             <Text
               style={[
-                { color: theme?.textColor || "#333" },
-                styles.compactName,
+                { color: theme?.textColor || "#666" },
+                styles.compactLocation,
               ]}
             >
-              {String(user.name || "Unknown User")}, {String(user.age || "N/A")}
+              {String("📍 " + (user.city || "Unknown Location"))}
             </Text>
-            {hasIncomingRequest && (
-              <Text style={styles.rocketIndicator}>🚀</Text>
-            )}
-          </View>
-          <Text
-            style={[
-              { color: theme?.textColor || "#666" },
-              styles.compactLocation,
-            ]}
-          >
-            {String("📍 " + (user.city || "Unknown Location"))}
-          </Text>
-          {user.compatibilityScore !== undefined &&
-            user.compatibilityScore !== null && (
-              <Text
-                style={[
-                  { color: theme?.textColor || "#666" },
-                  styles.compactCompatibility,
-                ]}
-              >
-                {String(
-                  "Compatibility: " + Math.round(user.compatibilityScore) + "%"
-                )}
-              </Text>
-            )}
-          <Text
-            style={[{ color: theme?.textColor || "#666" }, styles.compactBio]}
-            numberOfLines={4}
-          >
-            {String(user.bio || "No bio available")}
-          </Text>
-          <Text style={styles.tapToViewText}>Tap to view full profile</Text>
-        </View>
-
-        {/* Profile Modal */}
-        <Modal
-          visible={showProfileModal}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setShowProfileModal(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <PanGestureHandler
-              onGestureEvent={onGestureEvent}
-              onHandlerStateChange={onHandlerStateChange}
-              simultaneousHandlers={[modalScrollRef]}
-            >
-              <View style={{ flex: 1 }}>
-                <GestureScrollView
-                  ref={modalScrollRef}
+            {user.compatibilityScore !== undefined &&
+              user.compatibilityScore !== null && (
+                <Text
                   style={[
-                    styles.modalContent,
-                    { backgroundColor: theme.backgroundColor },
+                    { color: theme?.textColor || "#666" },
+                    styles.compactCompatibility,
                   ]}
-                  showsVerticalScrollIndicator={true}
-                  bounces={true}
-                  alwaysBounceVertical={true}
-                  contentContainerStyle={styles.scrollContent}
-                  scrollEventThrottle={16}
                 >
-                  <View style={styles.modalHeader}>
-                    <View style={styles.headerSpacer} />
-                    <View
-                      style={{ flexDirection: "row", alignItems: "center" }}
-                    >
-                      <Text
-                        style={[styles.modalTitle, { color: theme.textColor }]}
-                      >
-                        {user.name}'s Profile
-                      </Text>
-                      <TouchableOpacity
-                        style={[styles.closeArea, { marginLeft: 10 }]}
-                        onPress={() => setShowProfileModal(false)}
+                  {String(
+                    "Compatibility: " +
+                      Math.round(user.compatibilityScore) +
+                      "%"
+                  )}
+                </Text>
+              )}
+            <Text
+              style={[{ color: theme?.textColor || "#666" }, styles.compactBio]}
+              numberOfLines={isLargeScreen ? 8 : 4}
+            >
+              {String(user.bio || "No bio available")}
+            </Text>
+            <Text style={styles.tapToViewText}>Tap to view full profile</Text>
+          </View>
+
+          {/* Profile Modal */}
+          <Modal
+            visible={showProfileModal}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setShowProfileModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <PanGestureHandler
+                onGestureEvent={onGestureEvent}
+                onHandlerStateChange={onHandlerStateChange}
+                simultaneousHandlers={[modalScrollRef]}
+              >
+                <View style={{ flex: 1 }}>
+                  <GestureScrollView
+                    ref={modalScrollRef}
+                    style={[
+                      styles.modalContent,
+                      { backgroundColor: theme.backgroundColor },
+                    ]}
+                    showsVerticalScrollIndicator={true}
+                    bounces={true}
+                    alwaysBounceVertical={true}
+                    contentContainerStyle={styles.scrollContent}
+                    scrollEventThrottle={16}
+                  >
+                    <View style={styles.modalHeader}>
+                      <View style={styles.headerSpacer} />
+                      <View
+                        style={{ flexDirection: "row", alignItems: "center" }}
                       >
                         <Text
                           style={[
-                            styles.closeButtonText,
+                            styles.modalTitle,
                             { color: theme.textColor },
                           ]}
                         >
-                          ✕
+                          {user.name}'s Profile
                         </Text>
-                      </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.closeArea, { marginLeft: 10 }]}
+                          onPress={() => setShowProfileModal(false)}
+                        >
+                          <Text
+                            style={[
+                              styles.closeButtonText,
+                              { color: theme.textColor },
+                            ]}
+                          >
+                            ✕
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                      <View style={styles.headerSpacer} />
                     </View>
-                    <View style={styles.headerSpacer} />
-                  </View>
 
-                  <View style={styles.profileContent}>
-                    {/* Profile Images */}
-                    {user.photos && user.photos.length > 0 && (
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={styles.photosContainer}
-                        bounces={false}
-                        pagingEnabled={false}
-                      >
-                        {user.photos.map((photo, index) => (
-                          <TouchableOpacity
-                            key={index}
-                            activeOpacity={1}
-                            style={styles.photoWrapper}
-                          >
-                            <Image
-                              source={{ uri: photo }}
-                              style={styles.profileImage}
-                              resizeMode="cover"
-                            />
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    )}
-
-                    {/* Profile Info */}
-                    <View style={styles.profileInfo}>
-                      <Text
-                        style={[styles.profileName, { color: theme.textColor }]}
-                      >
-                        {user.name}, {user.age}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.profileLocation,
-                          { color: theme.textColor, opacity: 0.7 },
-                        ]}
-                      >
-                        📍 {user.city}
-                      </Text>
-
-                      {user.bio &&
-                        typeof user.bio === "string" &&
-                        user.bio.trim() && (
-                          <View style={styles.bioSection}>
-                            <Text
-                              style={[
-                                styles.bioLabel,
-                                { color: theme.textColor },
-                              ]}
+                    <View style={styles.profileContent}>
+                      {/* Profile Images */}
+                      {user.photos && user.photos.length > 0 && (
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          style={styles.photosContainer}
+                          bounces={false}
+                          pagingEnabled={false}
+                        >
+                          {user.photos.map((photo, index) => (
+                            <TouchableOpacity
+                              key={index}
+                              activeOpacity={1}
+                              style={styles.photoWrapper}
                             >
-                              About
-                            </Text>
-                            <Text
-                              style={[
-                                styles.bioText,
-                                { color: theme.textColor },
-                              ]}
-                            >
-                              {user.bio}
-                            </Text>
-                          </View>
-                        )}
-
-                      {/* Additional Profile Fields */}
-                      {user.mbti && (
-                        <View style={styles.profileField}>
-                          <Text
-                            style={[
-                              styles.fieldLabel,
-                              { color: theme.textColor },
-                            ]}
-                          >
-                            MBTI
-                          </Text>
-                          <Text
-                            style={[
-                              styles.fieldValue,
-                              { color: theme.textColor },
-                            ]}
-                          >
-                            {user.mbti}
-                          </Text>
-                        </View>
+                              <Image
+                                source={{ uri: photo }}
+                                style={styles.profileImage}
+                                resizeMode="cover"
+                              />
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
                       )}
 
-                      {user.gender && (
-                        <View style={styles.profileField}>
-                          <Text
-                            style={[
-                              styles.fieldLabel,
-                              { color: theme.textColor },
-                            ]}
-                          >
-                            Gender
-                          </Text>
-                          <Text
-                            style={[
-                              styles.fieldValue,
-                              { color: theme.textColor },
-                            ]}
-                          >
-                            {user.gender}
-                          </Text>
-                        </View>
-                      )}
+                      {/* Profile Info */}
+                      <View style={styles.profileInfo}>
+                        <Text
+                          style={[
+                            styles.profileName,
+                            { color: theme.textColor },
+                          ]}
+                        >
+                          {user.name}, {user.age}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.profileLocation,
+                            { color: theme.textColor, opacity: 0.7 },
+                          ]}
+                        >
+                          📍 {user.city}
+                        </Text>
 
-                      {user.sexuality && (
-                        <View style={styles.profileField}>
-                          <Text
-                            style={[
-                              styles.fieldLabel,
-                              { color: theme.textColor },
-                            ]}
-                          >
-                            Sexuality
-                          </Text>
-                          <Text
-                            style={[
-                              styles.fieldValue,
-                              { color: theme.textColor },
-                            ]}
-                          >
-                            {user.sexuality}
-                          </Text>
-                        </View>
-                      )}
+                        {user.bio &&
+                          typeof user.bio === "string" &&
+                          user.bio.trim() && (
+                            <View style={styles.bioSection}>
+                              <Text
+                                style={[
+                                  styles.bioLabel,
+                                  { color: theme.textColor },
+                                ]}
+                              >
+                                About
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.bioText,
+                                  { color: theme.textColor },
+                                ]}
+                              >
+                                {user.bio}
+                              </Text>
+                            </View>
+                          )}
 
-                      {user.personalityTraits &&
-                        user.personalityTraits.length > 0 && (
+                        {/* Additional Profile Fields */}
+                        {user.mbti && (
                           <View style={styles.profileField}>
                             <Text
                               style={[
@@ -982,45 +939,109 @@ export default function FuseScreen() {
                                 { color: theme.textColor },
                               ]}
                             >
-                              Personality Traits
+                              MBTI
                             </Text>
-                            <View style={styles.traitsContainer}>
-                              {user.personalityTraits.map((trait, index) => (
-                                <View key={index} style={styles.traitTag}>
-                                  <Text
-                                    style={[
-                                      styles.traitText,
-                                      { color: theme.textColor },
-                                    ]}
-                                  >
-                                    {trait}
-                                  </Text>
-                                </View>
-                              ))}
-                            </View>
+                            <Text
+                              style={[
+                                styles.fieldValue,
+                                { color: theme.textColor },
+                              ]}
+                            >
+                              {user.mbti}
+                            </Text>
                           </View>
                         )}
 
-                      {user.compatibilityScore !== undefined &&
-                        user.compatibilityScore !== null && (
-                          <Text
-                            style={[
-                              { color: theme.textColor, opacity: 0.6 },
-                              styles.compatibilityScore,
-                            ]}
-                          >
-                            Compatibility: {Math.round(user.compatibilityScore)}
-                            %
-                          </Text>
+                        {user.gender && (
+                          <View style={styles.profileField}>
+                            <Text
+                              style={[
+                                styles.fieldLabel,
+                                { color: theme.textColor },
+                              ]}
+                            >
+                              Gender
+                            </Text>
+                            <Text
+                              style={[
+                                styles.fieldValue,
+                                { color: theme.textColor },
+                              ]}
+                            >
+                              {user.gender}
+                            </Text>
+                          </View>
                         )}
+
+                        {user.sexuality && (
+                          <View style={styles.profileField}>
+                            <Text
+                              style={[
+                                styles.fieldLabel,
+                                { color: theme.textColor },
+                              ]}
+                            >
+                              Sexuality
+                            </Text>
+                            <Text
+                              style={[
+                                styles.fieldValue,
+                                { color: theme.textColor },
+                              ]}
+                            >
+                              {user.sexuality}
+                            </Text>
+                          </View>
+                        )}
+
+                        {user.personalityTraits &&
+                          user.personalityTraits.length > 0 && (
+                            <View style={styles.profileField}>
+                              <Text
+                                style={[
+                                  styles.fieldLabel,
+                                  { color: theme.textColor },
+                                ]}
+                              >
+                                Personality Traits
+                              </Text>
+                              <View style={styles.traitsContainer}>
+                                {user.personalityTraits.map((trait, index) => (
+                                  <View key={index} style={styles.traitTag}>
+                                    <Text
+                                      style={[
+                                        styles.traitText,
+                                        { color: theme.textColor },
+                                      ]}
+                                    >
+                                      {trait}
+                                    </Text>
+                                  </View>
+                                ))}
+                              </View>
+                            </View>
+                          )}
+
+                        {user.compatibilityScore !== undefined &&
+                          user.compatibilityScore !== null && (
+                            <Text
+                              style={[
+                                { color: theme.textColor, opacity: 0.6 },
+                                styles.compatibilityScore,
+                              ]}
+                            >
+                              Compatibility:{" "}
+                              {Math.round(user.compatibilityScore)}%
+                            </Text>
+                          )}
+                      </View>
                     </View>
-                  </View>
-                </GestureScrollView>
-              </View>
-            </PanGestureHandler>
-          </View>
-        </Modal>
-      </TouchableOpacity>
+                  </GestureScrollView>
+                </View>
+              </PanGestureHandler>
+            </View>
+          </Modal>
+        </TouchableOpacity>
       </Animated.View>
     );
   };
@@ -1116,11 +1137,13 @@ export default function FuseScreen() {
           ref={flatListRef}
           data={users}
           renderItem={({ item, index }) => {
-            const opacity = cardOpacities.current.get(item.address) || (() => {
-              const newOpacity = new Animated.Value(1);
-              cardOpacities.current.set(item.address, newOpacity);
-              return newOpacity;
-            })();
+            const opacity =
+              cardOpacities.current.get(item.address) ||
+              (() => {
+                const newOpacity = new Animated.Value(1);
+                cardOpacities.current.set(item.address, newOpacity);
+                return newOpacity;
+              })();
             return (
               <View>
                 <UserCard
@@ -1177,7 +1200,10 @@ export default function FuseScreen() {
               minimumZoomScale={1}
               maximumZoomScale={3}
               onMomentumScrollEnd={(event) => {
-                const index = Math.round(event.nativeEvent.contentOffset.x / Dimensions.get("window").width);
+                const index = Math.round(
+                  event.nativeEvent.contentOffset.x /
+                    Dimensions.get("window").width
+                );
                 setFullScreenImageIndex(index);
               }}
             >
@@ -1198,7 +1224,10 @@ export default function FuseScreen() {
                       : fullScreenImages.length - 1;
                   setFullScreenImageIndex(newIndex);
                   if (fullScreenScrollRef.current) {
-                    fullScreenScrollRef.current.scrollTo({ x: newIndex * Dimensions.get("window").width, animated: true });
+                    fullScreenScrollRef.current.scrollTo({
+                      x: newIndex * Dimensions.get("window").width,
+                      animated: true,
+                    });
                   }
                 }}
                 style={styles.navButton}
@@ -1213,7 +1242,10 @@ export default function FuseScreen() {
                       : 0;
                   setFullScreenImageIndex(newIndex);
                   if (fullScreenScrollRef.current) {
-                    fullScreenScrollRef.current.scrollTo({ x: newIndex * Dimensions.get("window").width, animated: true });
+                    fullScreenScrollRef.current.scrollTo({
+                      x: newIndex * Dimensions.get("window").width,
+                      animated: true,
+                    });
                   }
                 }}
                 style={styles.navButton}
@@ -1387,31 +1419,31 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   compactName: {
-    fontSize: 28,
+    fontSize: isLargeScreen ? 36 : 28,
     fontWeight: "700",
     textAlign: "center",
     marginBottom: 8,
-    color: '#bfcafd', // Light blue for visibility in dark mode
+    color: "#bfcafd", // Light blue for visibility in dark mode
   },
   compactLocation: {
-    fontSize: 18,
+    fontSize: isLargeScreen ? 20 : 18,
     textAlign: "center",
     marginBottom: 5,
-    color: '#bfcafd', // Light blue for visibility
+    color: "#bfcafd", // Light blue for visibility
   },
   compactCompatibility: {
-    fontSize: 16,
+    fontSize: isLargeScreen ? 18 : 16,
     textAlign: "center",
     marginBottom: 10,
     fontWeight: "600",
-    color: '#bfcafd', // Light blue
+    color: "#bfcafd", // Light blue
   },
   compactBio: {
-    fontSize: 16,
-    lineHeight: 22,
+    fontSize: isLargeScreen ? 18 : 16,
+    lineHeight: isLargeScreen ? 26 : 22,
     textAlign: "center",
     marginBottom: 15,
-    color: '#bfcafd', // Light blue
+    color: "#bfcafd", // Light blue
   },
   tapToViewText: {
     fontSize: 14,
@@ -1586,23 +1618,23 @@ const styles = StyleSheet.create({
   },
   // New styles for card-based UI
   imageContainer: {
-    height: 400, // Reduced from 450 for better balance
+    height: isLargeScreen ? 600 : 400, // Larger on big screens
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
   },
   userImage: {
-    width: 400,
-    height: 400,
-    maxWidth: 400,
-    maxHeight: 400,
+    width: isLargeScreen ? 600 : 400,
+    height: isLargeScreen ? 600 : 400,
+    maxWidth: isLargeScreen ? 600 : 400,
+    maxHeight: isLargeScreen ? 600 : 400,
     borderRadius: 0, // Square instead of circular
     borderWidth: 3,
     borderColor: "#e1e5e9",
   },
   placeholderImage: {
-    width: 400,
-    height: 400,
+    width: isLargeScreen ? 600 : 400,
+    height: isLargeScreen ? 600 : 400,
     borderRadius: 20, // Square instead of circular
     justifyContent: "center",
     alignItems: "center",
@@ -1610,7 +1642,7 @@ const styles = StyleSheet.create({
     borderColor: "#e1e5e9",
   },
   placeholderEmoji: {
-    fontSize: Dimensions.get("window").width * 0.1,
+    fontSize: screenWidth * (isLargeScreen ? 0.15 : 0.1),
   },
   location: {
     fontSize: 16,
@@ -1673,13 +1705,12 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   photoScrollView: {
-    width: Dimensions.get("window").width * 0.95 - 30, // Card width minus padding
-    maxWidth: 420, // Max width minus padding
-    height: 400, // Reduced to match image height
+    width: isLargeScreen ? 600 : 400,
+    height: isLargeScreen ? 600 : 400,
   },
   photoImage: {
-    width: 400, // Reduced from 450
-    height: 400, // Reduced from 450
+    width: isLargeScreen ? 600 : 400, // Larger on big screens
+    height: isLargeScreen ? 600 : 400, // Larger on big screens
     borderRadius: 20,
     borderWidth: 3,
     borderColor: "#e1e5e9",
