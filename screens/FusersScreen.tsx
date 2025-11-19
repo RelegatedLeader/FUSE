@@ -6,12 +6,16 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
+  Modal,
+  Image,
+  Dimensions,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CryptoJS from "crypto-js";
 import { FirebaseService } from "../utils/firebaseService";
+import { getUserData } from "../utils/contract";
 import NavigationService from "../utils/navigationService";
 
 interface ConnectionRequest {
@@ -33,6 +37,10 @@ interface MatchedUser {
   bio: string;
   photos: string[];
   matchedDate: Date;
+  mbti?: string;
+  gender?: string;
+  sexuality?: string;
+  personalityTraits?: string[];
 }
 
 type MenuOption = "fusers";
@@ -41,6 +49,8 @@ export default function FusersScreen() {
   const { address } = useWallet();
   const { theme } = useTheme();
   const [matchedUsers, setMatchedUsers] = useState<MatchedUser[]>([]);
+  const [selectedUser, setSelectedUser] = useState<MatchedUser | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   useEffect(() => {
     // Load matched users from Firebase and listen for updates
@@ -68,26 +78,123 @@ export default function FusersScreen() {
 
     try {
       const matches = await FirebaseService.loadMatches(address);
-      const matchesWithDates = matches.map((match: any) => ({
-        ...match,
-        matchedDate: match.matchedDate
-          ? match.matchedDate.toDate()
-          : new Date(),
-      }));
-      const deduplicatedMatches = deduplicateByAddress(matchesWithDates);
+      console.log("🔍 Raw matches from Firebase:", matches);
+
+      // Fetch complete profile data from blockchain for each match
+      const matchesWithFullData = await Promise.all(
+        matches.map(async (match: any) => {
+          console.log("🔍 Processing match:", match.address, "with data:", match);
+          try {
+            console.log("🌐 Fetching blockchain data for:", match.address);
+            const blockchainData = await getUserData(match.address);
+            console.log("🌐 Blockchain data for", match.address, ":", blockchainData);
+
+            // Parse personality traits if it's a string
+            let personalityTraits: string[] = [];
+            if (blockchainData.traits) {
+              try {
+                // Try to parse as JSON first
+                personalityTraits = JSON.parse(blockchainData.traits);
+              } catch {
+                // If not JSON, split by comma
+                personalityTraits = blockchainData.traits.split(',').map((t: string) => t.trim());
+              }
+            }
+
+            const enrichedMatch = {
+              ...match,
+              name: blockchainData.name || match.name,
+              age: blockchainData.age || match.age,
+              city: blockchainData.city || match.city,
+              bio: blockchainData.bio || match.bio,
+              mbti: blockchainData.mbti,
+              gender: blockchainData.gender,
+              sexuality: match.sexuality, // Keep from Firebase match data
+              personalityTraits: personalityTraits,
+              matchedDate: match.matchedDate
+                ? match.matchedDate.toDate()
+                : new Date(),
+            };
+
+            console.log("✅ Enriched match data:", enrichedMatch);
+            return enrichedMatch;
+          } catch (error) {
+            console.error("❌ Error fetching blockchain data for", match.address, ":", error);
+            // Try to fetch from Firebase user profile
+            try {
+              console.log("🔄 Falling back to Firebase profile for:", match.address);
+              const firebaseProfile = await FirebaseService.getUserProfile(match.address);
+              console.log("🔄 Firebase profile data:", firebaseProfile);
+
+              if (firebaseProfile) {
+                // Calculate age from DOB if available
+                let age = match.age;
+                if (firebaseProfile.dob) {
+                  try {
+                    const birthDate = new Date(firebaseProfile.dob);
+                    if (!isNaN(birthDate.getTime())) {
+                      const currentYear = new Date().getFullYear();
+                      age = currentYear - birthDate.getFullYear();
+                    }
+                  } catch (e) {
+                    console.error("Error calculating age from DOB:", e);
+                  }
+                }
+
+                return {
+                  ...match,
+                  name: firebaseProfile.firstName && firebaseProfile.lastName
+                    ? `${firebaseProfile.firstName} ${firebaseProfile.lastName}`
+                    : match.name,
+                  age: age,
+                  city: firebaseProfile.location || match.city,
+                  bio: firebaseProfile.bio || match.bio,
+                  mbti: firebaseProfile.mbti,
+                  gender: firebaseProfile.gender,
+                  sexuality: firebaseProfile.sexuality,
+                  personalityTraits: firebaseProfile.personalityTraits || [],
+                  matchedDate: match.matchedDate
+                    ? match.matchedDate.toDate()
+                    : new Date(),
+                };
+              }
+            } catch (firebaseError) {
+              console.error("❌ Firebase profile fetch also failed for", match.address, ":", firebaseError);
+            }
+
+            // Final fallback to basic match data
+            return {
+              ...match,
+              matchedDate: match.matchedDate
+                ? match.matchedDate.toDate()
+                : new Date(),
+            };
+          }
+        })
+      );
+
+      const deduplicatedMatches = deduplicateByAddress(matchesWithFullData);
+      console.log("🎯 Final matched users with full data:", deduplicatedMatches);
       setMatchedUsers(deduplicatedMatches);
     } catch (error) {
-      console.error("Error loading matched users:", error);
+      console.error("💥 Error loading matched users:", error);
     }
   };
 
-  const viewUserProfile = (userAddress: string, userName: string) => {
-    // For now, just show an alert with user info
-    // TODO: Navigate to a profile screen or show modal
-    Alert.alert(
-      `${userName}'s Profile`,
-      `Address: ${userAddress}\n\nProfile viewing will be implemented in the next update.`
-    );
+  const viewUserProfile = (user: MatchedUser) => {
+    console.log("👤 Viewing profile for user:", user);
+    console.log("👤 User data:", {
+      name: user.name,
+      age: user.age,
+      city: user.city,
+      bio: user.bio,
+      mbti: user.mbti,
+      gender: user.gender,
+      sexuality: user.sexuality,
+      personalityTraits: user.personalityTraits,
+    });
+    setSelectedUser(user);
+    setShowProfileModal(true);
   };
 
   const unfuseUser = async (userAddress: string, userName: string) => {
@@ -133,10 +240,10 @@ export default function FusersScreen() {
             <View key={user.address} style={styles.matchedUserCard}>
               <View style={styles.matchedUserInfo}>
                 <TouchableOpacity
-                  onPress={() => viewUserProfile(user.address, user.name)}
+                  onPress={() => viewUserProfile(user)}
                 >
                   <Text style={styles.matchedUserName}>
-                    {user.name}, {user.age}
+                    {user.name}, {calculateAge(user.age)}
                   </Text>
                 </TouchableOpacity>
                 <Text style={styles.matchedUserLocation}>{user.city}</Text>
@@ -170,6 +277,138 @@ export default function FusersScreen() {
           ))
         )}
       </ScrollView>
+
+      {/* Profile Modal */}
+      <Modal
+        visible={showProfileModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowProfileModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowProfileModal(false)}
+        >
+          <TouchableOpacity
+            style={[styles.modalContent, { backgroundColor: theme.backgroundColor }]}
+            activeOpacity={1}
+            onPress={() => {}} // Prevent closing when tapping inside modal
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.textColor }]}>
+                {selectedUser?.name}'s Profile
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowProfileModal(false)}
+                style={styles.closeButton}
+              >
+                <Text style={[styles.closeButtonText, { color: theme.textColor }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalBody}>
+              {selectedUser && (
+                <>
+                  {/* Profile Images */}
+                  {selectedUser.photos && selectedUser.photos.length > 0 && (
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      style={styles.photosContainer}
+                    >
+                      {selectedUser.photos.map((photo, index) => (
+                        <Image
+                          key={index}
+                          source={{ uri: photo }}
+                          style={styles.profileImage}
+                          resizeMode="cover"
+                        />
+                      ))}
+                    </ScrollView>
+                  )}
+
+                  {/* Profile Info */}
+                  <View style={styles.profileInfo}>
+                    <Text style={[styles.profileName, { color: theme.textColor }]}>
+                      {selectedUser.name}, {calculateAge(selectedUser.age)}
+                    </Text>
+                    <Text style={[styles.profileLocation, { color: theme.textColor, opacity: 0.7 }]}>
+                      📍 {selectedUser.city}
+                    </Text>
+
+                    {selectedUser.bio && (
+                      <View style={styles.bioSection}>
+                        <Text style={[styles.bioLabel, { color: theme.textColor }]}>
+                          About
+                        </Text>
+                        <Text style={[styles.bioText, { color: theme.textColor }]}>
+                          {selectedUser.bio}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Additional Profile Fields */}
+                    {selectedUser.mbti && (
+                      <View style={styles.profileField}>
+                        <Text style={[styles.fieldLabel, { color: theme.textColor }]}>
+                          MBTI
+                        </Text>
+                        <Text style={[styles.fieldValue, { color: theme.textColor }]}>
+                          {selectedUser.mbti}
+                        </Text>
+                      </View>
+                    )}
+
+                    {selectedUser.gender && (
+                      <View style={styles.profileField}>
+                        <Text style={[styles.fieldLabel, { color: theme.textColor }]}>
+                          Gender
+                        </Text>
+                        <Text style={[styles.fieldValue, { color: theme.textColor }]}>
+                          {selectedUser.gender}
+                        </Text>
+                      </View>
+                    )}
+
+                    {selectedUser.sexuality && (
+                      <View style={styles.profileField}>
+                        <Text style={[styles.fieldLabel, { color: theme.textColor }]}>
+                          Sexuality
+                        </Text>
+                        <Text style={[styles.fieldValue, { color: theme.textColor }]}>
+                          {selectedUser.sexuality}
+                        </Text>
+                      </View>
+                    )}
+
+                    {selectedUser.personalityTraits && selectedUser.personalityTraits.length > 0 && (
+                      <View style={styles.profileField}>
+                        <Text style={[styles.fieldLabel, { color: theme.textColor }]}>
+                          Personality Traits
+                        </Text>
+                        <View style={styles.traitsContainer}>
+                          {selectedUser.personalityTraits.map((trait, index) => (
+                            <View key={index} style={styles.traitTag}>
+                              <Text style={[styles.traitText, { color: theme.textColor }]}>
+                                {trait}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+
+                    <Text style={[styles.matchDate, { color: theme.textColor, opacity: 0.6 }]}>
+                      Matched on {selectedUser.matchedDate.toLocaleDateString()}
+                    </Text>
+                  </View>
+                </>
+              )}
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
@@ -180,6 +419,17 @@ const deduplicateByAddress = (items: MatchedUser[]): MatchedUser[] => {
     (item, index, arr) =>
       arr.findIndex((i) => i.address === item.address) === index
   );
+};
+
+// Utility function to calculate age from birthdate or return the age if it's already a number
+const calculateAge = (age: number | string): string => {
+  console.log("🧮 calculateAge called with:", age, "type:", typeof age);
+  if (typeof age === 'number' && !isNaN(age)) {
+    console.log("🧮 Returning age as number:", age);
+    return age.toString();
+  }
+  console.log("🧮 Age is not a valid number, returning N/A");
+  return 'N/A';
 };
 
 const styles = StyleSheet.create({
@@ -246,5 +496,105 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: Dimensions.get('window').height * 0.8,
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    padding: 5,
+  },
+  closeButtonText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  modalBody: {
+    padding: 20,
+  },
+  photosContainer: {
+    marginBottom: 20,
+  },
+  profileImage: {
+    width: 300,
+    height: 300,
+    borderRadius: 15,
+    marginRight: 10,
+  },
+  profileInfo: {
+    marginBottom: 20,
+  },
+  profileName: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  profileLocation: {
+    fontSize: 16,
+    marginBottom: 15,
+  },
+  bioSection: {
+    marginBottom: 15,
+  },
+  bioLabel: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  bioText: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  profileField: {
+    marginBottom: 15,
+  },
+  fieldLabel: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  fieldValue: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  traitsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 5,
+  },
+  traitTag: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  traitText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  matchDate: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    marginTop: 10,
   },
 });

@@ -30,6 +30,10 @@ interface User {
   photos: string[];
   compatibilityScore?: number;
   skipped?: boolean;
+  mbti?: string;
+  gender?: string;
+  sexuality?: string;
+  personalityTraits?: string[];
 }
 
 export default function FuseScreen() {
@@ -294,6 +298,10 @@ export default function FuseScreen() {
             photos: photos,
             compatibilityScore: match.compatibilityScore,
             skipped: false,
+            mbti: match.profile?.mbti,
+            gender: match.profile?.gender,
+            sexuality: match.profile?.sexuality,
+            personalityTraits: match.profile?.personalityTraits || [],
           };
 
           console.log("Formatted user data:", userData);
@@ -375,6 +383,10 @@ export default function FuseScreen() {
           city: currentUserProfile?.location || "Unknown",
           bio: currentUserProfile?.bio || "",
           photos: currentUserPhotos,
+          mbti: currentUserProfile?.mbti,
+          gender: currentUserProfile?.gender,
+          sexuality: currentUserProfile?.sexuality,
+          personalityTraits: currentUserProfile?.personalityTraits || [],
           requesterAddress: address,
           targetAddress: userAddress,
         };
@@ -396,6 +408,10 @@ export default function FuseScreen() {
             city: user.city,
             bio: user.bio,
             photos: user.photos,
+            mbti: user.mbti,
+            gender: user.gender,
+            sexuality: user.sexuality,
+            personalityTraits: user.personalityTraits,
           };
 
           const matchDataForOther = {
@@ -405,6 +421,10 @@ export default function FuseScreen() {
             city: requestData.city,
             bio: requestData.bio,
             photos: requestData.photos,
+            mbti: requestData.mbti,
+            gender: requestData.gender,
+            sexuality: requestData.sexuality,
+            personalityTraits: requestData.personalityTraits,
           };
 
           try {
