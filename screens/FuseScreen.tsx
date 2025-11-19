@@ -17,6 +17,7 @@ import {
   PanGestureHandler,
   State,
   ScrollView as GestureScrollView,
+  PinchGestureHandler,
 } from "react-native-gesture-handler";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -76,6 +77,9 @@ export default function FuseScreen() {
   const [fullScreenImageUri, setFullScreenImageUri] = useState<string>("");
   const [fullScreenImageIndex, setFullScreenImageIndex] = useState(0);
   const [fullScreenImages, setFullScreenImages] = useState<string[]>([]);
+
+  // Zoom state for full screen
+  const [fullScreenZoomed, setFullScreenZoomed] = useState(false);
 
   // Rocket loading animation
   const rocketRotation = useState(new Animated.Value(0))[0];
@@ -536,7 +540,6 @@ export default function FuseScreen() {
     const modalScrollRef = useRef<GestureScrollView>(null);
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
     const [showProfileModal, setShowProfileModal] = useState(false);
-    const [modalScrollY, setModalScrollY] = useState(0);
     const [gestureY, setGestureY] = useState(0);
 
     const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -573,14 +576,14 @@ export default function FuseScreen() {
     };
 
     const handleScroll = (event: any) => {
-      const slideSize = Dimensions.get("window").width - 40; // Updated to match new image width
+      const slideSize = 400; // Updated to match new image width
       const index = Math.round(event.nativeEvent.contentOffset.x / slideSize);
       setCurrentPhotoIndex(index);
     };
 
     const scrollToPhoto = (index: number) => {
       if (scrollViewRef.current) {
-        const slideSize = Dimensions.get("window").width - 40; // Updated to match new image width
+        const slideSize = 400; // Updated to match new image width
         scrollViewRef.current.scrollTo({
           x: index * slideSize,
           animated: true,
@@ -615,7 +618,7 @@ export default function FuseScreen() {
                 onScroll={handleScroll}
                 scrollEventThrottle={16}
                 style={styles.photoScrollView}
-                snapToInterval={Dimensions.get("window").width - 40}
+                snapToInterval={400}
                 decelerationRate="fast"
                 contentContainerStyle={{ alignItems: "center" }}
                 bounces={false}
@@ -625,6 +628,7 @@ export default function FuseScreen() {
                   <TouchableOpacity
                     key={index}
                     activeOpacity={1}
+                    onPress={() => openFullScreenImage(photo, index, user.photos)}
                   >
                     <Image source={{ uri: photo }} style={styles.photoImage} />
                   </TouchableOpacity>
@@ -782,7 +786,7 @@ export default function FuseScreen() {
             )}
           <Text
             style={[{ color: theme?.textColor || "#666" }, styles.compactBio]}
-            numberOfLines={2}
+            numberOfLines={4}
           >
             {String(user.bio || "No bio available")}
           </Text>
@@ -1174,11 +1178,12 @@ export default function FuseScreen() {
               contentContainerStyle={styles.fullScreenScrollView}
             >
               {fullScreenImages.map((image, index) => (
-                <Image
-                  key={index}
-                  source={{ uri: image }}
-                  style={styles.fullScreenImage}
-                />
+                <TouchableOpacity key={index} onPress={() => setFullScreenZoomed(!fullScreenZoomed)}>
+                  <Animated.Image
+                    source={{ uri: image }}
+                    style={[styles.fullScreenImage, { transform: [{ scale: fullScreenZoomed ? 2 : 1 }] }]}
+                  />
+                </TouchableOpacity>
               ))}
             </ScrollView>
             <View style={styles.fullScreenNav}>
@@ -1338,6 +1343,11 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     paddingTop: 20, // Space for title
     paddingHorizontal: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
   },
   fuseButtonOverlay: {
     position: "absolute",
@@ -1348,13 +1358,13 @@ const styles = StyleSheet.create({
   overlayFuseButton: {
     padding: 15,
     backgroundColor: "#ff4757",
-    borderRadius: 25,
+    borderRadius: 30,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowRadius: 8,
+    elevation: 6,
   },
   overlayButtonText: {
     color: "white",
@@ -1368,32 +1378,36 @@ const styles = StyleSheet.create({
     paddingTop: 20,
   },
   compactName: {
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 28,
+    fontWeight: "700",
     textAlign: "center",
     marginBottom: 8,
+    color: '#bfcafd', // Light blue for visibility in dark mode
   },
   compactLocation: {
-    fontSize: 16,
+    fontSize: 18,
     textAlign: "center",
     marginBottom: 5,
+    color: '#bfcafd', // Light blue for visibility
   },
   compactCompatibility: {
-    fontSize: 14,
+    fontSize: 16,
     textAlign: "center",
     marginBottom: 10,
-    fontWeight: "bold",
+    fontWeight: "600",
+    color: '#bfcafd', // Light blue
   },
   compactBio: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 16,
+    lineHeight: 22,
     textAlign: "center",
     marginBottom: 15,
+    color: '#bfcafd', // Light blue
   },
   tapToViewText: {
-    fontSize: 12,
+    fontSize: 14,
     textAlign: "center",
-    color: "#666",
+    color: "#888",
     fontStyle: "italic",
   },
   modalOverlay: {
@@ -1563,7 +1577,7 @@ const styles = StyleSheet.create({
   },
   // New styles for card-based UI
   imageContainer: {
-    height: 400, // Increased from 300
+    height: 400, // Reduced from 450 for better balance
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
@@ -1580,7 +1594,7 @@ const styles = StyleSheet.create({
   placeholderImage: {
     width: 400,
     height: 400,
-    borderRadius: 0, // Square instead of circular
+    borderRadius: 20, // Square instead of circular
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 3,
@@ -1652,12 +1666,12 @@ const styles = StyleSheet.create({
   photoScrollView: {
     width: Dimensions.get("window").width * 0.95 - 30, // Card width minus padding
     maxWidth: 420, // Max width minus padding
-    height: 400, // Increased to match image height
+    height: 400, // Reduced to match image height
   },
   photoImage: {
-    width: 400, // Increased from 300
-    height: 400, // Increased from 300
-    borderRadius: 0,
+    width: 400, // Reduced from 450
+    height: 400, // Reduced from 450
+    borderRadius: 20,
     borderWidth: 3,
     borderColor: "#e1e5e9",
   },
@@ -1671,10 +1685,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   photoIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginHorizontal: 2,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginHorizontal: 3,
   },
   photoNavButton: {
     position: "absolute",
