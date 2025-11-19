@@ -64,7 +64,7 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
   const [alliancesTab, setAlliancesTab] = useState("AlliancesMain");
   const [fuseTab, setFuseTab] = useState("FuseHome");
   const [cyberspaceTab, setCyberspaceTab] = useState("CyberspaceMain");
-  const [isLocked, setIsLocked] = useState(true);
+  const [isLocked, setIsLocked] = useState(false);
 
   const pagerRef = useRef<any>(null);
 
