@@ -52,6 +52,7 @@ export default function FuseScreen() {
   const fuseAnim = useState(new Animated.Value(0))[0];
   const flatListRef = useRef<FlatList<User> | null>(null);
   const scrollY = new Animated.Value(0);
+  const cardOpacities = useRef(new Map<string, Animated.Value>());
 
   // Track which users have been skipped
   const [skippedUsers, setSkippedUsers] = useState<Set<string>>(new Set());
@@ -456,6 +457,7 @@ export default function FuseScreen() {
           // Regular one-way request
           // Update local state to filter this user out immediately
           setRequestedUsers((prev) => new Set([...prev, userAddress]));
+          Animated.timing(cardOpacities.current.get(userAddress)!, {toValue: 0, duration: 500, useNativeDriver: true}).start();
           const newSentRequests = new Set([...sentRequests, userAddress]);
           setSentRequests(newSentRequests);
           try {
@@ -517,6 +519,7 @@ export default function FuseScreen() {
     fuseAnim: Animated.Value;
     hasIncomingRequest: boolean;
     requestedUsers: Set<string>;
+    opacity: Animated.Value;
   }
 
   const UserCard: React.FC<UserCardProps> = ({
@@ -527,6 +530,7 @@ export default function FuseScreen() {
     fuseAnim,
     hasIncomingRequest,
     requestedUsers,
+    opacity,
   }) => {
     const scrollViewRef = useRef<ScrollView>(null);
     const modalScrollRef = useRef<GestureScrollView>(null);
@@ -534,6 +538,26 @@ export default function FuseScreen() {
     const [showProfileModal, setShowProfileModal] = useState(false);
     const [modalScrollY, setModalScrollY] = useState(0);
     const [gestureY, setGestureY] = useState(0);
+
+    const pulseAnim = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+      return () => pulseAnim.stopAnimation();
+    }, []);
 
     const onGestureEvent = (event: any) => {
       setGestureY(event.nativeEvent.translationY);
@@ -570,14 +594,15 @@ export default function FuseScreen() {
     };
 
     return (
-      <TouchableOpacity
-        onPress={viewUserProfile}
-        activeOpacity={0.8}
-        style={[
-          styles.compactCard,
-          { backgroundColor: theme?.card?.backgroundColor || "#ffffff" },
-        ]}
-      >
+      <Animated.View style={{ opacity }}>
+        <TouchableOpacity
+          onPress={viewUserProfile}
+          activeOpacity={0.8}
+          style={[
+            styles.compactCard,
+            { backgroundColor: theme?.card?.backgroundColor || "#ffffff" },
+          ]}
+        >
         {/* Profile Image with Overlay Button */}
         <View style={styles.imageContainer}>
           {user.photos && user.photos.length > 0 ? (
@@ -638,9 +663,10 @@ export default function FuseScreen() {
                         ? "#ccc"
                         : fuseAnim.interpolate({
                             inputRange: [0, 1],
-                            outputRange: ["#ff4757", "#ff3838"],
+                            outputRange: ["#ff6347", "#00bfff"],
                           }),
                     },
+                    { transform: [{ scale: pulseAnim }] },
                   ]}
                 >
                   <Animated.Text
@@ -656,7 +682,7 @@ export default function FuseScreen() {
                       },
                     ]}
                   >
-                    {requestedUsers.has(user.address) ? "Request sent" : "FUSE"}
+                    {requestedUsers.has(user.address) ? "Request sent" : "🚀"}
                   </Animated.Text>
                 </AnimatedTouchableOpacity>
               </View>
@@ -692,7 +718,7 @@ export default function FuseScreen() {
                         ? "#ccc"
                         : fuseAnim.interpolate({
                             inputRange: [0, 1],
-                            outputRange: ["#ff4757", "#ff3838"],
+                            outputRange: ["#ff6347", "#00bfff"],
                           }),
                     },
                   ]}
@@ -710,7 +736,7 @@ export default function FuseScreen() {
                       },
                     ]}
                   >
-                    {requestedUsers.has(user.address) ? "Request sent" : "FUSE"}
+                    {requestedUsers.has(user.address) ? "Request sent" : "🚀"}
                   </Animated.Text>
                 </AnimatedTouchableOpacity>
               </View>
@@ -996,6 +1022,7 @@ export default function FuseScreen() {
           </View>
         </Modal>
       </TouchableOpacity>
+      </Animated.View>
     );
   };
 
@@ -1089,19 +1116,27 @@ export default function FuseScreen() {
         <FlatList
           ref={flatListRef}
           data={users}
-          renderItem={({ item, index }) => (
-            <View>
-              <UserCard
-                user={item}
-                onFuse={handleFuse}
-                onSkip={handleSkip}
-                theme={theme}
-                fuseAnim={fuseAnim}
-                hasIncomingRequest={incomingRequests.has(item.address)}
-                requestedUsers={requestedUsers}
-              />
-            </View>
-          )}
+          renderItem={({ item, index }) => {
+            const opacity = cardOpacities.current.get(item.address) || (() => {
+              const newOpacity = new Animated.Value(1);
+              cardOpacities.current.set(item.address, newOpacity);
+              return newOpacity;
+            })();
+            return (
+              <View>
+                <UserCard
+                  user={item}
+                  onFuse={handleFuse}
+                  onSkip={handleSkip}
+                  theme={theme}
+                  fuseAnim={fuseAnim}
+                  hasIncomingRequest={incomingRequests.has(item.address)}
+                  requestedUsers={requestedUsers}
+                  opacity={opacity}
+                />
+              </View>
+            );
+          }}
           keyExtractor={(item, index) => `${item.address}-${index}`}
           showsVerticalScrollIndicator={false}
           style={{ flex: 1 }}
@@ -1323,7 +1358,7 @@ const styles = StyleSheet.create({
   },
   overlayButtonText: {
     color: "white",
-    fontSize: 16,
+    fontSize: 20,
     fontWeight: "bold",
   },
   compactUserInfo: {
