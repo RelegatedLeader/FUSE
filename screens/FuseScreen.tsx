@@ -44,7 +44,7 @@ export default function FuseScreen() {
   const [showBio, setShowBio] = useState(false);
   const [isLoading, setIsLoading] = useState(true); // Add loading state
   const fuseAnim = useState(new Animated.Value(0))[0];
-  const flatListRef = useRef<ScrollView>(null);
+  const flatListRef = useRef<FlatList<User> | null>(null);
   const scrollY = new Animated.Value(0);
 
   // Track which users have been skipped
@@ -951,12 +951,7 @@ export default function FuseScreen() {
         { backgroundColor: theme?.backgroundColor || "#bfcafd" },
       ]}
     >
-      <Text
-        style={[
-          styles.title,
-          { color: theme?.textColor || "#333", position: "absolute", top: 0, left: 0, right: 0, zIndex: 1 },
-        ]}
-      >
+      <Text style={[styles.title, { color: theme?.textColor || "#333" }]}>
         Find Your Fuse
       </Text>
 
@@ -1013,7 +1008,7 @@ export default function FuseScreen() {
             This may take a moment while we analyze compatibility
           </Text>
         </View>
-      ) : users.length === 0 ? (
+      ) : users.length <= 1 ? (
         <View style={styles.centerContainer}>
           <Text
             style={[styles.centerText, { color: theme?.textColor || "#333" }]}
@@ -1024,32 +1019,36 @@ export default function FuseScreen() {
           </Text>
         </View>
       ) : (
-        <ScrollView
+        <FlatList
           ref={flatListRef}
-          pagingEnabled
+          data={users}
+          renderItem={({ item, index }) => (
+            <View>
+              <UserCard
+                user={item}
+                onFuse={handleFuse}
+                onSkip={handleSkip}
+                theme={theme}
+                fuseAnim={fuseAnim}
+                hasIncomingRequest={incomingRequests.has(item.address)}
+                requestedUsers={requestedUsers}
+              />
+            </View>
+          )}
+          keyExtractor={(item, index) => `${item.address}-${index}`}
           showsVerticalScrollIndicator={false}
-          style={{ height: Dimensions.get("window").height - 60 }}
+          style={{ flex: 1 }}
+          snapToInterval={Dimensions.get("window").height - 100}
+          snapToAlignment="start"
+          decelerationRate="fast"
           onMomentumScrollEnd={(event) => {
-            const slideSize = Dimensions.get("window").height - 60;
+            const slideSize = Dimensions.get("window").height - 100;
             const index = Math.round(
               event.nativeEvent.contentOffset.y / slideSize
             );
             // Handle profile change if needed
           }}
-        >
-          {users.map((user, index) => (
-            <UserCard
-              key={`${user.address}-${index}`}
-              user={user}
-              onFuse={handleFuse}
-              onSkip={handleSkip}
-              theme={theme}
-              fuseAnim={fuseAnim}
-              hasIncomingRequest={incomingRequests.has(user.address)}
-              requestedUsers={requestedUsers}
-            />
-          ))}
-        </ScrollView>
+        />
       )}
 
       {/* Full-Screen Image Viewer */}
@@ -1231,11 +1230,11 @@ const styles = StyleSheet.create({
   },
   compactCard: {
     width: Dimensions.get("window").width,
-    height: Dimensions.get("window").height - 60, // Match ScrollView height
+    height: Dimensions.get("window").height - 100, // Adjusted for title
     backgroundColor: "#ffffff",
     alignItems: "center",
     justifyContent: "flex-start",
-    paddingTop: 20, // Space for absolute title
+    paddingTop: 20, // Space for title
     paddingHorizontal: 20,
   },
   fuseButtonOverlay: {
