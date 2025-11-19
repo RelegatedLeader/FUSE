@@ -11,7 +11,9 @@ import {
   Alert,
   Dimensions,
   Modal,
+  PanResponder,
 } from "react-native";
+import { PanGestureHandler, State, ScrollView as GestureScrollView } from "react-native-gesture-handler";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { MatchingEngine } from "../utils/matchingEngine";
@@ -523,8 +525,24 @@ export default function FuseScreen() {
     requestedUsers,
   }) => {
     const scrollViewRef = useRef<ScrollView>(null);
+    const modalScrollRef = useRef<GestureScrollView>(null);
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
     const [showProfileModal, setShowProfileModal] = useState(false);
+    const [modalScrollY, setModalScrollY] = useState(0);
+    const [gestureY, setGestureY] = useState(0);
+
+    const onGestureEvent = (event: any) => {
+      setGestureY(event.nativeEvent.translationY);
+    };
+
+    const onHandlerStateChange = (event: any) => {
+      if (event.nativeEvent.state === State.END) {
+        if (gestureY > 30) {
+          setShowProfileModal(false);
+        }
+        setGestureY(0);
+      }
+    };
 
     const handleScroll = (event: any) => {
       const slideSize = Dimensions.get("window").width - 40; // Updated to match new image width
@@ -752,30 +770,33 @@ export default function FuseScreen() {
           onRequestClose={() => setShowProfileModal(false)}
         >
           <View style={styles.modalOverlay}>
-            <ScrollView
-              style={[
-                styles.modalContent,
-                { backgroundColor: theme.backgroundColor },
-              ]}
-              showsVerticalScrollIndicator={true}
-              bounces={true}
-              alwaysBounceVertical={true}
-              contentContainerStyle={styles.scrollContent}
+            <PanGestureHandler
+              onGestureEvent={onGestureEvent}
+              onHandlerStateChange={onHandlerStateChange}
+              simultaneousHandlers={[modalScrollRef]}
             >
-              <View style={styles.modalHeader}>
-                <TouchableOpacity
-                  style={styles.closeArea}
-                  onPress={() => setShowProfileModal(false)}
+              <View style={{ flex: 1 }}>
+                <GestureScrollView
+                  ref={modalScrollRef}
+                  style={[
+                    styles.modalContent,
+                    { backgroundColor: theme.backgroundColor },
+                  ]}
+                  showsVerticalScrollIndicator={true}
+                  bounces={true}
+                  alwaysBounceVertical={true}
+                  contentContainerStyle={styles.scrollContent}
+                  onScroll={(event) => setModalScrollY(event.nativeEvent.contentOffset.y)}
+                  scrollEventThrottle={16}
                 >
-                  <Text
-                    style={[styles.closeButtonText, { color: theme.textColor }]}
-                  >
-                    ✕
-                  </Text>
-                </TouchableOpacity>
-                <Text style={[styles.modalTitle, { color: theme.textColor }]}>
-                  {user.name}'s Profile
-                </Text>
+              <View style={styles.modalHeader}>
+                <View style={styles.headerSpacer} />
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text style={[styles.modalTitle, { color: theme.textColor }]}>{user.name}'s Profile</Text>
+                  <TouchableOpacity style={[styles.closeArea, { marginLeft: 10 }]} onPress={() => setShowProfileModal(false)}>
+                    <Text style={[styles.closeButtonText, { color: theme.textColor }]}>✕</Text>
+                  </TouchableOpacity>
+                </View>
                 <View style={styles.headerSpacer} />
               </View>
 
@@ -925,7 +946,9 @@ export default function FuseScreen() {
                     )}
                 </View>
               </View>
-            </ScrollView>
+            </GestureScrollView>
+            </View>
+          </PanGestureHandler>
           </View>
         </Modal>
       </View>
