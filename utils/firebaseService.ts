@@ -294,14 +294,17 @@ export class FirebaseService {
 
       // Get the conversation key once for this snapshot
       const conversationKey = await this.getConversationKey(conversationId);
+      console.log("🔐 Using conversation key:", conversationKey.substring(0, 8) + "...");
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         try {
+          console.log("🔐 Decrypting message:", data.encryptedMessage.substring(0, 50) + "...");
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
             conversationKey
           );
+          console.log("🔐 Decrypted message:", decryptedMessage);
           messages.push({
             id: doc.id,
             message: decryptedMessage,
@@ -311,7 +314,17 @@ export class FirebaseService {
             status: data.status,
           });
         } catch (decryptError) {
-          console.warn("Failed to decrypt message:", doc.id, decryptError);
+          console.warn("❌ Failed to decrypt message:", doc.id, decryptError);
+          console.warn("❌ Encrypted message:", data.encryptedMessage);
+          // Still add the message with encrypted content for debugging
+          messages.push({
+            id: doc.id,
+            message: data.encryptedMessage, // Show encrypted content
+            senderAddress: data.senderAddress,
+            recipientAddress: data.recipientAddress,
+            timestamp: data.timestamp.toDate(),
+            status: data.status,
+          });
         }
       });
 

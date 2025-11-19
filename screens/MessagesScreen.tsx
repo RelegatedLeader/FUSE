@@ -69,6 +69,31 @@ export default function MessagesScreen() {
   const [recipientTyping, setRecipientTyping] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  const processMessage = (msg: any) => {
+    console.log("📨 Processing message:", msg.id, "from:", msg.senderAddress, "message:", msg.message);
+    let parsedMessage;
+    try {
+      parsedMessage = JSON.parse(msg.message);
+      console.log("📨 Parsed message content:", parsedMessage.content);
+    } catch (parseError) {
+      console.warn("📨 Failed to parse message JSON:", msg.message, parseError);
+      parsedMessage = { content: msg.message, messageType: "text" };
+    }
+
+    return {
+      id: msg.id,
+      from: msg.senderAddress,
+      fromName: msg.senderAddress === address ? "You" : msg.senderAddress,
+      message: parsedMessage.content || msg.message,
+      timestamp: msg.timestamp,
+      isRead: msg.status === "read",
+      mediaUrl: parsedMessage.mediaUrl,
+      mediaType: parsedMessage.mediaType,
+      edited: parsedMessage.edited,
+      deleted: parsedMessage.deleted,
+    };
+  };
+
   useEffect(() => {
     const initializeMessaging = async () => {
       if (address) {
@@ -82,74 +107,6 @@ export default function MessagesScreen() {
             setSelectedConversation(selectedUser);
             await AsyncStorage.removeItem("selected_chat_user");
           }
-
-          // Set up listener for all user messages (for Chats tab)
-          const allMessagesListener = MessagingService.listenToAllUserMessages(
-            (newMessages) => {
-              // Process messages into conversations
-              const conversationsMap = new Map<string, Conversation>();
-              newMessages.forEach((msg: any) => {
-                const otherUser =
-                  msg.senderAddress === address
-                    ? msg.recipientAddress
-                    : msg.senderAddress;
-                const convId = [address, otherUser].sort().join("_");
-                let lastMessage = "";
-                try {
-                  const parsed = JSON.parse(msg.message);
-                  lastMessage = parsed.content || "";
-                } catch {
-                  lastMessage = msg.message;
-                }
-                const timestamp = msg.timestamp.toDate
-                  ? msg.timestamp.toDate()
-                  : new Date(msg.timestamp);
-                const unread =
-                  msg.status !== "read" && msg.recipientAddress === address;
-
-                if (!conversationsMap.has(convId)) {
-                  conversationsMap.set(convId, {
-                    id: convId,
-                    otherUser,
-                    lastMessage,
-                    timestamp,
-                    unread,
-                  });
-                } else {
-                  const conv = conversationsMap.get(convId)!;
-                  if (timestamp > conv.timestamp) {
-                    conv.lastMessage = lastMessage;
-                    conv.timestamp = timestamp;
-                    conv.unread = unread;
-                  }
-                }
-              });
-              const sortedConversations = Array.from(
-                conversationsMap.values()
-              ).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-              setConversations(sortedConversations);
-
-              // Only update messages state if not in a conversation
-              if (!selectedConversation) {
-                setMessages(
-                  newMessages.slice(0, 20).map((msg) => ({
-                    id: msg.id,
-                    from: msg.senderAddress,
-                    fromName: msg.senderAddress, // TODO: Get real names
-                    message:
-                      typeof msg.message === "string"
-                        ? msg.message
-                        : JSON.parse(msg.message).content || "",
-                    timestamp: msg.timestamp.toDate
-                      ? msg.timestamp.toDate()
-                      : new Date(msg.timestamp),
-                    isRead: msg.status === "read",
-                  }))
-                );
-              }
-            }
-          );
-          setMessageListener(allMessagesListener);
         } catch (error) {
           console.error("Failed to initialize messaging:", error);
         }
@@ -161,6 +118,100 @@ export default function MessagesScreen() {
   }, [address]);
 
   useEffect(() => {
+    const setupListener = async () => {
+      if (!address) return;
+
+      // Clean up existing listener
+      if (messageListener) {
+        messageListener();
+        setMessageListener(null);
+      }
+
+      if (selectedConversation) {
+        // Set up conversation-specific listener
+        const conversationListener = MessagingService.listenToConversation(
+          selectedConversation,
+          (newMessages) => {
+            console.log("📨 Received messages for conversation:", newMessages.length);
+            setMessages(newMessages.map(processMessage));
+          }
+        );
+        setMessageListener(() => conversationListener);
+      } else {
+        // Set up listener for all user messages (for Chats tab)
+        const allMessagesListener = MessagingService.listenToAllUserMessages(
+          (newMessages) => {
+            // Process messages into conversations
+            const conversationsMap = new Map<string, Conversation>();
+            newMessages.forEach((msg: any) => {
+              const otherUser =
+                msg.senderAddress === address
+                  ? msg.recipientAddress
+                  : msg.senderAddress;
+              const convId = [address, otherUser].sort().join("_");
+              let lastMessage = "";
+              try {
+                const parsed = JSON.parse(msg.message);
+                lastMessage = parsed.content || "";
+              } catch {
+                lastMessage = msg.message;
+              }
+              const timestamp = msg.timestamp.toDate
+                ? msg.timestamp.toDate()
+                : new Date(msg.timestamp);
+              const unread =
+                msg.status !== "read" && msg.recipientAddress === address;
+
+              if (!conversationsMap.has(convId)) {
+                conversationsMap.set(convId, {
+                  id: convId,
+                  otherUser,
+                  lastMessage,
+                  timestamp,
+                  unread,
+                });
+              } else {
+                const conv = conversationsMap.get(convId)!;
+                if (timestamp > conv.timestamp) {
+                  conv.lastMessage = lastMessage;
+                  conv.timestamp = timestamp;
+                  conv.unread = unread;
+                }
+              }
+            });
+            const sortedConversations = Array.from(
+              conversationsMap.values()
+            ).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+            setConversations(sortedConversations);
+
+            // Only update messages state if not in a conversation
+            if (!selectedConversation) {
+              setMessages(
+                newMessages.slice(0, 20).map((msg) => ({
+                  id: msg.id,
+                  from: msg.senderAddress,
+                  fromName: msg.senderAddress, // TODO: Get real names
+                  message:
+                    typeof msg.message === "string"
+                      ? msg.message
+                      : JSON.parse(msg.message).content || "",
+                  timestamp: msg.timestamp.toDate
+                    ? msg.timestamp.toDate()
+                    : new Date(msg.timestamp),
+                  isRead: msg.status === "read",
+                }))
+              );
+            }
+          }
+        );
+        setMessageListener(() => allMessagesListener);
+      }
+    };
+
+    setupListener();
+  }, [address, selectedConversation]);
+
+  useEffect(() => {
     return () => {
       // Cleanup listeners on unmount
       if (messageListener) {
@@ -169,46 +220,7 @@ export default function MessagesScreen() {
     };
   }, [messageListener]);
 
-  const setupRealTimeListener = () => {
-    if (!selectedConversation || !address) return;
 
-    // Clean up existing listener
-    if (messageListener) {
-      messageListener();
-    }
-
-    // Set up real-time listener
-    const unsubscribe = MessagingService.listenToConversation(
-      selectedConversation,
-      (newMessages) => {
-        setMessages(
-          newMessages.map((msg) => {
-            let parsedMessage;
-            try {
-              parsedMessage = JSON.parse(msg.message);
-            } catch {
-              parsedMessage = { content: msg.message, messageType: "text" };
-            }
-
-            return {
-              id: msg.id,
-              from: msg.senderAddress,
-              fromName: msg.senderAddress === address ? "You" : "Them",
-              message: parsedMessage.content || "",
-              timestamp: msg.timestamp,
-              isRead: true,
-              mediaUrl: parsedMessage.mediaUrl,
-              mediaType: parsedMessage.mediaType,
-              edited: parsedMessage.edited,
-              deleted: parsedMessage.deleted,
-            };
-          })
-        );
-      }
-    );
-
-    setMessageListener(() => unsubscribe);
-  };
 
   const loadMatchedUsers = async () => {
     if (!address) return;
@@ -230,56 +242,66 @@ export default function MessagesScreen() {
     }
   };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
+  const loadConversations = async () => {
+    if (!address) return;
+
     try {
-      if (address && !selectedConversation) {
-        // Manually fetch messages
-        const { FirebaseService } = await import("../utils/firebaseService");
-        const messages = await FirebaseService.getAllUserMessages(address);
+      setRefreshing(true);
+      const { FirebaseService } = await import("../utils/firebaseService");
+      await FirebaseService.initializeUser(address);
+      const messages = await FirebaseService.getAllUserMessages(address);
 
-        // Process messages into conversations
-        const conversationsMap = new Map<string, Conversation>();
-        messages.forEach((msg: any) => {
-          const otherUser =
-            msg.senderAddress === address
-              ? msg.recipientAddress
-              : msg.senderAddress;
-          const convId = [address, otherUser].sort().join("_");
-          let lastMessage = "";
-          try {
-            const parsed = JSON.parse(msg.message);
-            lastMessage = parsed.content || "";
-          } catch {
-            lastMessage = msg.message;
-          }
-          const timestamp = msg.timestamp.toDate
-            ? msg.timestamp.toDate()
-            : new Date(msg.timestamp);
-          const unread =
-            msg.status !== "read" && msg.recipientAddress === address;
+      // Process messages into conversations
+      const conversationsMap = new Map<string, Conversation>();
+      messages.forEach((msg: any) => {
+        const otherUser =
+          msg.senderAddress === address
+            ? msg.recipientAddress
+            : msg.senderAddress;
+        const convId = [address, otherUser].sort().join("_");
+        let lastMessage = "";
+        try {
+          const parsed = JSON.parse(msg.message);
+          lastMessage = parsed.content || "";
+        } catch {
+          lastMessage = msg.message;
+        }
+        const timestamp = msg.timestamp.toDate
+          ? msg.timestamp.toDate()
+          : new Date(msg.timestamp);
+        const unread =
+          msg.status !== "read" && msg.recipientAddress === address;
 
-          const existing = conversationsMap.get(convId);
-          if (!existing || timestamp > existing.timestamp) {
-            conversationsMap.set(convId, {
-              id: convId,
-              otherUser,
-              lastMessage,
-              timestamp,
-              unread,
-            });
+        if (!conversationsMap.has(convId)) {
+          conversationsMap.set(convId, {
+            id: convId,
+            otherUser,
+            lastMessage,
+            timestamp,
+            unread,
+          });
+        } else {
+          const conv = conversationsMap.get(convId)!;
+          if (timestamp > conv.timestamp) {
+            conv.lastMessage = lastMessage;
+            conv.timestamp = timestamp;
+            conv.unread = unread;
           }
-        });
-        const sortedConversations = Array.from(conversationsMap.values()).sort(
-          (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
-        );
-        setConversations(sortedConversations);
-      }
+        }
+      });
+      const sortedConversations = Array.from(
+        conversationsMap.values()
+      ).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      setConversations(sortedConversations);
+      setRefreshing(false);
     } catch (error) {
-      console.error("Error refreshing conversations:", error);
-    } finally {
+      console.error("Error loading messages:", error);
       setRefreshing(false);
     }
+  };
+
+  const onRefresh = async () => {
+    await loadConversations();
   };
 
   const viewUserProfile = (userAddress: string, userName: string) => {
@@ -398,15 +420,23 @@ export default function MessagesScreen() {
       setNewMessage("");
 
       // Immediately add the message to the current conversation view
-      const sentMessage = {
-        id: `temp_${Date.now()}`, // Temporary ID until real-time listener updates
-        from: address,
-        fromName: "You",
-        message: newMessage.trim(),
-        timestamp: new Date(),
-        isRead: true,
+      const messageData = {
+        content: newMessage.trim(),
+        messageType: "text",
+        metadata: {
+          timestamp: Date.now(),
+          sender: address,
+        },
       };
-      setMessages((prevMessages) => [...prevMessages, sentMessage]);
+      const tempMessage = {
+        id: `temp_${Date.now()}`,
+        senderAddress: address,
+        message: JSON.stringify(messageData),
+        timestamp: new Date(),
+        status: "sent",
+      };
+      const processedSentMessage = processMessage(tempMessage);
+      setMessages((prevMessages) => [...prevMessages, processedSentMessage]);
 
       // Manually update conversations to show the sent message immediately
       setConversations((prevConversations) => {
@@ -571,11 +601,7 @@ export default function MessagesScreen() {
     }
   }, [selectedConversation]);
 
-  useEffect(() => {
-    if (selectedConversation) {
-      setupRealTimeListener();
-    }
-  }, [selectedConversation]);
+
 
   const markAsRead = (messageId: string) => {
     setMessages(
@@ -589,7 +615,7 @@ export default function MessagesScreen() {
 
   if (selectedConversation) {
     const conversationMessages = messages.filter(
-      (msg) => msg.from === selectedConversation
+      (msg) => msg.from === address || msg.from === selectedConversation
     );
 
     return (
@@ -620,15 +646,23 @@ export default function MessagesScreen() {
 
           <ScrollView style={styles.messagesContainer}>
             {conversationMessages.map((message) => (
-              <TouchableOpacity
+              <View
                 key={message.id}
-                onLongPress={() => startEditingMessage(message)}
                 style={[
-                  styles.messageBubble,
-                  { backgroundColor: theme.buttonBackground },
-                  message.deleted && styles.deletedMessage,
+                  styles.messageContainer,
+                  message.from === address ? styles.sentMessageContainer : styles.receivedMessageContainer
                 ]}
               >
+                <TouchableOpacity
+                  onLongPress={() => startEditingMessage(message)}
+                  style={[
+                    styles.messageBubble,
+                    message.from === address
+                      ? { backgroundColor: theme.buttonBackground, alignSelf: 'flex-end' }
+                      : { backgroundColor: theme.card.backgroundColor, alignSelf: 'flex-start' },
+                    message.deleted && styles.deletedMessage,
+                  ]}
+                >
                 {message.mediaUrl &&
                   message.mediaType === "image" &&
                   !message.deleted && (
@@ -681,6 +715,7 @@ export default function MessagesScreen() {
                   </TouchableOpacity>
                 )}
               </TouchableOpacity>
+            </View>
             ))}
 
             {recipientTyping && (
@@ -1072,6 +1107,16 @@ const styles = StyleSheet.create({
   discoverButtonText: {
     fontSize: 16,
     fontWeight: "bold",
+  },
+  messageContainer: {
+    marginVertical: 5,
+    paddingHorizontal: 10,
+  },
+  sentMessageContainer: {
+    alignItems: 'flex-end',
+  },
+  receivedMessageContainer: {
+    alignItems: 'flex-start',
   },
 });
 
