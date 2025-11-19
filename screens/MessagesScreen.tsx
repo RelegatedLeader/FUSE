@@ -70,7 +70,14 @@ export default function MessagesScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const processMessage = (msg: any) => {
-    console.log("📨 Processing message:", msg.id, "from:", msg.senderAddress, "message:", msg.message);
+    console.log(
+      "📨 Processing message:",
+      msg.id,
+      "from:",
+      msg.senderAddress,
+      "message:",
+      msg.message
+    );
     let parsedMessage;
     try {
       parsedMessage = JSON.parse(msg.message);
@@ -132,7 +139,10 @@ export default function MessagesScreen() {
         const conversationListener = MessagingService.listenToConversation(
           selectedConversation,
           (newMessages) => {
-            console.log("📨 Received messages for conversation:", newMessages.length);
+            console.log(
+              "📨 Received messages for conversation:",
+              newMessages.length
+            );
             setMessages(newMessages.map(processMessage));
           }
         );
@@ -220,8 +230,6 @@ export default function MessagesScreen() {
     };
   }, [messageListener]);
 
-
-
   const loadMatchedUsers = async () => {
     if (!address) return;
 
@@ -289,9 +297,9 @@ export default function MessagesScreen() {
           }
         }
       });
-      const sortedConversations = Array.from(
-        conversationsMap.values()
-      ).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+      const sortedConversations = Array.from(conversationsMap.values()).sort(
+        (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
+      );
       setConversations(sortedConversations);
       setRefreshing(false);
     } catch (error) {
@@ -601,8 +609,6 @@ export default function MessagesScreen() {
     }
   }, [selectedConversation]);
 
-
-
   const markAsRead = (messageId: string) => {
     setMessages(
       messages.map((msg) =>
@@ -650,7 +656,9 @@ export default function MessagesScreen() {
                 key={message.id}
                 style={[
                   styles.messageContainer,
-                  message.from === address ? styles.sentMessageContainer : styles.receivedMessageContainer
+                  message.from === address
+                    ? styles.sentMessageContainer
+                    : styles.receivedMessageContainer,
                 ]}
               >
                 <TouchableOpacity
@@ -658,64 +666,70 @@ export default function MessagesScreen() {
                   style={[
                     styles.messageBubble,
                     message.from === address
-                      ? { backgroundColor: theme.buttonBackground, alignSelf: 'flex-end' }
-                      : { backgroundColor: theme.card.backgroundColor, alignSelf: 'flex-start' },
+                      ? {
+                          backgroundColor: theme.buttonBackground,
+                          alignSelf: "flex-end",
+                        }
+                      : {
+                          backgroundColor: theme.card.backgroundColor,
+                          alignSelf: "flex-start",
+                        },
                     message.deleted && styles.deletedMessage,
                   ]}
                 >
-                {message.mediaUrl &&
-                  message.mediaType === "image" &&
-                  !message.deleted && (
-                    <Image
-                      source={{ uri: message.mediaUrl }}
-                      style={styles.messageImage}
-                      resizeMode="cover"
-                    />
+                  {message.mediaUrl &&
+                    message.mediaType === "image" &&
+                    !message.deleted && (
+                      <Image
+                        source={{ uri: message.mediaUrl }}
+                        style={styles.messageImage}
+                        resizeMode="cover"
+                      />
+                    )}
+                  {message.message && !message.deleted && (
+                    <Text style={{ color: theme.buttonText }}>
+                      {message.message}
+                    </Text>
                   )}
-                {message.message && !message.deleted && (
-                  <Text style={{ color: theme.buttonText }}>
-                    {message.message}
-                  </Text>
-                )}
-                {message.deleted && (
-                  <Text
-                    style={{ color: theme.buttonText, fontStyle: "italic" }}
-                  >
-                    {message.message}
-                  </Text>
-                )}
-                <View style={styles.messageFooter}>
-                  {message.edited && !message.deleted && (
+                  {message.deleted && (
+                    <Text
+                      style={{ color: theme.buttonText, fontStyle: "italic" }}
+                    >
+                      {message.message}
+                    </Text>
+                  )}
+                  <View style={styles.messageFooter}>
+                    {message.edited && !message.deleted && (
+                      <Text
+                        style={[
+                          styles.editedLabel,
+                          { color: theme.buttonText, opacity: 0.7 },
+                        ]}
+                      >
+                        edited
+                      </Text>
+                    )}
                     <Text
                       style={[
-                        styles.editedLabel,
+                        styles.timestamp,
                         { color: theme.buttonText, opacity: 0.7 },
                       ]}
                     >
-                      edited
+                      {message.timestamp.toLocaleTimeString()}
                     </Text>
+                  </View>
+                  {message.from === address && !message.deleted && (
+                    <TouchableOpacity
+                      onPress={() => handleDeleteMessage(message.id)}
+                      style={styles.deleteButton}
+                    >
+                      <Text style={{ color: theme.buttonText, fontSize: 12 }}>
+                        🗑️
+                      </Text>
+                    </TouchableOpacity>
                   )}
-                  <Text
-                    style={[
-                      styles.timestamp,
-                      { color: theme.buttonText, opacity: 0.7 },
-                    ]}
-                  >
-                    {message.timestamp.toLocaleTimeString()}
-                  </Text>
-                </View>
-                {message.from === address && !message.deleted && (
-                  <TouchableOpacity
-                    onPress={() => handleDeleteMessage(message.id)}
-                    style={styles.deleteButton}
-                  >
-                    <Text style={{ color: theme.buttonText, fontSize: 12 }}>
-                      🗑️
-                    </Text>
-                  </TouchableOpacity>
-                )}
-              </TouchableOpacity>
-            </View>
+                </TouchableOpacity>
+              </View>
             ))}
 
             {recipientTyping && (
@@ -1113,10 +1127,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   sentMessageContainer: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   receivedMessageContainer: {
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
 });
 

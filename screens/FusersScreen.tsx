@@ -56,7 +56,8 @@ export default function FusersScreen() {
   // Handle swipe down to close modal
   const handleScroll = (event: any) => {
     const { y } = event.nativeEvent.contentOffset;
-    if (y < -50) { // If scrolled up more than 50px from top
+    if (y < -50) {
+      // If scrolled up more than 50px from top
       setShowProfileModal(false);
     }
   };
@@ -92,11 +93,21 @@ export default function FusersScreen() {
       // Fetch complete profile data from blockchain for each match
       const matchesWithFullData = await Promise.all(
         matches.map(async (match: any) => {
-          console.log("🔍 Processing match:", match.address, "with data:", match);
+          console.log(
+            "🔍 Processing match:",
+            match.address,
+            "with data:",
+            match
+          );
           try {
             console.log("🌐 Fetching blockchain data for:", match.address);
             const blockchainData = await getUserData(match.address);
-            console.log("🌐 Blockchain data for", match.address, ":", blockchainData);
+            console.log(
+              "🌐 Blockchain data for",
+              match.address,
+              ":",
+              blockchainData
+            );
 
             // Parse personality traits if it's a string
             let personalityTraits: string[] = [];
@@ -106,16 +117,22 @@ export default function FusersScreen() {
                 personalityTraits = JSON.parse(blockchainData.traits);
               } catch {
                 // If not JSON, split by comma
-                personalityTraits = blockchainData.traits.split(',').map((t: string) => t.trim());
+                personalityTraits = blockchainData.traits
+                  .split(",")
+                  .map((t: string) => t.trim());
               }
             }
 
             // Extract bio properly - blockchain stores traits as bio
             let bio = blockchainData.bio;
-            if (typeof bio === 'object') {
+            if (typeof bio === "object") {
               bio = JSON.stringify(bio);
             }
-            if (typeof bio === 'string' && bio.startsWith('{') && bio.endsWith('}')) {
+            if (
+              typeof bio === "string" &&
+              bio.startsWith("{") &&
+              bio.endsWith("}")
+            ) {
               try {
                 const parsed = JSON.parse(bio);
                 bio = parsed.bio || parsed.traits || bio;
@@ -142,11 +159,21 @@ export default function FusersScreen() {
             console.log("✅ Enriched match data:", enrichedMatch);
             return enrichedMatch;
           } catch (error) {
-            console.error("❌ Error fetching blockchain data for", match.address, ":", error);
+            console.error(
+              "❌ Error fetching blockchain data for",
+              match.address,
+              ":",
+              error
+            );
             // Try to fetch from Firebase user profile
             try {
-              console.log("🔄 Falling back to Firebase profile for:", match.address);
-              const firebaseProfile = await FirebaseService.getUserProfile(match.address);
+              console.log(
+                "🔄 Falling back to Firebase profile for:",
+                match.address
+              );
+              const firebaseProfile = await FirebaseService.getUserProfile(
+                match.address
+              );
               console.log("🔄 Firebase profile data:", firebaseProfile);
 
               if (firebaseProfile) {
@@ -166,10 +193,14 @@ export default function FusersScreen() {
 
                 // Extract bio properly from Firebase profile
                 let bio = firebaseProfile.bio;
-                if (typeof bio === 'object') {
+                if (typeof bio === "object") {
                   bio = JSON.stringify(bio);
                 }
-                if (typeof bio === 'string' && bio.startsWith('{') && bio.endsWith('}')) {
+                if (
+                  typeof bio === "string" &&
+                  bio.startsWith("{") &&
+                  bio.endsWith("}")
+                ) {
                   try {
                     const parsed = JSON.parse(bio);
                     bio = parsed.bio || parsed.traits || bio;
@@ -180,9 +211,10 @@ export default function FusersScreen() {
 
                 return {
                   ...match,
-                  name: firebaseProfile.firstName && firebaseProfile.lastName
-                    ? `${firebaseProfile.firstName} ${firebaseProfile.lastName}`
-                    : match.name,
+                  name:
+                    firebaseProfile.firstName && firebaseProfile.lastName
+                      ? `${firebaseProfile.firstName} ${firebaseProfile.lastName}`
+                      : match.name,
                   age: age,
                   city: firebaseProfile.location || match.city,
                   bio: bio || match.bio,
@@ -196,7 +228,12 @@ export default function FusersScreen() {
                 };
               }
             } catch (firebaseError) {
-              console.error("❌ Firebase profile fetch also failed for", match.address, ":", firebaseError);
+              console.error(
+                "❌ Firebase profile fetch also failed for",
+                match.address,
+                ":",
+                firebaseError
+              );
             }
 
             // Final fallback to basic match data
@@ -211,7 +248,10 @@ export default function FusersScreen() {
       );
 
       const deduplicatedMatches = deduplicateByAddress(matchesWithFullData);
-      console.log("🎯 Final matched users with full data:", deduplicatedMatches);
+      console.log(
+        "🎯 Final matched users with full data:",
+        deduplicatedMatches
+      );
       setMatchedUsers(deduplicatedMatches);
     } catch (error) {
       console.error("💥 Error loading matched users:", error);
@@ -277,9 +317,7 @@ export default function FusersScreen() {
           matchedUsers.map((user, index) => (
             <View key={user.address} style={styles.matchedUserCard}>
               <View style={styles.matchedUserInfo}>
-                <TouchableOpacity
-                  onPress={() => viewUserProfile(user)}
-                >
+                <TouchableOpacity onPress={() => viewUserProfile(user)}>
                   <Text style={styles.matchedUserName}>
                     {user.name}, {calculateAge(user.age)}
                   </Text>
@@ -326,7 +364,10 @@ export default function FusersScreen() {
         <View style={styles.modalOverlay}>
           <ScrollView
             ref={scrollViewRef}
-            style={[styles.modalContent, { backgroundColor: theme.backgroundColor }]}
+            style={[
+              styles.modalContent,
+              { backgroundColor: theme.backgroundColor },
+            ]}
             showsVerticalScrollIndicator={true}
             bounces={true}
             alwaysBounceVertical={true}
@@ -335,11 +376,15 @@ export default function FusersScreen() {
             scrollEventThrottle={16}
           >
             <View style={styles.modalHeader}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.closeArea}
                 onPress={() => setShowProfileModal(false)}
               >
-                <Text style={[styles.closeButtonText, { color: theme.textColor }]}>✕</Text>
+                <Text
+                  style={[styles.closeButtonText, { color: theme.textColor }]}
+                >
+                  ✕
+                </Text>
               </TouchableOpacity>
               <Text style={[styles.modalTitle, { color: theme.textColor }]}>
                 {selectedUser?.name}'s Profile
@@ -349,109 +394,152 @@ export default function FusersScreen() {
 
             {selectedUser && (
               <View style={styles.profileContent}>
-                  {/* Profile Images */}
-                  {selectedUser.photos && selectedUser.photos.length > 0 && (
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      style={styles.photosContainer}
-                      bounces={false}
-                      pagingEnabled={false}
-                    >
-                      {selectedUser.photos.map((photo, index) => (
-                        <TouchableOpacity 
-                          key={index} 
-                          activeOpacity={1}
-                          style={styles.photoWrapper}
-                        >
-                          <Image
-                            source={{ uri: photo }}
-                            style={styles.profileImage}
-                            resizeMode="cover"
-                          />
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  )}
+                {/* Profile Images */}
+                {selectedUser.photos && selectedUser.photos.length > 0 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.photosContainer}
+                    bounces={false}
+                    pagingEnabled={false}
+                  >
+                    {selectedUser.photos.map((photo, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        activeOpacity={1}
+                        style={styles.photoWrapper}
+                      >
+                        <Image
+                          source={{ uri: photo }}
+                          style={styles.profileImage}
+                          resizeMode="cover"
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
 
-                  {/* Profile Info */}
-                  <View style={styles.profileInfo}>
-                    <Text style={[styles.profileName, { color: theme.textColor }]}>
-                      {selectedUser.name}, {calculateAge(selectedUser.age)}
-                    </Text>
-                    <Text style={[styles.profileLocation, { color: theme.textColor, opacity: 0.7 }]}>
-                      📍 {selectedUser.city}
-                    </Text>
+                {/* Profile Info */}
+                <View style={styles.profileInfo}>
+                  <Text
+                    style={[styles.profileName, { color: theme.textColor }]}
+                  >
+                    {selectedUser.name}, {calculateAge(selectedUser.age)}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.profileLocation,
+                      { color: theme.textColor, opacity: 0.7 },
+                    ]}
+                  >
+                    📍 {selectedUser.city}
+                  </Text>
 
-                    {selectedUser.bio && typeof selectedUser.bio === 'string' && selectedUser.bio.trim() && (
+                  {selectedUser.bio &&
+                    typeof selectedUser.bio === "string" &&
+                    selectedUser.bio.trim() && (
                       <View style={styles.bioSection}>
-                        <Text style={[styles.bioLabel, { color: theme.textColor }]}>
+                        <Text
+                          style={[styles.bioLabel, { color: theme.textColor }]}
+                        >
                           About
                         </Text>
-                        <Text style={[styles.bioText, { color: theme.textColor }]}>
+                        <Text
+                          style={[styles.bioText, { color: theme.textColor }]}
+                        >
                           {selectedUser.bio}
                         </Text>
                       </View>
                     )}
 
-                    {/* Additional Profile Fields */}
-                    {selectedUser.mbti && (
-                      <View style={styles.profileField}>
-                        <Text style={[styles.fieldLabel, { color: theme.textColor }]}>
-                          MBTI
-                        </Text>
-                        <Text style={[styles.fieldValue, { color: theme.textColor }]}>
-                          {selectedUser.mbti}
-                        </Text>
-                      </View>
-                    )}
+                  {/* Additional Profile Fields */}
+                  {selectedUser.mbti && (
+                    <View style={styles.profileField}>
+                      <Text
+                        style={[styles.fieldLabel, { color: theme.textColor }]}
+                      >
+                        MBTI
+                      </Text>
+                      <Text
+                        style={[styles.fieldValue, { color: theme.textColor }]}
+                      >
+                        {selectedUser.mbti}
+                      </Text>
+                    </View>
+                  )}
 
-                    {selectedUser.gender && (
-                      <View style={styles.profileField}>
-                        <Text style={[styles.fieldLabel, { color: theme.textColor }]}>
-                          Gender
-                        </Text>
-                        <Text style={[styles.fieldValue, { color: theme.textColor }]}>
-                          {selectedUser.gender}
-                        </Text>
-                      </View>
-                    )}
+                  {selectedUser.gender && (
+                    <View style={styles.profileField}>
+                      <Text
+                        style={[styles.fieldLabel, { color: theme.textColor }]}
+                      >
+                        Gender
+                      </Text>
+                      <Text
+                        style={[styles.fieldValue, { color: theme.textColor }]}
+                      >
+                        {selectedUser.gender}
+                      </Text>
+                    </View>
+                  )}
 
-                    {selectedUser.sexuality && (
-                      <View style={styles.profileField}>
-                        <Text style={[styles.fieldLabel, { color: theme.textColor }]}>
-                          Sexuality
-                        </Text>
-                        <Text style={[styles.fieldValue, { color: theme.textColor }]}>
-                          {selectedUser.sexuality}
-                        </Text>
-                      </View>
-                    )}
+                  {selectedUser.sexuality && (
+                    <View style={styles.profileField}>
+                      <Text
+                        style={[styles.fieldLabel, { color: theme.textColor }]}
+                      >
+                        Sexuality
+                      </Text>
+                      <Text
+                        style={[styles.fieldValue, { color: theme.textColor }]}
+                      >
+                        {selectedUser.sexuality}
+                      </Text>
+                    </View>
+                  )}
 
-                    {selectedUser.personalityTraits && selectedUser.personalityTraits.length > 0 && (
+                  {selectedUser.personalityTraits &&
+                    selectedUser.personalityTraits.length > 0 && (
                       <View style={styles.profileField}>
-                        <Text style={[styles.fieldLabel, { color: theme.textColor }]}>
+                        <Text
+                          style={[
+                            styles.fieldLabel,
+                            { color: theme.textColor },
+                          ]}
+                        >
                           Personality Traits
                         </Text>
                         <View style={styles.traitsContainer}>
-                          {selectedUser.personalityTraits.map((trait, index) => (
-                            <View key={index} style={styles.traitTag}>
-                              <Text style={[styles.traitText, { color: theme.textColor }]}>
-                                {trait}
-                              </Text>
-                            </View>
-                          ))}
+                          {selectedUser.personalityTraits.map(
+                            (trait, index) => (
+                              <View key={index} style={styles.traitTag}>
+                                <Text
+                                  style={[
+                                    styles.traitText,
+                                    { color: theme.textColor },
+                                  ]}
+                                >
+                                  {trait}
+                                </Text>
+                              </View>
+                            )
+                          )}
                         </View>
                       </View>
                     )}
 
-                    <Text style={[styles.matchDate, { color: theme.textColor, opacity: 0.6 }]}>
-                      Matched on {selectedUser.matchedDate.toLocaleDateString()}
-                    </Text>
-                  </View>
+                  <Text
+                    style={[
+                      styles.matchDate,
+                      { color: theme.textColor, opacity: 0.6 },
+                    ]}
+                  >
+                    Matched on {selectedUser.matchedDate.toLocaleDateString()}
+                  </Text>
                 </View>
-              )}
-            </ScrollView>
+              </View>
+            )}
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -469,12 +557,12 @@ const deduplicateByAddress = (items: MatchedUser[]): MatchedUser[] => {
 // Utility function to calculate age from birthdate or return the age if it's already a number
 const calculateAge = (age: number | string): string => {
   console.log("🧮 calculateAge called with:", age, "type:", typeof age);
-  if (typeof age === 'number' && !isNaN(age)) {
+  if (typeof age === "number" && !isNaN(age)) {
     console.log("🧮 Returning age as number:", age);
     return age.toString();
   }
   console.log("🧮 Age is not a valid number, returning N/A");
-  return 'N/A';
+  return "N/A";
 };
 
 const styles = StyleSheet.create({
@@ -544,23 +632,23 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalContent: {
     borderRadius: 20,
-    width: Dimensions.get('window').width * 0.95,
+    width: Dimensions.get("window").width * 0.95,
     maxWidth: 400,
     paddingBottom: 20,
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
     paddingBottom: 15,
   },
   closeArea: {
@@ -572,20 +660,20 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   closeButton: {
     padding: 5,
   },
   closeButtonText: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   modalBody: {
     padding: 20,
   },
   scrollContent: {
-    minHeight: Dimensions.get('window').height * 0.8,
+    minHeight: Dimensions.get("window").height * 0.8,
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 20,
@@ -604,7 +692,7 @@ const styles = StyleSheet.create({
   },
   profileName: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 5,
   },
   profileLocation: {
@@ -616,7 +704,7 @@ const styles = StyleSheet.create({
   },
   bioLabel: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 8,
   },
   bioText: {
@@ -628,7 +716,7 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 8,
   },
   fieldValue: {
@@ -636,12 +724,12 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   traitsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     marginTop: 5,
   },
   traitTag: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     borderRadius: 15,
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -650,7 +738,7 @@ const styles = StyleSheet.create({
   },
   traitText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   profileContent: {
     // flex: 1, // Removed to allow natural content height
@@ -660,7 +748,7 @@ const styles = StyleSheet.create({
   },
   matchDate: {
     fontSize: 14,
-    fontStyle: 'italic',
+    fontStyle: "italic",
     marginTop: 10,
   },
 });

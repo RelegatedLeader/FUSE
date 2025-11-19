@@ -294,12 +294,18 @@ export class FirebaseService {
 
       // Get the conversation key once for this snapshot
       const conversationKey = await this.getConversationKey(conversationId);
-      console.log("🔐 Using conversation key:", conversationKey.substring(0, 8) + "...");
+      console.log(
+        "🔐 Using conversation key:",
+        conversationKey.substring(0, 8) + "..."
+      );
 
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         try {
-          console.log("🔐 Decrypting message:", data.encryptedMessage.substring(0, 50) + "...");
+          console.log(
+            "🔐 Decrypting message:",
+            data.encryptedMessage.substring(0, 50) + "..."
+          );
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
             conversationKey
@@ -354,7 +360,9 @@ export class FirebaseService {
         data.recipientAddress === userAddress
       ) {
         try {
-          const conversationId = [data.senderAddress, data.recipientAddress].sort().join("_");
+          const conversationId = [data.senderAddress, data.recipientAddress]
+            .sort()
+            .join("_");
           const conversationKey = await this.getConversationKey(conversationId);
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
@@ -380,7 +388,9 @@ export class FirebaseService {
   }
 
   // Get or create conversation key for E2E encryption
-  private static async getConversationKey(conversationId: string): Promise<string> {
+  private static async getConversationKey(
+    conversationId: string
+  ): Promise<string> {
     const keyStorageKey = `conversation_key_v2_${conversationId}`;
 
     // Try to get existing key
@@ -389,15 +399,23 @@ export class FirebaseService {
     if (!conversationKey) {
       // Generate deterministic key for this conversation (both users will generate the same key)
       // Use hash of conversation ID as the key - take first 32 bytes for AES-256
-      const hash = CryptoJS.SHA256(conversationId + "fuse_shared_messaging_key_2024");
+      const hash = CryptoJS.SHA256(
+        conversationId + "fuse_shared_messaging_key_2024"
+      );
       conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(0, 64); // 64 hex chars = 32 bytes
 
       // Store the key
       await AsyncStorage.setItem(keyStorageKey, conversationKey);
 
-      console.log("🔑 FirebaseService: Generated deterministic conversation key for:", conversationId);
+      console.log(
+        "🔑 FirebaseService: Generated deterministic conversation key for:",
+        conversationId
+      );
     } else {
-      console.log("🔑 FirebaseService: Retrieved conversation key for:", conversationId);
+      console.log(
+        "🔑 FirebaseService: Retrieved conversation key for:",
+        conversationId
+      );
     }
 
     return conversationKey;
@@ -431,8 +449,12 @@ export class FirebaseService {
           const decryptedMessages = await Promise.all(
             userMessages.map(async (msg) => {
               try {
-                const conversationId = [msg.senderAddress, msg.recipientAddress].sort().join("_");
-                const conversationKey = await this.getConversationKey(conversationId);
+                const conversationId = [msg.senderAddress, msg.recipientAddress]
+                  .sort()
+                  .join("_");
+                const conversationKey = await this.getConversationKey(
+                  conversationId
+                );
                 const decryptedMessage = EncryptionService.decryptMessage(
                   msg.encryptedMessage,
                   conversationKey
@@ -448,7 +470,7 @@ export class FirebaseService {
             })
           );
 
-          const validMessages = decryptedMessages.filter(msg => msg !== null);
+          const validMessages = decryptedMessages.filter((msg) => msg !== null);
           const uniqueMessages = validMessages.filter(
             (msg, index, self) =>
               index === self.findIndex((m) => m.id === msg.id)

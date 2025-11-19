@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
+  FlatList,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
@@ -9,6 +10,7 @@ import {
   Animated,
   Alert,
   Dimensions,
+  Modal,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -43,6 +45,7 @@ export default function FuseScreen() {
   const [isLoading, setIsLoading] = useState(true); // Add loading state
   const fuseAnim = useState(new Animated.Value(0))[0];
   const flatListRef = useRef<ScrollView>(null);
+  const scrollY = new Animated.Value(0);
 
   // Track which users have been skipped
   const [skippedUsers, setSkippedUsers] = useState<Set<string>>(new Set());
@@ -521,6 +524,7 @@ export default function FuseScreen() {
   }) => {
     const scrollViewRef = useRef<ScrollView>(null);
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
+    const [showProfileModal, setShowProfileModal] = useState(false);
 
     const handleScroll = (event: any) => {
       const slideSize = Dimensions.get("window").width - 40; // Updated to match new image width
@@ -538,25 +542,30 @@ export default function FuseScreen() {
       }
     };
 
+    const viewUserProfile = () => {
+      console.log("👤 Opening profile modal for user:", user);
+      setShowProfileModal(true);
+    };
+
     return (
       <View
         style={[
-          styles.fullScreenCard,
+          styles.compactCard,
           { backgroundColor: theme?.card?.backgroundColor || "#ffffff" },
         ]}
       >
-        {/* User Image */}
-        <View style={styles.fullScreenImageContainer}>
+        {/* Profile Image with Overlay Button */}
+        <View style={styles.imageContainer}>
           {user.photos && user.photos.length > 0 ? (
             <View style={styles.photoCarousel}>
               <ScrollView
                 ref={scrollViewRef}
                 horizontal
                 pagingEnabled
-                showsHorizontalScrollIndicator={true}
+                showsHorizontalScrollIndicator={false}
                 onScroll={handleScroll}
                 scrollEventThrottle={16}
-                style={styles.fullScreenPhotoScrollView}
+                style={styles.photoScrollView}
                 snapToInterval={Dimensions.get("window").width - 40}
                 decelerationRate="fast"
                 contentContainerStyle={{ alignItems: "center" }}
@@ -570,7 +579,7 @@ export default function FuseScreen() {
                       openFullScreenImage(photo, index, user.photos)
                     }
                   >
-                    <Image source={{ uri: photo }} style={styles.fullScreenPhotoImage} />
+                    <Image source={{ uri: photo }} style={styles.photoImage} />
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -591,30 +600,114 @@ export default function FuseScreen() {
                   ))}
                 </View>
               )}
+              {/* FUSE Button Overlay */}
+              <View style={styles.fuseButtonOverlay}>
+                <AnimatedTouchableOpacity
+                  onPress={
+                    requestedUsers.has(user.address)
+                      ? undefined
+                      : () => onFuse(user.address)
+                  }
+                  disabled={requestedUsers.has(user.address)}
+                  style={[
+                    styles.overlayFuseButton,
+                    {
+                      backgroundColor: requestedUsers.has(user.address)
+                        ? "#ccc"
+                        : fuseAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ["#ff4757", "#ff3838"],
+                          }),
+                    },
+                  ]}
+                >
+                  <Animated.Text
+                    style={[
+                      styles.overlayButtonText,
+                      {
+                        color: requestedUsers.has(user.address)
+                          ? "#666"
+                          : fuseAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: ["#ffffff", "#ff6b6b"],
+                            }),
+                      },
+                    ]}
+                  >
+                    {requestedUsers.has(user.address) ? "Request sent" : "FUSE"}
+                  </Animated.Text>
+                </AnimatedTouchableOpacity>
+              </View>
             </View>
           ) : (
             <View
               style={[
-                styles.fullScreenPlaceholderImage,
+                styles.placeholderImage,
                 { backgroundColor: theme?.buttonBackground || "#8b9dc3" },
               ]}
             >
               <Text
                 style={[
                   { color: theme?.textColor || "#333" },
-                  styles.fullScreenPlaceholderEmoji,
+                  styles.placeholderEmoji,
                 ]}
               >
                 {String("👤")}
               </Text>
+              {/* FUSE Button Overlay for placeholder */}
+              <View style={styles.fuseButtonOverlay}>
+                <AnimatedTouchableOpacity
+                  onPress={
+                    requestedUsers.has(user.address)
+                      ? undefined
+                      : () => onFuse(user.address)
+                  }
+                  disabled={requestedUsers.has(user.address)}
+                  style={[
+                    styles.overlayFuseButton,
+                    {
+                      backgroundColor: requestedUsers.has(user.address)
+                        ? "#ccc"
+                        : fuseAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ["#ff4757", "#ff3838"],
+                          }),
+                    },
+                  ]}
+                >
+                  <Animated.Text
+                    style={[
+                      styles.overlayButtonText,
+                      {
+                        color: requestedUsers.has(user.address)
+                          ? "#666"
+                          : fuseAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: ["#ffffff", "#ff6b6b"],
+                            }),
+                      },
+                    ]}
+                  >
+                    {requestedUsers.has(user.address) ? "Request sent" : "FUSE"}
+                  </Animated.Text>
+                </AnimatedTouchableOpacity>
+              </View>
             </View>
           )}
         </View>
 
-        {/* User Info */}
-        <View style={styles.fullScreenUserInfo}>
+        {/* Compact User Info */}
+        <TouchableOpacity
+          style={styles.compactUserInfo}
+          onPress={viewUserProfile}
+        >
           <View style={styles.nameContainer}>
-            <Text style={[{ color: theme?.textColor || "#333" }, styles.fullScreenName]}>
+            <Text
+              style={[
+                { color: theme?.textColor || "#333" },
+                styles.compactName,
+              ]}
+            >
               {String(user.name || "Unknown User")}, {String(user.age || "N/A")}
             </Text>
             {hasIncomingRequest && (
@@ -622,16 +715,19 @@ export default function FuseScreen() {
             )}
           </View>
           <Text
-            style={[{ color: theme?.textColor || "#666" }, styles.fullScreenLocation]}
+            style={[
+              { color: theme?.textColor || "#666" },
+              styles.compactLocation,
+            ]}
           >
-            {String("Location: " + (user.city || "Unknown Location"))}
+            {String("📍 " + (user.city || "Unknown Location"))}
           </Text>
           {user.compatibilityScore !== undefined &&
             user.compatibilityScore !== null && (
               <Text
                 style={[
                   { color: theme?.textColor || "#666" },
-                  styles.fullScreenCompatibility,
+                  styles.compactCompatibility,
                 ]}
               >
                 {String(
@@ -639,69 +735,199 @@ export default function FuseScreen() {
                 )}
               </Text>
             )}
-          <ScrollView
-            style={styles.fullScreenBioScrollView}
-            showsVerticalScrollIndicator={true}
-            bounces={false}
+          <Text
+            style={[{ color: theme?.textColor || "#666" }, styles.compactBio]}
+            numberOfLines={2}
           >
-            <Text style={[{ color: theme?.textColor || "#666" }, styles.fullScreenBio]}>
-              {String(user.bio || "No bio available")}
-            </Text>
-          </ScrollView>
-        </View>
+            {String(user.bio || "No bio available")}
+          </Text>
+          <Text style={styles.tapToViewText}>Tap to view full profile</Text>
+        </TouchableOpacity>
 
-        {/* Action Buttons */}
-        <View style={styles.fullScreenActionButtons}>
-          <TouchableOpacity
-            onPress={
-              requestedUsers.has(user.address)
-                ? undefined
-                : () => onSkip(user.address)
-            }
-            disabled={requestedUsers.has(user.address)}
-            style={[
-              styles.fullScreenSkipButton,
-              { backgroundColor: requestedUsers.has(user.address) ? "#ccc" : "#666" },
-            ]}
-          >
-            <Text style={styles.fullScreenButtonText}>SKIP</Text>
-          </TouchableOpacity>
-          <AnimatedTouchableOpacity
-            onPress={
-              requestedUsers.has(user.address)
-                ? undefined
-                : () => onFuse(user.address)
-            }
-            disabled={requestedUsers.has(user.address)}
-            style={[
-              styles.fullScreenFuseButton,
-              {
-                backgroundColor: requestedUsers.has(user.address)
-                  ? "#ccc"
-                  : fuseAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: ["#ff4757", "#ff3838"],
-                    }),
-              },
-            ]}
-          >
-            <Animated.Text
+        {/* Profile Modal */}
+        <Modal
+          visible={showProfileModal}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setShowProfileModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <ScrollView
               style={[
-                styles.fullScreenButtonText,
-                {
-                  color: requestedUsers.has(user.address)
-                    ? "#666"
-                    : fuseAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ["#ffffff", "#ff6b6b"],
-                      }),
-                },
+                styles.modalContent,
+                { backgroundColor: theme.backgroundColor },
               ]}
+              showsVerticalScrollIndicator={true}
+              bounces={true}
+              alwaysBounceVertical={true}
+              contentContainerStyle={styles.scrollContent}
             >
-              {requestedUsers.has(user.address) ? "Request sent" : "FUSE"}
-            </Animated.Text>
-          </AnimatedTouchableOpacity>
-        </View>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity
+                  style={styles.closeArea}
+                  onPress={() => setShowProfileModal(false)}
+                >
+                  <Text
+                    style={[styles.closeButtonText, { color: theme.textColor }]}
+                  >
+                    ✕
+                  </Text>
+                </TouchableOpacity>
+                <Text style={[styles.modalTitle, { color: theme.textColor }]}>
+                  {user.name}'s Profile
+                </Text>
+                <View style={styles.headerSpacer} />
+              </View>
+
+              <View style={styles.profileContent}>
+                {/* Profile Images */}
+                {user.photos && user.photos.length > 0 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.photosContainer}
+                    bounces={false}
+                    pagingEnabled={false}
+                  >
+                    {user.photos.map((photo, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        activeOpacity={1}
+                        style={styles.photoWrapper}
+                      >
+                        <Image
+                          source={{ uri: photo }}
+                          style={styles.profileImage}
+                          resizeMode="cover"
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+
+                {/* Profile Info */}
+                <View style={styles.profileInfo}>
+                  <Text
+                    style={[styles.profileName, { color: theme.textColor }]}
+                  >
+                    {user.name}, {user.age}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.profileLocation,
+                      { color: theme.textColor, opacity: 0.7 },
+                    ]}
+                  >
+                    📍 {user.city}
+                  </Text>
+
+                  {user.bio &&
+                    typeof user.bio === "string" &&
+                    user.bio.trim() && (
+                      <View style={styles.bioSection}>
+                        <Text
+                          style={[styles.bioLabel, { color: theme.textColor }]}
+                        >
+                          About
+                        </Text>
+                        <Text
+                          style={[styles.bioText, { color: theme.textColor }]}
+                        >
+                          {user.bio}
+                        </Text>
+                      </View>
+                    )}
+
+                  {/* Additional Profile Fields */}
+                  {user.mbti && (
+                    <View style={styles.profileField}>
+                      <Text
+                        style={[styles.fieldLabel, { color: theme.textColor }]}
+                      >
+                        MBTI
+                      </Text>
+                      <Text
+                        style={[styles.fieldValue, { color: theme.textColor }]}
+                      >
+                        {user.mbti}
+                      </Text>
+                    </View>
+                  )}
+
+                  {user.gender && (
+                    <View style={styles.profileField}>
+                      <Text
+                        style={[styles.fieldLabel, { color: theme.textColor }]}
+                      >
+                        Gender
+                      </Text>
+                      <Text
+                        style={[styles.fieldValue, { color: theme.textColor }]}
+                      >
+                        {user.gender}
+                      </Text>
+                    </View>
+                  )}
+
+                  {user.sexuality && (
+                    <View style={styles.profileField}>
+                      <Text
+                        style={[styles.fieldLabel, { color: theme.textColor }]}
+                      >
+                        Sexuality
+                      </Text>
+                      <Text
+                        style={[styles.fieldValue, { color: theme.textColor }]}
+                      >
+                        {user.sexuality}
+                      </Text>
+                    </View>
+                  )}
+
+                  {user.personalityTraits &&
+                    user.personalityTraits.length > 0 && (
+                      <View style={styles.profileField}>
+                        <Text
+                          style={[
+                            styles.fieldLabel,
+                            { color: theme.textColor },
+                          ]}
+                        >
+                          Personality Traits
+                        </Text>
+                        <View style={styles.traitsContainer}>
+                          {user.personalityTraits.map((trait, index) => (
+                            <View key={index} style={styles.traitTag}>
+                              <Text
+                                style={[
+                                  styles.traitText,
+                                  { color: theme.textColor },
+                                ]}
+                              >
+                                {trait}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+
+                  {user.compatibilityScore !== undefined &&
+                    user.compatibilityScore !== null && (
+                      <Text
+                        style={[
+                          { color: theme.textColor, opacity: 0.6 },
+                          styles.compatibilityScore,
+                        ]}
+                      >
+                        Compatibility: {Math.round(user.compatibilityScore)}%
+                      </Text>
+                    )}
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </Modal>
       </View>
     );
   };
@@ -725,7 +951,12 @@ export default function FuseScreen() {
         { backgroundColor: theme?.backgroundColor || "#bfcafd" },
       ]}
     >
-      <Text style={[styles.title, { color: theme?.textColor || "#333" }]}>
+      <Text
+        style={[
+          styles.title,
+          { color: theme?.textColor || "#333", position: "absolute", top: 0, left: 0, right: 0, zIndex: 1 },
+        ]}
+      >
         Find Your Fuse
       </Text>
 
@@ -797,10 +1028,12 @@ export default function FuseScreen() {
           ref={flatListRef}
           pagingEnabled
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.fullScreenListContainer}
+          style={{ height: Dimensions.get("window").height - 60 }}
           onMomentumScrollEnd={(event) => {
-            const slideSize = Dimensions.get("window").height;
-            const index = Math.round(event.nativeEvent.contentOffset.y / slideSize);
+            const slideSize = Dimensions.get("window").height - 60;
+            const index = Math.round(
+              event.nativeEvent.contentOffset.y / slideSize
+            );
             // Handle profile change if needed
           }}
         >
@@ -996,6 +1229,186 @@ const styles = StyleSheet.create({
   fullScreenListContainer: {
     alignItems: "center",
   },
+  compactCard: {
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height - 60, // Match ScrollView height
+    backgroundColor: "#ffffff",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingTop: 20, // Space for absolute title
+    paddingHorizontal: 20,
+  },
+  fuseButtonOverlay: {
+    position: "absolute",
+    top: 20,
+    right: 20,
+    zIndex: 10,
+  },
+  overlayFuseButton: {
+    padding: 15,
+    backgroundColor: "#ff4757",
+    borderRadius: 25,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  overlayButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  compactUserInfo: {
+    flex: 1,
+    width: "100%",
+    paddingHorizontal: 10,
+    paddingTop: 20,
+  },
+  compactName: {
+    fontSize: 24,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  compactLocation: {
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 5,
+  },
+  compactCompatibility: {
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 10,
+    fontWeight: "bold",
+  },
+  compactBio: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: 15,
+  },
+  tapToViewText: {
+    fontSize: 12,
+    textAlign: "center",
+    color: "#666",
+    fontStyle: "italic",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    borderRadius: 20,
+    width: Dimensions.get("window").width * 0.95,
+    maxWidth: 400,
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+    paddingBottom: 15,
+  },
+  closeArea: {
+    padding: 10,
+    marginLeft: -10,
+  },
+  headerSpacer: {
+    width: 30,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  scrollContent: {
+    minHeight: Dimensions.get("window").height * 0.8,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
+  },
+  profileContent: {
+    flex: 1,
+  },
+  photosContainer: {
+    marginBottom: 20,
+    height: 320,
+  },
+  photoWrapper: {
+    marginRight: 10,
+  },
+  profileImage: {
+    width: 280,
+    height: 280,
+    borderRadius: 15,
+  },
+  profileInfo: {
+    paddingHorizontal: 10,
+  },
+  profileName: {
+    fontSize: 24,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  profileLocation: {
+    fontSize: 16,
+    textAlign: "center",
+    marginBottom: 15,
+  },
+  bioSection: {
+    marginBottom: 20,
+  },
+  bioLabel: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  bioText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  profileField: {
+    marginBottom: 15,
+  },
+  fieldLabel: {
+    fontSize: 14,
+    fontWeight: "bold",
+    marginBottom: 4,
+    opacity: 0.8,
+  },
+  fieldValue: {
+    fontSize: 16,
+  },
+  traitsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    marginTop: 5,
+  },
+  traitTag: {
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 15,
+    marginRight: 8,
+    marginBottom: 5,
+  },
+  traitText: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  compatibilityScore: {
+    fontSize: 14,
+    textAlign: "center",
+    marginTop: 10,
+    fontWeight: "bold",
+  },
   leftTap: {
     position: "absolute",
     left: 10,
@@ -1048,23 +1461,23 @@ const styles = StyleSheet.create({
   },
   // New styles for card-based UI
   imageContainer: {
-    height: 300, // Increased for larger images
+    height: 400, // Increased from 300
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 10,
   },
   userImage: {
-    width: 300,
-    height: 300,
-    maxWidth: 300,
-    maxHeight: 300,
+    width: 400,
+    height: 400,
+    maxWidth: 400,
+    maxHeight: 400,
     borderRadius: 0, // Square instead of circular
     borderWidth: 3,
     borderColor: "#e1e5e9",
   },
   placeholderImage: {
-    width: 300,
-    height: 300,
+    width: 400,
+    height: 400,
     borderRadius: 0, // Square instead of circular
     justifyContent: "center",
     alignItems: "center",
@@ -1120,6 +1533,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     alignItems: "center",
   },
+  cardContainer: {
+    width: Dimensions.get("window").width * 0.9,
+    maxWidth: 400,
+    marginVertical: 10,
+  },
+  cardSeparator: {
+    height: 20,
+  },
   separator: {
     height: 15,
   },
@@ -1129,11 +1550,11 @@ const styles = StyleSheet.create({
   photoScrollView: {
     width: Dimensions.get("window").width * 0.95 - 30, // Card width minus padding
     maxWidth: 420, // Max width minus padding
-    height: 300, // Increased to match image height
+    height: 400, // Increased to match image height
   },
   photoImage: {
-    width: 300, // Increased from 200
-    height: 300, // Increased from 200
+    width: 400, // Increased from 300
+    height: 400, // Increased from 300
     borderRadius: 0,
     borderWidth: 3,
     borderColor: "#e1e5e9",

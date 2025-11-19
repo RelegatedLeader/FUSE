@@ -51,12 +51,17 @@ export class MessagingService {
   }
 
   // Get or create conversation key for E2E encryption
-  private static async getConversationKey(recipientAddress: string): Promise<string> {
+  private static async getConversationKey(
+    recipientAddress: string
+  ): Promise<string> {
     if (!this.currentUser) {
       throw new Error("Messaging service not initialized");
     }
 
-    const conversationId = this.generateConversationId(this.currentUser, recipientAddress);
+    const conversationId = this.generateConversationId(
+      this.currentUser,
+      recipientAddress
+    );
     const keyStorageKey = `conversation_key_v2_${conversationId}`;
 
     // Try to get existing key
@@ -71,9 +76,15 @@ export class MessagingService {
       // Store the key
       await AsyncStorage.setItem(keyStorageKey, conversationKey);
 
-      console.log("🔑 MessagingService: Generated deterministic conversation key for:", conversationId);
+      console.log(
+        "🔑 MessagingService: Generated deterministic conversation key for:",
+        conversationId
+      );
     } else {
-      console.log("🔑 MessagingService: Retrieved conversation key for:", conversationId);
+      console.log(
+        "🔑 MessagingService: Retrieved conversation key for:",
+        conversationId
+      );
     }
 
     return conversationKey;

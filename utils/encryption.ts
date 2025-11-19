@@ -134,10 +134,7 @@ export class EncryptionService {
   }
 
   // Encrypt message for E2E messaging
-  static encryptMessage(
-    message: string,
-    encryptionKey: string
-  ): string {
+  static encryptMessage(message: string, encryptionKey: string): string {
     // Use the conversation key for encryption
     const { encrypted, iv, tag } = this.encrypt(message, encryptionKey);
 
