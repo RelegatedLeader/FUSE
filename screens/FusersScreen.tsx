@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -51,6 +51,15 @@ export default function FusersScreen() {
   const [matchedUsers, setMatchedUsers] = useState<MatchedUser[]>([]);
   const [selectedUser, setSelectedUser] = useState<MatchedUser | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
+
+  // Handle swipe down to close modal
+  const handleScroll = (event: any) => {
+    const { y } = event.nativeEvent.contentOffset;
+    if (y < -50) { // If scrolled up more than 50px from top
+      setShowProfileModal(false);
+    }
+  };
 
   useEffect(() => {
     // Load matched users from Firebase and listen for updates
@@ -123,7 +132,7 @@ export default function FusersScreen() {
               bio: bio || match.bio,
               mbti: blockchainData.mbti,
               gender: blockchainData.gender,
-              sexuality: match.sexuality, // Keep from Firebase match data
+              sexuality: blockchainData.id || match.sexuality, // Check blockchain ID field first
               personalityTraits: personalityTraits,
               matchedDate: match.matchedDate
                 ? match.matchedDate.toDate()
@@ -210,7 +219,7 @@ export default function FusersScreen() {
   };
 
   const viewUserProfile = (user: MatchedUser) => {
-    console.log("👤 Viewing profile for user:", user);
+    console.log("👤 Opening profile modal for user:", user);
     console.log("👤 User data:", {
       name: user.name,
       age: user.age,
@@ -220,6 +229,7 @@ export default function FusersScreen() {
       gender: user.gender,
       sexuality: user.sexuality,
       personalityTraits: user.personalityTraits,
+      photosCount: user.photos?.length || 0,
     });
     setSelectedUser(user);
     setShowProfileModal(true);
@@ -313,35 +323,32 @@ export default function FusersScreen() {
         transparent={true}
         onRequestClose={() => setShowProfileModal(false)}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setShowProfileModal(false)}
-        >
-          <TouchableOpacity
+        <View style={styles.modalOverlay}>
+          <ScrollView
+            ref={scrollViewRef}
             style={[styles.modalContent, { backgroundColor: theme.backgroundColor }]}
-            activeOpacity={1}
-            onPress={() => {}} // Prevent closing when tapping inside modal
+            showsVerticalScrollIndicator={true}
+            bounces={true}
+            alwaysBounceVertical={true}
+            contentContainerStyle={styles.scrollContent}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
           >
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.textColor }]}>
-                {selectedUser?.name}'s Profile
-              </Text>
-              <TouchableOpacity
+              <TouchableOpacity 
+                style={styles.closeArea}
                 onPress={() => setShowProfileModal(false)}
-                style={styles.closeButton}
               >
                 <Text style={[styles.closeButtonText, { color: theme.textColor }]}>✕</Text>
               </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: theme.textColor }]}>
+                {selectedUser?.name}'s Profile
+              </Text>
+              <View style={styles.headerSpacer} />
             </View>
 
-            <ScrollView 
-              style={styles.modalBody}
-              showsVerticalScrollIndicator={true}
-              bounces={false}
-            >
-              {selectedUser && (
-                <View style={styles.profileContent}>
+            {selectedUser && (
+              <View style={styles.profileContent}>
                   {/* Profile Images */}
                   {selectedUser.photos && selectedUser.photos.length > 0 && (
                     <ScrollView
@@ -445,8 +452,7 @@ export default function FusersScreen() {
                 </View>
               )}
             </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
+        </View>
       </Modal>
     </View>
   );
@@ -544,7 +550,6 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     borderRadius: 20,
-    maxHeight: Dimensions.get('window').height * 0.9,
     width: Dimensions.get('window').width * 0.95,
     maxWidth: 400,
     paddingBottom: 20,
@@ -553,9 +558,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    marginBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    paddingBottom: 15,
+  },
+  closeArea: {
+    padding: 10,
+    marginLeft: -10,
+  },
+  headerSpacer: {
+    width: 30, // To balance the close button on the left
   },
   modalTitle: {
     fontSize: 20,
@@ -570,7 +583,12 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     padding: 20,
-    maxHeight: Dimensions.get('window').height * 0.7,
+  },
+  scrollContent: {
+    minHeight: Dimensions.get('window').height * 0.8,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 20,
   },
   photosContainer: {
     marginBottom: 20,
@@ -635,7 +653,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   profileContent: {
-    flex: 1,
+    // flex: 1, // Removed to allow natural content height
   },
   photoWrapper: {
     marginRight: 10,
