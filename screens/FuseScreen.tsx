@@ -52,6 +52,7 @@ export default function FuseScreen() {
   const [isLoading, setIsLoading] = useState(true); // Add loading state
   const fuseAnim = useState(new Animated.Value(0))[0];
   const flatListRef = useRef<FlatList<User> | null>(null);
+  const fullScreenScrollRef = useRef<ScrollView>(null);
   const scrollY = new Animated.Value(0);
   const cardOpacities = useRef(new Map<string, Animated.Value>());
 
@@ -77,9 +78,6 @@ export default function FuseScreen() {
   const [fullScreenImageUri, setFullScreenImageUri] = useState<string>("");
   const [fullScreenImageIndex, setFullScreenImageIndex] = useState(0);
   const [fullScreenImages, setFullScreenImages] = useState<string[]>([]);
-
-  // Zoom state for full screen
-  const [fullScreenZoomed, setFullScreenZoomed] = useState(false);
 
   // Rocket loading animation
   const rocketRotation = useState(new Animated.Value(0))[0];
@@ -817,9 +815,6 @@ export default function FuseScreen() {
                   bounces={true}
                   alwaysBounceVertical={true}
                   contentContainerStyle={styles.scrollContent}
-                  onScroll={(event) =>
-                    setModalScrollY(event.nativeEvent.contentOffset.y)
-                  }
                   scrollEventThrottle={16}
                 >
                   <View style={styles.modalHeader}>
@@ -1172,18 +1167,26 @@ export default function FuseScreen() {
               <Text style={styles.closeButtonText}>✖</Text>
             </TouchableOpacity>
             <ScrollView
+              ref={fullScreenScrollRef}
               horizontal
-              pagingEnabled
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.fullScreenScrollView}
+              snapToInterval={Dimensions.get("window").width}
+              snapToAlignment="start"
+              decelerationRate="fast"
+              zoomEnabled={true}
+              minimumZoomScale={1}
+              maximumZoomScale={3}
+              onMomentumScrollEnd={(event) => {
+                const index = Math.round(event.nativeEvent.contentOffset.x / Dimensions.get("window").width);
+                setFullScreenImageIndex(index);
+              }}
             >
               {fullScreenImages.map((image, index) => (
-                <TouchableOpacity key={index} onPress={() => setFullScreenZoomed(!fullScreenZoomed)}>
-                  <Animated.Image
-                    source={{ uri: image }}
-                    style={[styles.fullScreenImage, { transform: [{ scale: fullScreenZoomed ? 2 : 1 }] }]}
-                  />
-                </TouchableOpacity>
+                <Image
+                  key={index}
+                  source={{ uri: image }}
+                  style={styles.fullScreenImage}
+                />
               ))}
             </ScrollView>
             <View style={styles.fullScreenNav}>
@@ -1194,6 +1197,9 @@ export default function FuseScreen() {
                       ? fullScreenImageIndex - 1
                       : fullScreenImages.length - 1;
                   setFullScreenImageIndex(newIndex);
+                  if (fullScreenScrollRef.current) {
+                    fullScreenScrollRef.current.scrollTo({ x: newIndex * Dimensions.get("window").width, animated: true });
+                  }
                 }}
                 style={styles.navButton}
               >
@@ -1206,6 +1212,9 @@ export default function FuseScreen() {
                       ? fullScreenImageIndex + 1
                       : 0;
                   setFullScreenImageIndex(newIndex);
+                  if (fullScreenScrollRef.current) {
+                    fullScreenScrollRef.current.scrollTo({ x: newIndex * Dimensions.get("window").width, animated: true });
+                  }
                 }}
                 style={styles.navButton}
               >
