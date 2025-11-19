@@ -18,6 +18,9 @@ import { FirebaseService } from "../utils/firebaseService";
 import { getUserData } from "../utils/contract";
 import NavigationService from "../utils/navigationService";
 
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const isLargeScreen = screenWidth > 768;
+
 interface ConnectionRequest {
   address: string; // The requester's address
   name: string;
@@ -640,8 +643,8 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     borderRadius: 20,
-    width: Dimensions.get("window").width * 0.95,
-    maxWidth: 400,
+    width: isLargeScreen ? screenWidth * 0.9 : screenWidth * 0.95,
+    maxWidth: isLargeScreen ? screenWidth * 0.9 : 400,
     paddingBottom: 20,
   },
   modalHeader: {
@@ -662,7 +665,7 @@ const styles = StyleSheet.create({
     width: 30, // To balance the close button on the left
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: isLargeScreen ? 24 : 20,
     fontWeight: "bold",
   },
   closeButton: {
@@ -686,20 +689,20 @@ const styles = StyleSheet.create({
     height: 320, // Fixed height for photo container
   },
   profileImage: {
-    width: 280,
-    height: 280,
+    width: isLargeScreen ? 400 : 280,
+    height: isLargeScreen ? 400 : 280,
     borderRadius: 15,
   },
   profileInfo: {
     marginBottom: 20,
   },
   profileName: {
-    fontSize: 24,
+    fontSize: isLargeScreen ? 28 : 24,
     fontWeight: "bold",
     marginBottom: 5,
   },
   profileLocation: {
-    fontSize: 16,
+    fontSize: isLargeScreen ? 18 : 16,
     marginBottom: 15,
   },
   bioSection: {
@@ -711,20 +714,20 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   bioText: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: isLargeScreen ? 18 : 16,
+    lineHeight: isLargeScreen ? 26 : 24,
   },
   profileField: {
     marginBottom: 15,
   },
   fieldLabel: {
-    fontSize: 18,
+    fontSize: isLargeScreen ? 20 : 18,
     fontWeight: "600",
     marginBottom: 8,
   },
   fieldValue: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: isLargeScreen ? 18 : 16,
+    lineHeight: isLargeScreen ? 26 : 24,
   },
   traitsContainer: {
     flexDirection: "row",
