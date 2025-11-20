@@ -12,6 +12,7 @@ import {
   Dimensions,
   Modal,
   PanResponder,
+  RefreshControl,
 } from "react-native";
 import {
   PanGestureHandler,
@@ -88,6 +89,9 @@ export default function FuseScreen() {
   const trailOpacity1 = useState(new Animated.Value(1))[0];
   const trailOpacity2 = useState(new Animated.Value(0.7))[0];
   const trailOpacity3 = useState(new Animated.Value(0.4))[0];
+
+  // Pull to refresh state
+  const [refreshing, setRefreshing] = useState(false);
 
   // Start rocket animation when loading
   useEffect(() => {
@@ -368,6 +372,12 @@ export default function FuseScreen() {
       setUsers([]);
       setIsLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchMatches();
+    setRefreshing(false);
   };
 
   useEffect(() => {
@@ -1089,21 +1099,6 @@ export default function FuseScreen() {
     >
       <Text style={[styles.title, { color: theme?.textColor || "#333" }]}>
         Find Your Fuse
-        <TouchableOpacity
-          onPress={() => {
-            // Force refresh matches
-            setSkippedUsers(new Set());
-            setSentRequests(new Set());
-            setMatchedAddresses(new Set());
-            setRequestedUsers(new Set());
-            setUsers([]);
-            setCurrentIndex(0);
-            fetchMatches();
-          }}
-          style={{ marginLeft: 10 }}
-        >
-          <Text style={{ fontSize: 16, color: theme?.textColor || "#333" }}>🔄</Text>
-        </TouchableOpacity>
       </Text>
 
       {isLoading ? (
@@ -1203,6 +1198,9 @@ export default function FuseScreen() {
           snapToInterval={Dimensions.get("window").height - 100}
           snapToAlignment="start"
           decelerationRate="fast"
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
           onMomentumScrollEnd={(event) => {
             const slideSize = Dimensions.get("window").height - 100;
             const index = Math.round(
