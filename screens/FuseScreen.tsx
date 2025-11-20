@@ -25,7 +25,7 @@ import { MatchingEngine } from "../utils/matchingEngine";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CryptoJS from "crypto-js";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const isLargeScreen = screenWidth > 768;
 
 const AnimatedTouchableOpacity =
@@ -202,15 +202,15 @@ export default function FuseScreen() {
         // Load current user's sent requests and matched users to filter them out
         let localSentRequests = new Set<string>();
         let localMatchedAddresses = new Set<string>();
-        
-        try {
-          // DEBUG: Clear AsyncStorage for testing (remove this in production)
-          if (__DEV__) {
-            await AsyncStorage.removeItem(`sent_requests_${address}`);
-            console.log("🧹 Cleared sent_requests from AsyncStorage for testing");
-          }
 
-          // Load sent requests (still local)
+        try {
+          // Load sent requests from Firebase (persistent across sessions)
+          const firebaseSentRequests = await FirebaseService.loadSentRequests(address);
+          localSentRequests = firebaseSentRequests;
+          setSentRequests(localSentRequests);
+          console.log("📤 Loaded sent requests from Firebase:", Array.from(firebaseSentRequests));
+
+          // Also load from AsyncStorage for backward compatibility (can be removed later)
           const sentRequestsData = await AsyncStorage.getItem(
             `sent_requests_${address}`
           );
@@ -219,12 +219,13 @@ export default function FuseScreen() {
               sentRequestsData,
               address
             ).toString(CryptoJS.enc.Utf8);
-            const requests = JSON.parse(decrypted);
-            localSentRequests = new Set(requests);
-            setSentRequests(localSentRequests);
-            console.log("📤 Loaded sent requests:", requests);
-          } else {
-            setSentRequests(new Set());
+            const requests: string[] = JSON.parse(decrypted);
+            const asyncStorageRequests = new Set(requests);
+            // Merge with Firebase requests
+            const mergedRequests = new Set<string>([...Array.from(localSentRequests), ...Array.from(asyncStorageRequests)]);
+            localSentRequests = mergedRequests;
+            setSentRequests(mergedRequests);
+            console.log("📤 Merged sent requests (Firebase + AsyncStorage):", Array.from(mergedRequests));
           }
 
           // Load matched users from Firebase

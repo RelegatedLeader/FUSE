@@ -1189,7 +1189,10 @@ export class FirebaseService {
     targetAddress: string,
     requestData: any
   ): Promise<boolean> {
-    console.log("🔥 storeFuseRequest called with targetAddress:", targetAddress);
+    console.log(
+      "🔥 storeFuseRequest called with targetAddress:",
+      targetAddress
+    );
     console.log("🔥 requestData:", requestData);
     try {
       const requestsRef = doc(db, "fuse_requests", targetAddress);
@@ -1221,7 +1224,12 @@ export class FirebaseService {
       console.log("🔥 Checking for mutual request:");
       console.log("🔥   Looking in document:", requesterAddress);
       console.log("🔥   targetRequests:", targetRequests);
-      console.log("🔥   Looking for req.requesterAddress ===", targetAddress, "AND req.targetAddress ===", requesterAddress);
+      console.log(
+        "🔥   Looking for req.requesterAddress ===",
+        targetAddress,
+        "AND req.targetAddress ===",
+        requesterAddress
+      );
       console.log("🔥   mutualRequest found:", mutualRequest);
 
       if (mutualRequest) {
@@ -1231,6 +1239,11 @@ export class FirebaseService {
         // Remove the mutual requests
         await this.removeFuseRequest(requesterAddress, targetAddress);
         await this.removeFuseRequest(targetAddress, requesterAddress);
+
+        // Remove sent requests since match is created
+        await this.removeSentRequest(requesterAddress, targetAddress);
+        await this.removeSentRequest(targetAddress, requesterAddress);
+
         // Don't add the new request since it's mutual
 
         console.log(
@@ -1255,7 +1268,9 @@ export class FirebaseService {
         );
         // Clean the requestData to remove undefined values
         const cleanedRequestData = Object.fromEntries(
-          Object.entries(requestData).filter(([_, value]) => value !== undefined)
+          Object.entries(requestData).filter(
+            ([_, value]) => value !== undefined
+          )
         );
         Object.assign(existingRequest, cleanedRequestData, {
           timestamp: Timestamp.now(),
@@ -1264,7 +1279,9 @@ export class FirebaseService {
         // Add new request (no mutual match found)
         // Clean the requestData to remove undefined values
         const cleanedRequestData = Object.fromEntries(
-          Object.entries(requestData).filter(([_, value]) => value !== undefined)
+          Object.entries(requestData).filter(
+            ([_, value]) => value !== undefined
+          )
         );
         requests.push({
           ...cleanedRequestData,
@@ -1276,6 +1293,9 @@ export class FirebaseService {
         requests,
         lastUpdated: Timestamp.now(),
       });
+
+      // Store sent request for persistence
+      await this.storeSentRequest(requesterAddress, targetAddress);
 
       console.log("🔥 Fuse request stored in Firebase for:", targetAddress);
       console.log("🔥 Stored requests:", requests);
@@ -1320,7 +1340,10 @@ export class FirebaseService {
     const unsubscribe = onSnapshot(
       requestsRef,
       (doc) => {
-        console.log("🔥 listenToFuseRequests snapshot received, doc exists:", doc.exists());
+        console.log(
+          "🔥 listenToFuseRequests snapshot received, doc exists:",
+          doc.exists()
+        );
         if (doc.exists()) {
           const data = doc.data();
           console.log("🔥 listenToFuseRequests data:", data);
@@ -1449,7 +1472,10 @@ export class FirebaseService {
     console.log("💕 listenToMatches ref path:", listenMatchesRef.path);
 
     return onSnapshot(listenMatchesRef, (doc) => {
-      console.log("💕 listenToMatches snapshot received, doc exists:", doc.exists());
+      console.log(
+        "💕 listenToMatches snapshot received, doc exists:",
+        doc.exists()
+      );
       if (doc.exists()) {
         const data = doc.data();
         console.log("💕 listenToMatches data:", data);
@@ -1515,6 +1541,86 @@ export class FirebaseService {
     }
   }
 
+  // Store sent request in Firebase for persistence
+  static async storeSentRequest(
+    requesterAddress: string,
+    targetAddress: string
+  ): Promise<void> {
+    try {
+      const sentRequestsRef = doc(db, "sent_requests", requesterAddress);
+      const sentRequestSnap = await getDoc(sentRequestsRef);
+
+      let sentRequests = [];
+      if (sentRequestSnap.exists()) {
+        sentRequests = sentRequestSnap.data().sentRequests || [];
+      }
+
+      // Check if already exists
+      const existingRequest = sentRequests.find(
+        (addr: string) => addr === targetAddress
+      );
+
+      if (!existingRequest) {
+        sentRequests.push(targetAddress);
+        await setDoc(sentRequestsRef, {
+          sentRequests,
+          lastUpdated: Timestamp.now(),
+        });
+        console.log("📤 Sent request stored in Firebase for:", requesterAddress, "->", targetAddress);
+      }
+    } catch (error) {
+      console.error("Failed to store sent request:", error);
+      throw error;
+    }
+  }
+
+  // Load sent requests from Firebase
+  static async loadSentRequests(requesterAddress: string): Promise<Set<string>> {
+    try {
+      const sentRequestsRef = doc(db, "sent_requests", requesterAddress);
+      const sentRequestSnap = await getDoc(sentRequestsRef);
+
+      if (sentRequestSnap.exists()) {
+        const sentRequests = sentRequestSnap.data().sentRequests || [];
+        console.log("📥 Loaded sent requests from Firebase for:", requesterAddress, sentRequests);
+        return new Set(sentRequests);
+      }
+
+      console.log("📥 No sent requests found in Firebase for:", requesterAddress);
+      return new Set();
+    } catch (error) {
+      console.error("Failed to load sent requests:", error);
+      return new Set();
+    }
+  }
+
+  // Remove sent request from Firebase (when match is created)
+  static async removeSentRequest(
+    requesterAddress: string,
+    targetAddress: string
+  ): Promise<void> {
+    try {
+      const sentRequestsRef = doc(db, "sent_requests", requesterAddress);
+      const sentRequestSnap = await getDoc(sentRequestsRef);
+
+      if (sentRequestSnap.exists()) {
+        const sentRequests = sentRequestSnap.data().sentRequests || [];
+        const filteredRequests = sentRequests.filter(
+          (addr: string) => addr !== targetAddress
+        );
+
+        await setDoc(sentRequestsRef, {
+          sentRequests: filteredRequests,
+          lastUpdated: Timestamp.now(),
+        });
+        console.log("🗑️ Sent request removed from Firebase for:", requesterAddress, "->", targetAddress);
+      }
+    } catch (error) {
+      console.error("Failed to remove sent request:", error);
+      throw error;
+    }
+  }
+
   // Clear all fuse data (for testing/reset)
   static async clearAllFuseData(): Promise<void> {
     try {
@@ -1538,6 +1644,15 @@ export class FirebaseService {
       for (const userAddr of userAddresses) {
         const matchesRef = doc(db, "user_matches", userAddr);
         await setDoc(matchesRef, { matches: [], lastUpdated: Timestamp.now() });
+      }
+
+      // Clear sent_requests for each user
+      for (const userAddr of userAddresses) {
+        const sentRequestsRef = doc(db, "sent_requests", userAddr);
+        await setDoc(sentRequestsRef, {
+          sentRequests: [],
+          lastUpdated: Timestamp.now(),
+        });
       }
 
       console.log("✅ All fuse data cleared");

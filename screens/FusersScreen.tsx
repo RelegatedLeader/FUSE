@@ -19,7 +19,7 @@ import { getUserData } from "../utils/contract";
 import NavigationService from "../utils/navigationService";
 import { Picker } from "@react-native-picker/picker";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const isLargeScreen = screenWidth > 768;
 
 interface ConnectionRequest {
@@ -53,9 +53,12 @@ export default function FusersScreen() {
   const { address } = useWallet();
   const { theme } = useTheme();
   const [matchedUsers, setMatchedUsers] = useState<MatchedUser[]>([]);
-  const [connectionRequests, setConnectionRequests] = useState<ConnectionRequest[]>([]);
+  const [connectionRequests, setConnectionRequests] = useState<
+    ConnectionRequest[]
+  >([]);
   const [selectedUser, setSelectedUser] = useState<MatchedUser | null>(null);
-  const [selectedRequest, setSelectedRequest] = useState<ConnectionRequest | null>(null);
+  const [selectedRequest, setSelectedRequest] =
+    useState<ConnectionRequest | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedMenu, setSelectedMenu] = useState<MenuOption>("matches");
@@ -346,11 +349,18 @@ export default function FusersScreen() {
     );
   };
 
-  const handleFuseIncoming = async (requesterAddress: string, requesterName: string) => {
+  const handleFuseIncoming = async (
+    requesterAddress: string,
+    requesterName: string
+  ) => {
     try {
       // Get requester's profile data
-      const requesterProfile = await FirebaseService.getUserProfile(requesterAddress);
-      const requesterPhotos = await FirebaseService.getUserPhotoUrls(requesterAddress);
+      const requesterProfile = await FirebaseService.getUserProfile(
+        requesterAddress
+      );
+      const requesterPhotos = await FirebaseService.getUserPhotoUrls(
+        requesterAddress
+      );
 
       // Get current user's profile data
       const currentUserProfile = await FirebaseService.getUserProfile(address);
@@ -358,9 +368,12 @@ export default function FusersScreen() {
 
       const requestData = {
         address: address,
-        name: `${currentUserProfile?.firstName || "Unknown"} ${currentUserProfile?.lastName || ""}`.trim(),
+        name: `${currentUserProfile?.firstName || "Unknown"} ${
+          currentUserProfile?.lastName || ""
+        }`.trim(),
         age: currentUserProfile?.birthdate
-          ? new Date().getFullYear() - new Date(currentUserProfile.birthdate).getFullYear()
+          ? new Date().getFullYear() -
+            new Date(currentUserProfile.birthdate).getFullYear()
           : 25,
         city: currentUserProfile?.location || "Unknown",
         bio: currentUserProfile?.bio || "",
@@ -374,16 +387,28 @@ export default function FusersScreen() {
       };
 
       // This will detect mutual match and store for both users
-      const isMutual = await FirebaseService.storeFuseRequest(requesterAddress, requestData);
+      const isMutual = await FirebaseService.storeFuseRequest(
+        requesterAddress,
+        requestData
+      );
 
       if (isMutual) {
         // Mutual match! Store the match in Firebase for both users
         const matchDataForCurrent = {
           address: requesterAddress,
           name: requesterName,
-          age: connectionRequests.find(req => req.requesterAddress === requesterAddress)?.age || 25,
-          city: connectionRequests.find(req => req.requesterAddress === requesterAddress)?.city || "Unknown",
-          bio: connectionRequests.find(req => req.requesterAddress === requesterAddress)?.bio || "",
+          age:
+            connectionRequests.find(
+              (req) => req.requesterAddress === requesterAddress
+            )?.age || 25,
+          city:
+            connectionRequests.find(
+              (req) => req.requesterAddress === requesterAddress
+            )?.city || "Unknown",
+          bio:
+            connectionRequests.find(
+              (req) => req.requesterAddress === requesterAddress
+            )?.bio || "",
           photos: [], // Will be loaded when viewing profile
           mbti: requesterProfile?.mbti,
           gender: requesterProfile?.gender,
@@ -417,7 +442,10 @@ export default function FusersScreen() {
           `You and ${requesterName} have fused! You're now connected.`
         );
       } else {
-        Alert.alert("Request Sent", `Your fuse request has been sent to ${requesterName}.`);
+        Alert.alert(
+          "Request Sent",
+          `Your fuse request has been sent to ${requesterName}.`
+        );
       }
     } catch (error) {
       console.error("Error accepting fuse request:", error);
@@ -487,7 +515,9 @@ export default function FusersScreen() {
                         user.address
                       );
                       // Navigate directly to Chats tab
-                      NavigationService.getInstance().navigateToTab("FuseChats");
+                      NavigationService.getInstance().navigateToTab(
+                        "FuseChats"
+                      );
                     }}
                   >
                     <Text style={styles.buttonText}>💬 Message</Text>
@@ -502,42 +532,52 @@ export default function FusersScreen() {
               </View>
             ))
           )
+        ) : // Requests View
+        connectionRequests.length === 0 ? (
+          <Text style={styles.emptyText}>
+            No incoming requests. Keep fusing to get more connections!
+          </Text>
         ) : (
-          // Requests View
-          connectionRequests.length === 0 ? (
-            <Text style={styles.emptyText}>
-              No incoming requests. Keep fusing to get more connections!
-            </Text>
-          ) : (
-            connectionRequests.map((request, index) => (
-              <View key={request.requesterAddress || request.address} style={styles.requestCard}>
-                <View style={styles.requestInfo}>
-                  <Text style={styles.requestName}>
-                    {request.name}, {request.age}
-                  </Text>
-                  <Text style={styles.requestLocation}>{request.city}</Text>
-                  <Text style={styles.requestBio}>{request.bio}</Text>
-                  <Text style={styles.requestDate}>
-                    Requested {request.timestamp.toLocaleDateString()}
-                  </Text>
-                </View>
-                <View style={styles.buttonContainer}>
-                  <TouchableOpacity
-                    style={styles.acceptButton}
-                    onPress={() => handleFuseIncoming(request.requesterAddress || request.address, request.name)}
-                  >
-                    <Text style={styles.buttonText}>Accept</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.rejectButton}
-                    onPress={() => handleRejectIncoming(request.requesterAddress || request.address)}
-                  >
-                    <Text style={styles.rejectButtonText}>Reject</Text>
-                  </TouchableOpacity>
-                </View>
+          connectionRequests.map((request, index) => (
+            <View
+              key={request.requesterAddress || request.address}
+              style={styles.requestCard}
+            >
+              <View style={styles.requestInfo}>
+                <Text style={styles.requestName}>
+                  {request.name}, {request.age}
+                </Text>
+                <Text style={styles.requestLocation}>{request.city}</Text>
+                <Text style={styles.requestBio}>{request.bio}</Text>
+                <Text style={styles.requestDate}>
+                  Requested {request.timestamp.toLocaleDateString()}
+                </Text>
               </View>
-            ))
-          )
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                  style={styles.acceptButton}
+                  onPress={() =>
+                    handleFuseIncoming(
+                      request.requesterAddress || request.address,
+                      request.name
+                    )
+                  }
+                >
+                  <Text style={styles.buttonText}>Accept</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.rejectButton}
+                  onPress={() =>
+                    handleRejectIncoming(
+                      request.requesterAddress || request.address
+                    )
+                  }
+                >
+                  <Text style={styles.rejectButtonText}>Reject</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))
         )}
       </ScrollView>
 
