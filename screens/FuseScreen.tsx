@@ -217,7 +217,10 @@ export default function FuseScreen() {
 
       const matches = await MatchingEngine.findMatchesForUser(address);
       console.log("Found matches:", matches.length);
-      console.log("Match addresses:", matches.map(m => m.address));
+      console.log(
+        "Match addresses:",
+        matches.map((m) => m.address)
+      );
 
       // Load current user's sent requests and matched users to filter them out
       let localSentRequests = new Set<string>();
@@ -225,10 +228,15 @@ export default function FuseScreen() {
 
       try {
         // Load sent requests from Firebase (persistent across sessions)
-        const firebaseSentRequests = await FirebaseService.loadSentRequests(address);
+        const firebaseSentRequests = await FirebaseService.loadSentRequests(
+          address
+        );
         localSentRequests = firebaseSentRequests;
         setSentRequests(localSentRequests);
-        console.log("📤 Loaded sent requests from Firebase:", Array.from(firebaseSentRequests));
+        console.log(
+          "📤 Loaded sent requests from Firebase:",
+          Array.from(firebaseSentRequests)
+        );
 
         // Also load from AsyncStorage for backward compatibility (can be removed later)
         const sentRequestsData = await AsyncStorage.getItem(
@@ -242,10 +250,16 @@ export default function FuseScreen() {
           const requests: string[] = JSON.parse(decrypted);
           const asyncStorageRequests = new Set(requests);
           // Merge with Firebase requests
-          const mergedRequests = new Set<string>([...Array.from(localSentRequests), ...Array.from(asyncStorageRequests)]);
+          const mergedRequests = new Set<string>([
+            ...Array.from(localSentRequests),
+            ...Array.from(asyncStorageRequests),
+          ]);
           localSentRequests = mergedRequests;
           setSentRequests(mergedRequests);
-          console.log("📤 Merged sent requests (Firebase + AsyncStorage):", Array.from(mergedRequests));
+          console.log(
+            "📤 Merged sent requests (Firebase + AsyncStorage):",
+            Array.from(mergedRequests)
+          );
         }
 
         // Load matched users from Firebase
@@ -262,13 +276,15 @@ export default function FuseScreen() {
 
       // Load incoming fuse requests for rocket indicator
       try {
-        const incomingRequestsData =
-          await FirebaseService.listenToFuseRequests(address, (requests) => {
+        const incomingRequestsData = await FirebaseService.listenToFuseRequests(
+          address,
+          (requests) => {
             const requesterAddresses = requests.map(
               (req: any) => req.requesterAddress
             );
             setIncomingRequests(new Set(requesterAddresses));
-          });
+          }
+        );
         // Note: We don't store the unsubscribe function here as it's handled by the listener
       } catch (error) {
         console.warn("Error loading incoming requests:", error);
@@ -283,8 +299,7 @@ export default function FuseScreen() {
         .filter((match, index, arr) => {
           const isFirst =
             arr.findIndex((m) => m.address === match.address) === index;
-          if (!isFirst)
-            console.log("Removing duplicate match:", match.address);
+          if (!isFirst) console.log("Removing duplicate match:", match.address);
           return isFirst;
         })
         .filter(
@@ -295,10 +310,19 @@ export default function FuseScreen() {
         );
 
       console.log("After filtering - skipped users:", Array.from(skippedUsers));
-      console.log("After filtering - matched addresses:", Array.from(localMatchedAddresses));
-      console.log("After filtering - sent requests:", Array.from(localSentRequests));
+      console.log(
+        "After filtering - matched addresses:",
+        Array.from(localMatchedAddresses)
+      );
+      console.log(
+        "After filtering - sent requests:",
+        Array.from(localSentRequests)
+      );
       console.log("Filtered matches count:", filteredMatches.length);
-      console.log("Filtered match addresses:", filteredMatches.map(m => m.address));
+      console.log(
+        "Filtered match addresses:",
+        filteredMatches.map((m) => m.address)
+      );
 
       const photoPromises = filteredMatches.map(async (match) => {
         console.log("Processing match:", match.address, match.profile);
@@ -403,7 +427,10 @@ export default function FuseScreen() {
           const today = new Date();
           let age = today.getFullYear() - birth.getFullYear();
           const monthDiff = today.getMonth() - birth.getMonth();
-          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+          if (
+            monthDiff < 0 ||
+            (monthDiff === 0 && today.getDate() < birth.getDate())
+          ) {
             age--;
           }
           return age;
@@ -425,11 +452,23 @@ export default function FuseScreen() {
               !sentRequests.has(match.address)
           );
 
-        console.log("After filtering - skipped users:", Array.from(skippedUsers));
-        console.log("After filtering - matched addresses:", Array.from(matchedAddresses));
-        console.log("After filtering - sent requests:", Array.from(sentRequests));
+        console.log(
+          "After filtering - skipped users:",
+          Array.from(skippedUsers)
+        );
+        console.log(
+          "After filtering - matched addresses:",
+          Array.from(matchedAddresses)
+        );
+        console.log(
+          "After filtering - sent requests:",
+          Array.from(sentRequests)
+        );
         console.log("Filtered matches count:", filteredMatches.length);
-        console.log("Filtered match addresses:", filteredMatches.map(m => m.address));
+        console.log(
+          "Filtered match addresses:",
+          filteredMatches.map((m) => m.address)
+        );
 
         // If no matches after filtering, set empty users
         if (filteredMatches.length === 0) {
@@ -445,7 +484,12 @@ export default function FuseScreen() {
 
           // Load photos for this user
           const photos = await FirebaseService.getUserPhotoUrls(match.address);
-          console.log("Loaded", photos.length, "photos for user:", match.address);
+          console.log(
+            "Loaded",
+            photos.length,
+            "photos for user:",
+            match.address
+          );
 
           const userData: User = {
             address: match.address,
@@ -462,7 +506,9 @@ export default function FuseScreen() {
             mbti: match.profile?.mbti,
             gender: match.profile?.gender,
             sexuality: match.profile?.sexuality,
-            personalityTraits: match.profile?.personalityTraits ? Object.values(match.profile.personalityTraits) : [],
+            personalityTraits: match.profile?.personalityTraits
+              ? Object.values(match.profile.personalityTraits)
+              : [],
           };
 
           console.log("Formatted user data:", userData);
@@ -481,7 +527,8 @@ export default function FuseScreen() {
     };
 
     filterAndFormatMatches();
-  }, [rawMatches, skippedUsers, matchedAddresses, sentRequests]);  const handleFuse = async (userAddress: string) => {
+  }, [rawMatches, skippedUsers, matchedAddresses, sentRequests]);
+  const handleFuse = async (userAddress: string) => {
     if (!address) return;
 
     // Find the user data

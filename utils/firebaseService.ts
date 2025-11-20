@@ -550,7 +550,11 @@ export class FirebaseService {
     try {
       const usersRef = collection(db, "users");
       const querySnapshot = await getDocs(usersRef);
-      console.log("Firebase findMatches: Found", querySnapshot.docs.length, "total users in database");
+      console.log(
+        "Firebase findMatches: Found",
+        querySnapshot.docs.length,
+        "total users in database"
+      );
 
       const matches = [];
       for (const docSnap of querySnapshot.docs) {
@@ -572,7 +576,11 @@ export class FirebaseService {
               ),
             });
           } else {
-            console.log("User doesn't match criteria or no profile:", docSnap.id, !!userData);
+            console.log(
+              "User doesn't match criteria or no profile:",
+              docSnap.id,
+              !!userData
+            );
           }
         } catch (error) {
           console.warn("Failed to process user for matching:", docSnap.id);
@@ -1554,10 +1562,18 @@ export class FirebaseService {
     requesterAddress: string,
     targetAddress: string
   ): Promise<void> {
-    console.log("📤 storeSentRequest called with:", requesterAddress, "->", targetAddress);
+    console.log(
+      "📤 storeSentRequest called with:",
+      requesterAddress,
+      "->",
+      targetAddress
+    );
     try {
       const auth = getAuth();
-      console.log("📤 Firebase auth currentUser:", auth.currentUser?.uid || "null");
+      console.log(
+        "📤 Firebase auth currentUser:",
+        auth.currentUser?.uid || "null"
+      );
       if (!auth.currentUser) {
         throw new Error("No authenticated user for Firebase write");
       }
@@ -1586,7 +1602,12 @@ export class FirebaseService {
           sentRequests,
           lastUpdated: Timestamp.now(),
         });
-        console.log("📤 Sent request stored in Firebase for:", requesterAddress, "->", targetAddress);
+        console.log(
+          "📤 Sent request stored in Firebase for:",
+          requesterAddress,
+          "->",
+          targetAddress
+        );
       } else {
         console.log("📤 Sent request already exists, skipping");
       }
@@ -1597,18 +1618,27 @@ export class FirebaseService {
   }
 
   // Load sent requests from Firebase
-  static async loadSentRequests(requesterAddress: string): Promise<Set<string>> {
+  static async loadSentRequests(
+    requesterAddress: string
+  ): Promise<Set<string>> {
     try {
       const sentRequestsRef = doc(db, "sent_requests", requesterAddress);
       const sentRequestSnap = await getDoc(sentRequestsRef);
 
       if (sentRequestSnap.exists()) {
         const sentRequests = sentRequestSnap.data().sentRequests || [];
-        console.log("📥 Loaded sent requests from Firebase for:", requesterAddress, sentRequests);
+        console.log(
+          "📥 Loaded sent requests from Firebase for:",
+          requesterAddress,
+          sentRequests
+        );
         return new Set(sentRequests);
       }
 
-      console.log("📥 No sent requests found in Firebase for:", requesterAddress);
+      console.log(
+        "📥 No sent requests found in Firebase for:",
+        requesterAddress
+      );
       return new Set();
     } catch (error) {
       console.error("Failed to load sent requests:", error);
@@ -1635,7 +1665,12 @@ export class FirebaseService {
           sentRequests: filteredRequests,
           lastUpdated: Timestamp.now(),
         });
-        console.log("🗑️ Sent request removed from Firebase for:", requesterAddress, "->", targetAddress);
+        console.log(
+          "🗑️ Sent request removed from Firebase for:",
+          requesterAddress,
+          "->",
+          targetAddress
+        );
       }
     } catch (error) {
       console.error("Failed to remove sent request:", error);
