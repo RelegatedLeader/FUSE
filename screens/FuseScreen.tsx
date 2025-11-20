@@ -173,189 +173,206 @@ export default function FuseScreen() {
     }
   };
 
-  useEffect(() => {
-    const fetchMatches = async () => {
-      if (!address) return;
+  const fetchMatches = async () => {
+    if (!address) return;
 
+    try {
+      setIsLoading(true); // Start loading
+      console.log("Fetching matches for user:", address);
+
+      // Clear local filtering state for fresh start
+      setSkippedUsers(new Set());
+      setSentRequests(new Set());
+      setMatchedAddresses(new Set());
+      setRequestedUsers(new Set());
+
+      // Clear AsyncStorage data for fresh start
       try {
-        setIsLoading(true); // Start loading
-        console.log("Fetching matches for user:", address);
-
-        // First check if user has migrated their profile to Firebase
-        const { initializeFirebaseAuth } = await import("../utils/firebase");
-        await initializeFirebaseAuth();
-
-        const { FirebaseService } = await import("../utils/firebaseService");
-        await FirebaseService.initializeUser(address);
-        const userProfile = await FirebaseService.getUserProfile(address);
-
-        if (!userProfile) {
-          console.log("User profile not found in Firebase - needs migration");
-          setUsers([]);
-          setIsLoading(false);
-          return;
-        }
-
-        const matches = await MatchingEngine.findMatchesForUser(address);
-        console.log("Found matches:", matches.length);
-
-        // Load current user's sent requests and matched users to filter them out
-        let localSentRequests = new Set<string>();
-        let localMatchedAddresses = new Set<string>();
-
-        try {
-          // Load sent requests from Firebase (persistent across sessions)
-          const firebaseSentRequests = await FirebaseService.loadSentRequests(address);
-          localSentRequests = firebaseSentRequests;
-          setSentRequests(localSentRequests);
-          console.log("📤 Loaded sent requests from Firebase:", Array.from(firebaseSentRequests));
-
-          // Also load from AsyncStorage for backward compatibility (can be removed later)
-          const sentRequestsData = await AsyncStorage.getItem(
-            `sent_requests_${address}`
-          );
-          if (sentRequestsData) {
-            const decrypted = CryptoJS.AES.decrypt(
-              sentRequestsData,
-              address
-            ).toString(CryptoJS.enc.Utf8);
-            const requests: string[] = JSON.parse(decrypted);
-            const asyncStorageRequests = new Set(requests);
-            // Merge with Firebase requests
-            const mergedRequests = new Set<string>([...Array.from(localSentRequests), ...Array.from(asyncStorageRequests)]);
-            localSentRequests = mergedRequests;
-            setSentRequests(mergedRequests);
-            console.log("📤 Merged sent requests (Firebase + AsyncStorage):", Array.from(mergedRequests));
-          }
-
-          // Load matched users from Firebase
-          const matchedUsers = await FirebaseService.loadMatches(address);
-          const addresses = matchedUsers.map((match: any) => match.address);
-          localMatchedAddresses = new Set(addresses);
-          setMatchedAddresses(localMatchedAddresses);
-          console.log("💕 Loaded matched addresses:", addresses);
-        } catch (error) {
-          console.warn("Error loading sent requests and matches:", error);
-          setSentRequests(new Set());
-          setMatchedAddresses(new Set());
-        }
-
-        // Load incoming fuse requests for rocket indicator
-        try {
-          const incomingRequestsData =
-            await FirebaseService.listenToFuseRequests(address, (requests) => {
-              const requesterAddresses = requests.map(
-                (req: any) => req.requesterAddress
-              );
-              setIncomingRequests(new Set(requesterAddresses));
-            });
-          // Note: We don't store the unsubscribe function here as it's handled by the listener
-        } catch (error) {
-          console.warn("Error loading incoming requests:", error);
-          setIncomingRequests(new Set());
-        }
-
-        // Convert MatchResult to User format - optimize by processing in parallel
-        const formattedUsers: User[] = [];
-
-        // Filter matches after async loading is complete and deduplicate by address
-        const filteredMatches = matches
-          .filter((match, index, arr) => {
-            const isFirst =
-              arr.findIndex((m) => m.address === match.address) === index;
-            if (!isFirst)
-              console.log("Removing duplicate match:", match.address);
-            return isFirst;
-          })
-          .filter(
-            (match) =>
-              !skippedUsers.has(match.address) &&
-              !localSentRequests.has(match.address) &&
-              !localMatchedAddresses.has(match.address)
-          );
-
-        const photoPromises = filteredMatches.map(async (match) => {
-          console.log("Processing match:", match.address, match.profile);
-
-          // Calculate age from birthdate
-          let age = 25; // default
-          if (match.profile?.birthdate) {
-            try {
-              // Handle MM/DD/YYYY format
-              const [month, day, year] = match.profile.birthdate.split("/");
-              const birthDate = new Date(
-                parseInt(year),
-                parseInt(month) - 1,
-                parseInt(day)
-              );
-              const today = new Date();
-              age = today.getFullYear() - birthDate.getFullYear();
-              const monthDiff = today.getMonth() - birthDate.getMonth();
-              if (
-                monthDiff < 0 ||
-                (monthDiff === 0 && today.getDate() < birthDate.getDate())
-              ) {
-                age--;
-              }
-            } catch (error) {
-              console.warn("Error parsing birthdate:", match.profile.birthdate);
-            }
-          }
-
-          // Format name from firstName and lastName
-          const name =
-            match.profile?.firstName && match.profile?.lastName
-              ? `${match.profile.firstName} ${match.profile.lastName}`
-              : match.profile?.firstName ||
-                match.profile?.lastName ||
-                "Unknown User";
-
-          // Load photos from local storage
-          const photos = await loadUserPhotos(match.address);
-
-          const userData: User = {
-            address: match.address,
-            name: name,
-            age: age,
-            city: match.profile?.location || "Unknown",
-            bio:
-              match.profile?.bio ||
-              match.profile?.traits?.bio ||
-              "This user hasn't written a bio yet",
-            photos: photos,
-            compatibilityScore: match.compatibilityScore,
-            skipped: false,
-            mbti: match.profile?.mbti,
-            gender: match.profile?.gender,
-            sexuality: match.profile?.sexuality,
-            personalityTraits: match.profile?.personalityTraits || [],
-          };
-
-          console.log("Formatted user data:", userData);
-          return userData;
-        });
-
-        // Wait for all photo loading to complete in parallel
-        const results = await Promise.all(photoPromises);
-        formattedUsers.push(...results);
-
-        setUsers(formattedUsers);
-        setIsLoading(false); // Stop loading
+        await AsyncStorage.removeItem(`sent_requests_${address}`);
+        console.log("Cleared AsyncStorage sent requests for fresh start");
       } catch (error) {
-        console.error("Error fetching matches:", error);
-        Alert.alert(
-          "Error",
-          "Failed to load potential matches. Please try again."
-        );
+        console.warn("Error clearing AsyncStorage:", error);
+      }
+
+      // First check if user has migrated their profile to Firebase
+      const { initializeFirebaseAuth } = await import("../utils/firebase");
+      await initializeFirebaseAuth();
+
+      const { FirebaseService } = await import("../utils/firebaseService");
+      await FirebaseService.initializeUser(address);
+      const userProfile = await FirebaseService.getUserProfile(address);
+
+      if (!userProfile) {
+        console.log("User profile not found in Firebase - needs migration");
         setUsers([]);
         setIsLoading(false);
+        return;
       }
-    };
 
+      const matches = await MatchingEngine.findMatchesForUser(address);
+      console.log("Found matches:", matches.length);
+      console.log("Match addresses:", matches.map(m => m.address));
+
+      // Load current user's sent requests and matched users to filter them out
+      let localSentRequests = new Set<string>();
+      let localMatchedAddresses = new Set<string>();
+
+      try {
+        // Load sent requests from Firebase (persistent across sessions)
+        const firebaseSentRequests = await FirebaseService.loadSentRequests(address);
+        localSentRequests = firebaseSentRequests;
+        setSentRequests(localSentRequests);
+        console.log("📤 Loaded sent requests from Firebase:", Array.from(firebaseSentRequests));
+
+        // Also load from AsyncStorage for backward compatibility (can be removed later)
+        const sentRequestsData = await AsyncStorage.getItem(
+          `sent_requests_${address}`
+        );
+        if (sentRequestsData) {
+          const decrypted = CryptoJS.AES.decrypt(
+            sentRequestsData,
+            address
+          ).toString(CryptoJS.enc.Utf8);
+          const requests: string[] = JSON.parse(decrypted);
+          const asyncStorageRequests = new Set(requests);
+          // Merge with Firebase requests
+          const mergedRequests = new Set<string>([...Array.from(localSentRequests), ...Array.from(asyncStorageRequests)]);
+          localSentRequests = mergedRequests;
+          setSentRequests(mergedRequests);
+          console.log("📤 Merged sent requests (Firebase + AsyncStorage):", Array.from(mergedRequests));
+        }
+
+        // Load matched users from Firebase
+        const matchedUsers = await FirebaseService.loadMatches(address);
+        const addresses = matchedUsers.map((match: any) => match.address);
+        localMatchedAddresses = new Set(addresses);
+        setMatchedAddresses(localMatchedAddresses);
+        console.log("💕 Loaded matched addresses:", addresses);
+      } catch (error) {
+        console.warn("Error loading sent requests and matches:", error);
+        setSentRequests(new Set());
+        setMatchedAddresses(new Set());
+      }
+
+      // Load incoming fuse requests for rocket indicator
+      try {
+        const incomingRequestsData =
+          await FirebaseService.listenToFuseRequests(address, (requests) => {
+            const requesterAddresses = requests.map(
+              (req: any) => req.requesterAddress
+            );
+            setIncomingRequests(new Set(requesterAddresses));
+          });
+        // Note: We don't store the unsubscribe function here as it's handled by the listener
+      } catch (error) {
+        console.warn("Error loading incoming requests:", error);
+        setIncomingRequests(new Set());
+      }
+
+      // Convert MatchResult to User format - optimize by processing in parallel
+      const formattedUsers: User[] = [];
+
+      // Filter matches after async loading is complete and deduplicate by address
+      const filteredMatches = matches
+        .filter((match, index, arr) => {
+          const isFirst =
+            arr.findIndex((m) => m.address === match.address) === index;
+          if (!isFirst)
+            console.log("Removing duplicate match:", match.address);
+          return isFirst;
+        })
+        .filter(
+          (match) =>
+            !skippedUsers.has(match.address) &&
+            !localMatchedAddresses.has(match.address)
+        );
+
+      console.log("After filtering - skipped users:", Array.from(skippedUsers));
+      console.log("After filtering - matched addresses:", Array.from(localMatchedAddresses));
+      console.log("Filtered matches count:", filteredMatches.length);
+      console.log("Filtered match addresses:", filteredMatches.map(m => m.address));
+
+      const photoPromises = filteredMatches.map(async (match) => {
+        console.log("Processing match:", match.address, match.profile);
+
+        // Calculate age from birthdate
+        let age = 25; // default
+        if (match.profile?.birthdate) {
+          try {
+            // Handle MM/DD/YYYY format
+            const [month, day, year] = match.profile.birthdate.split("/");
+            const birthDate = new Date(
+              parseInt(year),
+              parseInt(month) - 1,
+              parseInt(day)
+            );
+            const today = new Date();
+            age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            if (
+              monthDiff < 0 ||
+              (monthDiff === 0 && today.getDate() < birthDate.getDate())
+            ) {
+              age--;
+            }
+          } catch (error) {
+            console.warn("Error parsing birthdate:", match.profile.birthdate);
+          }
+        }
+
+        // Format name from firstName and lastName
+        const name =
+          match.profile?.firstName && match.profile?.lastName
+            ? `${match.profile.firstName} ${match.profile.lastName}`
+            : match.profile?.firstName ||
+              match.profile?.lastName ||
+              "Unknown User";
+
+        // Load photos from local storage
+        const photos = await loadUserPhotos(match.address);
+
+        const userData: User = {
+          address: match.address,
+          name: name,
+          age: age,
+          city: match.profile?.location || "Unknown",
+          bio:
+            match.profile?.bio ||
+            match.profile?.traits?.bio ||
+            "This user hasn't written a bio yet",
+          photos: photos,
+          compatibilityScore: match.compatibilityScore,
+          skipped: false,
+          mbti: match.profile?.mbti,
+          gender: match.profile?.gender,
+          sexuality: match.profile?.sexuality,
+          personalityTraits: match.profile?.personalityTraits || [],
+        };
+
+        console.log("Formatted user data:", userData);
+        return userData;
+      });
+
+      // Wait for all photo loading to complete in parallel
+      const results = await Promise.all(photoPromises);
+      formattedUsers.push(...results);
+
+      setUsers(formattedUsers);
+      setIsLoading(false); // Stop loading
+    } catch (error) {
+      console.error("Error fetching matches:", error);
+      Alert.alert(
+        "Error",
+        "Failed to load potential matches. Please try again."
+      );
+      setUsers([]);
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchMatches();
-  }, [address, skippedUsers]);
-
-  const handleFuse = async (userAddress: string) => {
+  }, [address]);  const handleFuse = async (userAddress: string) => {
     if (!address) return;
 
     // Find the user data
@@ -479,13 +496,8 @@ export default function FuseScreen() {
         } else {
           console.log("📤 Regular one-way request sent");
           // Regular one-way request
-          // Update local state to filter this user out immediately
+          // Mark as requested but keep in list for scrolling back
           setRequestedUsers((prev) => new Set([...prev, userAddress]));
-          Animated.timing(cardOpacities.current.get(userAddress)!, {
-            toValue: 0,
-            duration: 500,
-            useNativeDriver: true,
-          }).start();
           const newSentRequests = new Set([...sentRequests, userAddress]);
           setSentRequests(newSentRequests);
           try {
@@ -497,28 +509,17 @@ export default function FuseScreen() {
           } catch (error) {
             console.warn("Error saving sent requests:", error);
           }
-          // Remove user after delay to show "Request sent"
-          setTimeout(() => {
-            setUsers((prev) =>
-              prev.filter((user) => user.address !== userAddress)
-            );
-          }, 2000);
         }
       } catch (error) {
         console.error("Error sending connection request:", error);
         Alert.alert("Error", "Failed to send fuse request. Please try again.");
       }
-
-      // Remove this user from the list
-      setUsers((prev) => prev.filter((user) => user.address !== userAddress));
     });
   };
 
   const handleSkip = (userAddress: string) => {
-    // Mark user as skipped
+    // Mark user as skipped but keep in list for scrolling back
     setSkippedUsers((prev) => new Set(Array.from(prev).concat(userAddress)));
-    // Remove from current list
-    setUsers((prev) => prev.filter((user) => user.address !== userAddress));
   };
 
   const openFullScreenImage = (
@@ -547,6 +548,7 @@ export default function FuseScreen() {
     fuseAnim: Animated.Value;
     hasIncomingRequest: boolean;
     requestedUsers: Set<string>;
+    skippedUsers: Set<string>;
     opacity: Animated.Value;
   }
 
@@ -558,6 +560,7 @@ export default function FuseScreen() {
     fuseAnim,
     hasIncomingRequest,
     requestedUsers,
+    skippedUsers,
     opacity,
   }) => {
     const scrollViewRef = useRef<ScrollView>(null);
@@ -1086,6 +1089,21 @@ export default function FuseScreen() {
     >
       <Text style={[styles.title, { color: theme?.textColor || "#333" }]}>
         Find Your Fuse
+        <TouchableOpacity
+          onPress={() => {
+            // Force refresh matches
+            setSkippedUsers(new Set());
+            setSentRequests(new Set());
+            setMatchedAddresses(new Set());
+            setRequestedUsers(new Set());
+            setUsers([]);
+            setCurrentIndex(0);
+            fetchMatches();
+          }}
+          style={{ marginLeft: 10 }}
+        >
+          <Text style={{ fontSize: 16, color: theme?.textColor || "#333" }}>🔄</Text>
+        </TouchableOpacity>
       </Text>
 
       {isLoading ? (
@@ -1173,6 +1191,7 @@ export default function FuseScreen() {
                   fuseAnim={fuseAnim}
                   hasIncomingRequest={incomingRequests.has(item.address)}
                   requestedUsers={requestedUsers}
+                  skippedUsers={skippedUsers}
                   opacity={opacity}
                 />
               </View>

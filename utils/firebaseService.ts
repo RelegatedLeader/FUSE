@@ -550,14 +550,19 @@ export class FirebaseService {
     try {
       const usersRef = collection(db, "users");
       const querySnapshot = await getDocs(usersRef);
+      console.log("Firebase findMatches: Found", querySnapshot.docs.length, "total users in database");
 
       const matches = [];
       for (const docSnap of querySnapshot.docs) {
-        if (docSnap.id === userAddress) continue; // Skip self
+        if (docSnap.id === userAddress) {
+          console.log("Skipping self:", docSnap.id);
+          continue; // Skip self
+        }
 
         try {
           const userData = await this.getUserProfile(docSnap.id);
           if (userData && this.matchesCriteria(userData, criteria)) {
+            console.log("Adding match:", docSnap.id);
             matches.push({
               address: docSnap.id,
               profile: userData,
@@ -566,6 +571,8 @@ export class FirebaseService {
                 criteria
               ),
             });
+          } else {
+            console.log("User doesn't match criteria or no profile:", docSnap.id, !!userData);
           }
         } catch (error) {
           console.warn("Failed to process user for matching:", docSnap.id);
@@ -573,6 +580,7 @@ export class FirebaseService {
       }
 
       // Sort by compatibility score
+      console.log("Firebase findMatches: Returning", matches.length, "matches");
       return matches.sort(
         (a, b) => b.compatibilityScore - a.compatibilityScore
       );
