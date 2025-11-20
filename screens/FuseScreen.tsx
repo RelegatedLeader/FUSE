@@ -69,6 +69,9 @@ export default function FuseScreen() {
     new Set()
   );
 
+  // Raw matches before filtering
+  const [rawMatches, setRawMatches] = useState<any[]>([]);
+
   // Track users who have had requests sent (for button state)
   const [requestedUsers, setRequestedUsers] = useState<Set<string>>(new Set());
 
@@ -186,7 +189,6 @@ export default function FuseScreen() {
 
       // Clear local filtering state for fresh start
       setSkippedUsers(new Set());
-      setSentRequests(new Set());
       setMatchedAddresses(new Set());
       setRequestedUsers(new Set());
 
@@ -288,11 +290,13 @@ export default function FuseScreen() {
         .filter(
           (match) =>
             !skippedUsers.has(match.address) &&
-            !localMatchedAddresses.has(match.address)
+            !localMatchedAddresses.has(match.address) &&
+            !localSentRequests.has(match.address)
         );
 
       console.log("After filtering - skipped users:", Array.from(skippedUsers));
       console.log("After filtering - matched addresses:", Array.from(localMatchedAddresses));
+      console.log("After filtering - sent requests:", Array.from(localSentRequests));
       console.log("Filtered matches count:", filteredMatches.length);
       console.log("Filtered match addresses:", filteredMatches.map(m => m.address));
 
@@ -361,7 +365,7 @@ export default function FuseScreen() {
       const results = await Promise.all(photoPromises);
       formattedUsers.push(...results);
 
-      setUsers(formattedUsers);
+      setRawMatches(matches); // Store raw matches for filtering
       setIsLoading(false); // Stop loading
     } catch (error) {
       console.error("Error fetching matches:", error);
@@ -382,7 +386,102 @@ export default function FuseScreen() {
 
   useEffect(() => {
     fetchMatches();
-  }, [address]);  const handleFuse = async (userAddress: string) => {
+  }, [address]);
+
+  // Filter and format matches whenever raw matches or filter sets change
+  useEffect(() => {
+    if (rawMatches.length === 0) return;
+
+    const filterAndFormatMatches = async () => {
+      try {
+        const { FirebaseService } = await import("../utils/firebaseService");
+
+        // Define calculateAge function
+        const calculateAge = (birthdate: string): number => {
+          if (!birthdate) return NaN;
+          const birth = new Date(birthdate);
+          const today = new Date();
+          let age = today.getFullYear() - birth.getFullYear();
+          const monthDiff = today.getMonth() - birth.getMonth();
+          if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
+            age--;
+          }
+          return age;
+        };
+
+        // Filter matches synchronously
+        const filteredMatches = rawMatches
+          .filter((match, index, arr) => {
+            const isFirst =
+              arr.findIndex((m) => m.address === match.address) === index;
+            if (!isFirst)
+              console.log("Removing duplicate match:", match.address);
+            return isFirst;
+          })
+          .filter(
+            (match) =>
+              !skippedUsers.has(match.address) &&
+              !matchedAddresses.has(match.address) &&
+              !sentRequests.has(match.address)
+          );
+
+        console.log("After filtering - skipped users:", Array.from(skippedUsers));
+        console.log("After filtering - matched addresses:", Array.from(matchedAddresses));
+        console.log("After filtering - sent requests:", Array.from(sentRequests));
+        console.log("Filtered matches count:", filteredMatches.length);
+        console.log("Filtered match addresses:", filteredMatches.map(m => m.address));
+
+        // If no matches after filtering, set empty users
+        if (filteredMatches.length === 0) {
+          setUsers([]);
+          return;
+        }
+
+        // Convert MatchResult to User format - optimize by processing in parallel
+        const formattedUsers: User[] = [];
+
+        const photoPromises = filteredMatches.map(async (match) => {
+          console.log("Processing match:", match.address, match.profile);
+
+          // Load photos for this user
+          const photos = await FirebaseService.getUserPhotoUrls(match.address);
+          console.log("Loaded", photos.length, "photos for user:", match.address);
+
+          const userData: User = {
+            address: match.address,
+            name: match.profile?.firstName + " " + match.profile?.lastName,
+            age: calculateAge(match.profile?.birthdate),
+            city: match.profile?.location || "Unknown",
+            bio:
+              match.profile?.bio ||
+              match.profile?.traits?.bio ||
+              "This user hasn't written a bio yet",
+            photos: photos,
+            compatibilityScore: match.compatibilityScore,
+            skipped: false,
+            mbti: match.profile?.mbti,
+            gender: match.profile?.gender,
+            sexuality: match.profile?.sexuality,
+            personalityTraits: match.profile?.personalityTraits ? Object.values(match.profile.personalityTraits) : [],
+          };
+
+          console.log("Formatted user data:", userData);
+          return userData;
+        });
+
+        // Wait for all photo loading to complete in parallel
+        const results = await Promise.all(photoPromises);
+        formattedUsers.push(...results);
+
+        setUsers(formattedUsers);
+      } catch (error) {
+        console.error("Error filtering and formatting matches:", error);
+        setUsers([]);
+      }
+    };
+
+    filterAndFormatMatches();
+  }, [rawMatches, skippedUsers, matchedAddresses, sentRequests]);  const handleFuse = async (userAddress: string) => {
     if (!address) return;
 
     // Find the user data
@@ -510,6 +609,20 @@ export default function FuseScreen() {
           setRequestedUsers((prev) => new Set([...prev, userAddress]));
           const newSentRequests = new Set([...sentRequests, userAddress]);
           setSentRequests(newSentRequests);
+
+          // Store sent request in Firebase for persistence
+          try {
+            console.log(
+              "📤 Calling FirebaseService.storeSentRequest with:",
+              address,
+              userAddress
+            );
+            await FirebaseService.storeSentRequest(address, userAddress);
+            console.log("📤 Sent request stored in Firebase successfully");
+          } catch (error) {
+            console.warn("Error storing sent request in Firebase:", error);
+          }
+
           try {
             const encrypted = CryptoJS.AES.encrypt(
               JSON.stringify(Array.from(newSentRequests)),

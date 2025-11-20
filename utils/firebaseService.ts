@@ -1554,30 +1554,44 @@ export class FirebaseService {
     requesterAddress: string,
     targetAddress: string
   ): Promise<void> {
+    console.log("📤 storeSentRequest called with:", requesterAddress, "->", targetAddress);
     try {
+      const auth = getAuth();
+      console.log("📤 Firebase auth currentUser:", auth.currentUser?.uid || "null");
+      if (!auth.currentUser) {
+        throw new Error("No authenticated user for Firebase write");
+      }
+
       const sentRequestsRef = doc(db, "sent_requests", requesterAddress);
+      console.log("📤 sentRequestsRef path:", sentRequestsRef.path);
       const sentRequestSnap = await getDoc(sentRequestsRef);
+      console.log("📤 sentRequestSnap exists:", sentRequestSnap.exists());
 
       let sentRequests = [];
       if (sentRequestSnap.exists()) {
         sentRequests = sentRequestSnap.data().sentRequests || [];
+        console.log("📤 existing sentRequests:", sentRequests);
       }
 
       // Check if already exists
       const existingRequest = sentRequests.find(
         (addr: string) => addr === targetAddress
       );
+      console.log("📤 existingRequest found:", !!existingRequest);
 
       if (!existingRequest) {
         sentRequests.push(targetAddress);
+        console.log("📤 adding targetAddress to sentRequests:", sentRequests);
         await setDoc(sentRequestsRef, {
           sentRequests,
           lastUpdated: Timestamp.now(),
         });
         console.log("📤 Sent request stored in Firebase for:", requesterAddress, "->", targetAddress);
+      } else {
+        console.log("📤 Sent request already exists, skipping");
       }
     } catch (error) {
-      console.error("Failed to store sent request:", error);
+      console.error("❌ Failed to store sent request:", error);
       throw error;
     }
   }
