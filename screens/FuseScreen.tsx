@@ -35,7 +35,7 @@ const AnimatedTouchableOpacity =
 interface User {
   address: string;
   name: string;
-  age: number;
+  age: number | null;
   city: string;
   bio: string;
   photos: string[];
@@ -44,7 +44,7 @@ interface User {
   mbti?: string;
   gender?: string;
   sexuality?: string;
-  personalityTraits?: string[];
+  personalityTraits?: { [key: string]: number };
 }
 
 export default function FuseScreen() {
@@ -209,10 +209,50 @@ export default function FuseScreen() {
       const userProfile = await FirebaseService.getUserProfile(address);
 
       if (!userProfile) {
-        console.log("User profile not found in Firebase - needs migration");
-        setUsers([]);
-        setIsLoading(false);
-        return;
+        console.log("User profile not found in Firebase - migrating from Polygon");
+        
+        try {
+          // Retrieve user data from Polygon contract
+          const { getUserData } = await import("../utils/contract");
+          const polygonData = await getUserData(address);
+          
+          if (polygonData && polygonData.birthdate) {
+            console.log("Retrieved data from Polygon:", polygonData);
+            
+            // Convert Polygon data format to Firebase format
+            const firebaseProfileData = {
+              firstName: polygonData.firstName,
+              lastName: polygonData.lastName,
+              dob: polygonData.birthdate, // This will be stored as birthdate in Firebase
+              gender: polygonData.gender,
+              location: polygonData.city || polygonData.location,
+              bio: polygonData.bio || polygonData.traits,
+              mbti: polygonData.mbti,
+              personalityTraits: {}, // Will be empty for now, can be updated later
+              email: "", // Not available from Polygon data
+              occupation: "", // Not available from Polygon data
+              careerAspiration: "", // Not available from Polygon data
+              id: polygonData.id || "",
+              openEnded: "", // Not available from Polygon data
+              transactionHash: "", // Not available from Polygon data
+              walletAddress: address,
+            };
+            
+            // Store the profile in Firebase
+            await FirebaseService.storeUserProfile(address, firebaseProfileData);
+            console.log("Successfully migrated user profile to Firebase");
+          } else {
+            console.log("No data found in Polygon contract for user:", address);
+            setUsers([]);
+            setIsLoading(false);
+            return;
+          }
+        } catch (error) {
+          console.error("Failed to migrate user profile from Polygon:", error);
+          setUsers([]);
+          setIsLoading(false);
+          return;
+        }
       }
 
       const matches = await MatchingEngine.findMatchesForUser(address);
@@ -314,13 +354,6 @@ export default function FuseScreen() {
         "After filtering - matched addresses:",
         Array.from(localMatchedAddresses)
       );
-<<<<<<< HEAD
-      console.log(
-        "After filtering - sent requests:",
-        Array.from(localSentRequests)
-      );
-=======
->>>>>>> origin/master
       console.log("Filtered matches count:", filteredMatches.length);
       console.log(
         "Filtered match addresses:",
@@ -414,7 +447,6 @@ export default function FuseScreen() {
   useEffect(() => {
     fetchMatches();
   }, [address]);
-<<<<<<< HEAD
 
   // Filter and format matches whenever raw matches or filter sets change
   useEffect(() => {
@@ -425,19 +457,37 @@ export default function FuseScreen() {
         const { FirebaseService } = await import("../utils/firebaseService");
 
         // Define calculateAge function
-        const calculateAge = (birthdate: string): number => {
-          if (!birthdate) return NaN;
-          const birth = new Date(birthdate);
-          const today = new Date();
-          let age = today.getFullYear() - birth.getFullYear();
-          const monthDiff = today.getMonth() - birth.getMonth();
-          if (
-            monthDiff < 0 ||
-            (monthDiff === 0 && today.getDate() < birth.getDate())
-          ) {
-            age--;
+        const calculateAge = (birthdate: string): number | null => {
+          if (!birthdate || birthdate.trim() === '') return null;
+          try {
+            // Parse MM/DD/YYYY format explicitly
+            const parts = birthdate.split('/');
+            if (parts.length !== 3) return null;
+            
+            const month = parseInt(parts[0], 10) - 1; // Month is 0-based
+            const day = parseInt(parts[1], 10);
+            const year = parseInt(parts[2], 10);
+            
+            if (isNaN(month) || isNaN(day) || isNaN(year)) return null;
+            if (month < 0 || month > 11 || day < 1 || day > 31 || year < 1900 || year > 2025) return null;
+            
+            const birth = new Date(year, month, day);
+            if (isNaN(birth.getTime())) return null; // Invalid date
+            
+            const today = new Date();
+            let age = today.getFullYear() - birth.getFullYear();
+            const monthDiff = today.getMonth() - birth.getMonth();
+            if (
+              monthDiff < 0 ||
+              (monthDiff === 0 && today.getDate() < birth.getDate())
+            ) {
+              age--;
+            }
+            return age > 0 && age < 120 ? age : null; // Sanity check
+          } catch (error) {
+            console.warn('Error calculating age:', error);
+            return null;
           }
-          return age;
         };
 
         // Filter matches synchronously
@@ -510,9 +560,7 @@ export default function FuseScreen() {
             mbti: match.profile?.mbti,
             gender: match.profile?.gender,
             sexuality: match.profile?.sexuality,
-            personalityTraits: match.profile?.personalityTraits
-              ? Object.values(match.profile.personalityTraits)
-              : [],
+            personalityTraits: match.profile?.personalityTraits || {},
           };
 
           console.log("Formatted user data:", userData);
@@ -532,8 +580,7 @@ export default function FuseScreen() {
 
     filterAndFormatMatches();
   }, [rawMatches, skippedUsers, matchedAddresses, sentRequests]);
-=======
->>>>>>> origin/master
+  
   const handleFuse = async (userAddress: string) => {
     if (!address) return;
 
@@ -1094,7 +1141,7 @@ export default function FuseScreen() {
                             { color: theme.textColor },
                           ]}
                         >
-                          {user.name}, {user.age}
+                          {user.name}, {user.age || "N/A"}
                         </Text>
                         <Text
                           style={[
@@ -1193,7 +1240,7 @@ export default function FuseScreen() {
                         )}
 
                         {user.personalityTraits &&
-                          user.personalityTraits.length > 0 && (
+                          Object.keys(user.personalityTraits).length > 0 && (
                             <View style={styles.profileField}>
                               <Text
                                 style={[
@@ -1204,15 +1251,15 @@ export default function FuseScreen() {
                                 Personality Traits
                               </Text>
                               <View style={styles.traitsContainer}>
-                                {user.personalityTraits.map((trait, index) => (
-                                  <View key={index} style={styles.traitTag}>
+                                {Object.entries(user.personalityTraits).map(([traitName, traitValue]) => (
+                                  <View key={traitName} style={styles.traitTag}>
                                     <Text
                                       style={[
                                         styles.traitText,
                                         { color: theme.textColor },
                                       ]}
                                     >
-                                      {trait}
+                                      {traitName.charAt(0).toUpperCase() + traitName.slice(1)}: {Math.round(traitValue)}%
                                     </Text>
                                   </View>
                                 ))}
