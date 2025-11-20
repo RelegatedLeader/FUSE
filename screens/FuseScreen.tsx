@@ -200,7 +200,16 @@ export default function FuseScreen() {
         console.log("Found matches:", matches.length);
 
         // Load current user's sent requests and matched users to filter them out
+        let localSentRequests = new Set<string>();
+        let localMatchedAddresses = new Set<string>();
+        
         try {
+          // DEBUG: Clear AsyncStorage for testing (remove this in production)
+          if (__DEV__) {
+            await AsyncStorage.removeItem(`sent_requests_${address}`);
+            console.log("🧹 Cleared sent_requests from AsyncStorage for testing");
+          }
+
           // Load sent requests (still local)
           const sentRequestsData = await AsyncStorage.getItem(
             `sent_requests_${address}`
@@ -211,15 +220,19 @@ export default function FuseScreen() {
               address
             ).toString(CryptoJS.enc.Utf8);
             const requests = JSON.parse(decrypted);
-            setSentRequests(new Set(requests));
+            localSentRequests = new Set(requests);
+            setSentRequests(localSentRequests);
+            console.log("📤 Loaded sent requests:", requests);
           } else {
             setSentRequests(new Set());
           }
 
           // Load matched users from Firebase
-          const matches = await FirebaseService.loadMatches(address);
-          const addresses = matches.map((match: any) => match.address);
-          setMatchedAddresses(new Set(addresses));
+          const matchedUsers = await FirebaseService.loadMatches(address);
+          const addresses = matchedUsers.map((match: any) => match.address);
+          localMatchedAddresses = new Set(addresses);
+          setMatchedAddresses(localMatchedAddresses);
+          console.log("💕 Loaded matched addresses:", addresses);
         } catch (error) {
           console.warn("Error loading sent requests and matches:", error);
           setSentRequests(new Set());
@@ -256,8 +269,8 @@ export default function FuseScreen() {
           .filter(
             (match) =>
               !skippedUsers.has(match.address) &&
-              !sentRequests.has(match.address) &&
-              !matchedAddresses.has(match.address)
+              !localSentRequests.has(match.address) &&
+              !localMatchedAddresses.has(match.address)
           );
 
         const photoPromises = filteredMatches.map(async (match) => {
@@ -411,8 +424,10 @@ export default function FuseScreen() {
 
         console.log(`Fuse request sent from ${address} to ${userAddress}`);
         console.log("Request data:", requestData);
+        console.log("isMutual result:", isMutual);
 
         if (isMutual) {
+          console.log("🎯 MUTUAL MATCH DETECTED! Storing matches...");
           // Mutual match! Store the match in Firebase for both users
           const matchDataForCurrent = {
             address: userAddress,
@@ -442,8 +457,10 @@ export default function FuseScreen() {
 
           try {
             // Store for current user
+            console.log("💕 Storing match for current user:", address);
             await FirebaseService.storeMatch(address, matchDataForCurrent);
             // Store for the other user
+            console.log("💕 Storing match for other user:", userAddress);
             await FirebaseService.storeMatch(userAddress, matchDataForOther);
 
             // Update local state
@@ -459,6 +476,7 @@ export default function FuseScreen() {
             `You and ${user.name} have fused! You're now connected.`
           );
         } else {
+          console.log("📤 Regular one-way request sent");
           // Regular one-way request
           // Update local state to filter this user out immediately
           setRequestedUsers((prev) => new Set([...prev, userAddress]));
@@ -1196,9 +1214,6 @@ export default function FuseScreen() {
               snapToInterval={Dimensions.get("window").width}
               snapToAlignment="start"
               decelerationRate="fast"
-              zoomEnabled={isLargeScreen}
-              minimumZoomScale={1}
-              maximumZoomScale={3}
               onMomentumScrollEnd={(event) => {
                 const index = Math.round(
                   event.nativeEvent.contentOffset.x /

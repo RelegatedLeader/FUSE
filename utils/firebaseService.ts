@@ -1189,8 +1189,11 @@ export class FirebaseService {
     targetAddress: string,
     requestData: any
   ): Promise<boolean> {
+    console.log("🔥 storeFuseRequest called with targetAddress:", targetAddress);
+    console.log("🔥 requestData:", requestData);
     try {
       const requestsRef = doc(db, "fuse_requests", targetAddress);
+      console.log("🔥 requestsRef path:", requestsRef.path);
       const requestSnap = await getDoc(requestsRef);
 
       let requests = [];
@@ -1214,6 +1217,12 @@ export class FirebaseService {
           req.requesterAddress === targetAddress &&
           req.targetAddress === requesterAddress
       );
+
+      console.log("🔥 Checking for mutual request:");
+      console.log("🔥   Looking in document:", requesterAddress);
+      console.log("🔥   targetRequests:", targetRequests);
+      console.log("🔥   Looking for req.requesterAddress ===", targetAddress, "AND req.targetAddress ===", requesterAddress);
+      console.log("🔥   mutualRequest found:", mutualRequest);
 
       if (mutualRequest) {
         // Mutual match found! Remove both requests since they're now matched
@@ -1269,6 +1278,7 @@ export class FirebaseService {
       });
 
       console.log("🔥 Fuse request stored in Firebase for:", targetAddress);
+      console.log("🔥 Stored requests:", requests);
       return false; // Not mutual
     } catch (error) {
       console.error("Failed to store fuse request:", error);
@@ -1278,13 +1288,19 @@ export class FirebaseService {
 
   // Get fuse requests for a user synchronously
   static async getFuseRequests(userAddress: string): Promise<any[]> {
+    console.log("🔥 getFuseRequests called for:", userAddress);
     try {
       const requestsRef = doc(db, "fuse_requests", userAddress);
+      console.log("🔥 getFuseRequests ref path:", requestsRef.path);
       const requestSnap = await getDoc(requestsRef);
+      console.log("🔥 getFuseRequests doc exists:", requestSnap.exists());
 
       if (requestSnap.exists()) {
-        return requestSnap.data().requests || [];
+        const data = requestSnap.data();
+        console.log("🔥 getFuseRequests data:", data);
+        return data.requests || [];
       }
+      console.log("🔥 getFuseRequests: no document found");
       return [];
     } catch (error) {
       console.error("Error getting fuse requests:", error);
@@ -1297,15 +1313,20 @@ export class FirebaseService {
     userAddress: string,
     callback: (requests: any[]) => void
   ): () => void {
+    console.log("🔥 listenToFuseRequests called for:", userAddress);
     const requestsRef = doc(db, "fuse_requests", userAddress);
+    console.log("🔥 listenToFuseRequests ref path:", requestsRef.path);
 
     const unsubscribe = onSnapshot(
       requestsRef,
       (doc) => {
+        console.log("🔥 listenToFuseRequests snapshot received, doc exists:", doc.exists());
         if (doc.exists()) {
           const data = doc.data();
+          console.log("🔥 listenToFuseRequests data:", data);
           callback(data.requests || []);
         } else {
+          console.log("🔥 listenToFuseRequests: no document");
           callback([]);
         }
       },
@@ -1349,8 +1370,11 @@ export class FirebaseService {
 
   // Store a match in Firebase for a user
   static async storeMatch(userAddress: string, matchData: any): Promise<void> {
+    console.log("💕 storeMatch called with userAddress:", userAddress);
+    console.log("💕 matchData:", matchData);
     try {
       const matchesRef = doc(db, "user_matches", userAddress);
+      console.log("💕 matchesRef path:", matchesRef.path);
       const matchSnap = await getDoc(matchesRef);
 
       let matches = [];
@@ -1385,6 +1409,7 @@ export class FirebaseService {
           "with:",
           matchData.address
         );
+        console.log("💕 Stored matches:", matches);
       }
     } catch (error) {
       console.error("Failed to store match:", error);
@@ -1394,15 +1419,19 @@ export class FirebaseService {
 
   // Load matches from Firebase for a user
   static async loadMatches(userAddress: string): Promise<any[]> {
+    console.log("💕 loadMatches called for:", userAddress);
     try {
-      const matchesRef = doc(db, "user_matches", userAddress);
-      const matchSnap = await getDoc(matchesRef);
+      const loadMatchesRef = doc(db, "user_matches", userAddress);
+      console.log("💕 loadMatches ref path:", loadMatchesRef.path);
+      const matchSnap = await getDoc(loadMatchesRef);
+      console.log("💕 loadMatches doc exists:", matchSnap.exists());
 
       if (matchSnap.exists()) {
         const data = matchSnap.data();
+        console.log("💕 loadMatches data:", data);
         return data.matches || [];
       }
-
+      console.log("💕 loadMatches: no document found");
       return [];
     } catch (error) {
       console.error("Failed to load matches:", error);
@@ -1415,13 +1444,18 @@ export class FirebaseService {
     userAddress: string,
     callback: (matches: any[]) => void
   ): () => void {
-    const matchesRef = doc(db, "user_matches", userAddress);
+    console.log("💕 listenToMatches called for:", userAddress);
+    const listenMatchesRef = doc(db, "user_matches", userAddress);
+    console.log("💕 listenToMatches ref path:", listenMatchesRef.path);
 
-    return onSnapshot(matchesRef, (doc) => {
+    return onSnapshot(listenMatchesRef, (doc) => {
+      console.log("💕 listenToMatches snapshot received, doc exists:", doc.exists());
       if (doc.exists()) {
         const data = doc.data();
+        console.log("💕 listenToMatches data:", data);
         callback(data.matches || []);
       } else {
+        console.log("💕 listenToMatches: no document");
         callback([]);
       }
     });

@@ -40,9 +40,13 @@ export const storage = getStorage(app, "gs://fuse-ede12.firebasestorage.app");
 // Initialize anonymous authentication
 export const initializeFirebaseAuth = async () => {
   try {
+    console.log("🔐 initializeFirebaseAuth called, current user:", auth.currentUser?.uid || "none");
     if (!auth.currentUser) {
+      console.log("🔐 Signing in anonymously...");
       await signInAnonymously(auth);
-      console.log("🔐 Firebase anonymous authentication initialized");
+      console.log("🔐 Firebase anonymous authentication initialized, user:", auth.currentUser?.uid || "none");
+    } else {
+      console.log("🔐 Already authenticated, user:", auth.currentUser?.uid || "none");
     }
   } catch (error) {
     console.error("Failed to initialize Firebase auth:", error);

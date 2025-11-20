@@ -447,6 +447,7 @@ export class MessagingService {
   }
 
   // Get conversation messages
+
   static async getConversationMessages(
     recipientAddress: string
   ): Promise<any[]> {
