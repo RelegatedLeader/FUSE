@@ -99,6 +99,11 @@ export class FirebaseService {
         bio: profileData.bio, // Include bio in matching data so it can be displayed
       };
 
+      // Clean matchingData to remove undefined values
+      const cleanedMatchingData = Object.fromEntries(
+        Object.entries(matchingData).filter(([_, value]) => value !== undefined)
+      );
+
       const sensitiveData = {
         email: profileData.email,
         occupation: profileData.occupation,
@@ -118,7 +123,7 @@ export class FirebaseService {
       const userRef = doc(db, "users", walletAddress);
       await setDoc(userRef, {
         // Public matching data (unencrypted)
-        matchingData,
+        matchingData: cleanedMatchingData,
         // Encrypted sensitive data
         encryptedProfile: encryptedSensitiveData,
         lastUpdated: Timestamp.now(),
@@ -1239,13 +1244,21 @@ export class FirebaseService {
           "🔄 Updating existing fuse request from:",
           requesterAddress
         );
-        Object.assign(existingRequest, requestData, {
+        // Clean the requestData to remove undefined values
+        const cleanedRequestData = Object.fromEntries(
+          Object.entries(requestData).filter(([_, value]) => value !== undefined)
+        );
+        Object.assign(existingRequest, cleanedRequestData, {
           timestamp: Timestamp.now(),
         });
       } else {
         // Add new request (no mutual match found)
+        // Clean the requestData to remove undefined values
+        const cleanedRequestData = Object.fromEntries(
+          Object.entries(requestData).filter(([_, value]) => value !== undefined)
+        );
         requests.push({
-          ...requestData,
+          ...cleanedRequestData,
           timestamp: Timestamp.now(),
         });
       }
@@ -1351,8 +1364,13 @@ export class FirebaseService {
       );
 
       if (!existingMatch) {
+        // Clean the matchData to remove undefined values (Firestore doesn't allow undefined)
+        const cleanedMatchData = Object.fromEntries(
+          Object.entries(matchData).filter(([_, value]) => value !== undefined)
+        );
+
         matches.push({
-          ...matchData,
+          ...cleanedMatchData,
           matchedDate: Timestamp.now(),
         });
 

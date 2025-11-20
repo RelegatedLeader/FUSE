@@ -17,6 +17,7 @@ import CryptoJS from "crypto-js";
 import { FirebaseService } from "../utils/firebaseService";
 import { getUserData } from "../utils/contract";
 import NavigationService from "../utils/navigationService";
+import { Picker } from "@react-native-picker/picker";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const isLargeScreen = screenWidth > 768;
@@ -46,14 +47,18 @@ interface MatchedUser {
   personalityTraits?: string[];
 }
 
-type MenuOption = "fusers";
+type MenuOption = "requests" | "matches";
 
 export default function FusersScreen() {
   const { address } = useWallet();
   const { theme } = useTheme();
   const [matchedUsers, setMatchedUsers] = useState<MatchedUser[]>([]);
+  const [connectionRequests, setConnectionRequests] = useState<ConnectionRequest[]>([]);
   const [selectedUser, setSelectedUser] = useState<MatchedUser | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<ConnectionRequest | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [selectedMenu, setSelectedMenu] = useState<MenuOption>("matches");
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Handle swipe down to close modal
@@ -69,7 +74,7 @@ export default function FusersScreen() {
     // Load matched users from Firebase and listen for updates
     if (address) {
       loadMatchedUsers();
-      const unsubscribe = FirebaseService.listenToMatches(
+      const unsubscribeMatches = FirebaseService.listenToMatches(
         address,
         (matches) => {
           const matchesWithDates = matches.map((match: any) => ({
@@ -82,7 +87,24 @@ export default function FusersScreen() {
           setMatchedUsers(deduplicatedMatches);
         }
       );
-      return unsubscribe; // Cleanup listener on unmount
+
+      // Load connection requests and listen for updates
+      loadConnectionRequests();
+      const unsubscribeRequests = FirebaseService.listenToFuseRequests(
+        address,
+        (requests) => {
+          const requestsWithDates = requests.map((req: any) => ({
+            ...req,
+            timestamp: req.timestamp ? req.timestamp.toDate() : new Date(),
+          }));
+          setConnectionRequests(requestsWithDates);
+        }
+      );
+
+      return () => {
+        unsubscribeMatches();
+        unsubscribeRequests();
+      };
     }
   }, [address]);
 
@@ -261,6 +283,26 @@ export default function FusersScreen() {
     }
   };
 
+  const loadConnectionRequests = async () => {
+    if (!address) return;
+
+    try {
+      const requests = await FirebaseService.getFuseRequests(address);
+      console.log("🔥 Raw requests from Firebase:", requests);
+
+      // Convert timestamps and set state
+      const requestsWithDates = requests.map((req: any) => ({
+        ...req,
+        timestamp: req.timestamp ? req.timestamp.toDate() : new Date(),
+      }));
+
+      setConnectionRequests(requestsWithDates);
+      console.log("🔥 Connection requests loaded:", requestsWithDates.length);
+    } catch (error) {
+      console.error("💥 Error loading connection requests:", error);
+    }
+  };
+
   const viewUserProfile = (user: MatchedUser) => {
     console.log("👤 Opening profile modal for user:", user);
     console.log("👤 User data:", {
@@ -304,58 +346,198 @@ export default function FusersScreen() {
     );
   };
 
+  const handleFuseIncoming = async (requesterAddress: string, requesterName: string) => {
+    try {
+      // Get requester's profile data
+      const requesterProfile = await FirebaseService.getUserProfile(requesterAddress);
+      const requesterPhotos = await FirebaseService.getUserPhotoUrls(requesterAddress);
+
+      // Get current user's profile data
+      const currentUserProfile = await FirebaseService.getUserProfile(address);
+      const currentUserPhotos = await FirebaseService.getUserPhotoUrls(address);
+
+      const requestData = {
+        address: address,
+        name: `${currentUserProfile?.firstName || "Unknown"} ${currentUserProfile?.lastName || ""}`.trim(),
+        age: currentUserProfile?.birthdate
+          ? new Date().getFullYear() - new Date(currentUserProfile.birthdate).getFullYear()
+          : 25,
+        city: currentUserProfile?.location || "Unknown",
+        bio: currentUserProfile?.bio || "",
+        photos: currentUserPhotos,
+        mbti: currentUserProfile?.mbti,
+        gender: currentUserProfile?.gender,
+        sexuality: currentUserProfile?.sexuality,
+        personalityTraits: currentUserProfile?.personalityTraits || [],
+        requesterAddress: address,
+        targetAddress: requesterAddress,
+      };
+
+      // This will detect mutual match and store for both users
+      const isMutual = await FirebaseService.storeFuseRequest(requesterAddress, requestData);
+
+      if (isMutual) {
+        // Mutual match! Store the match in Firebase for both users
+        const matchDataForCurrent = {
+          address: requesterAddress,
+          name: requesterName,
+          age: connectionRequests.find(req => req.requesterAddress === requesterAddress)?.age || 25,
+          city: connectionRequests.find(req => req.requesterAddress === requesterAddress)?.city || "Unknown",
+          bio: connectionRequests.find(req => req.requesterAddress === requesterAddress)?.bio || "",
+          photos: [], // Will be loaded when viewing profile
+          mbti: requesterProfile?.mbti,
+          gender: requesterProfile?.gender,
+          sexuality: requesterProfile?.sexuality,
+          personalityTraits: requesterProfile?.personalityTraits || [],
+        };
+
+        const matchDataForOther = {
+          address: address,
+          name: requestData.name,
+          age: requestData.age,
+          city: requestData.city,
+          bio: requestData.bio,
+          photos: requestData.photos,
+          mbti: requestData.mbti,
+          gender: requestData.gender,
+          sexuality: requestData.sexuality,
+          personalityTraits: requestData.personalityTraits,
+        };
+
+        try {
+          await FirebaseService.storeMatch(address, matchDataForCurrent);
+          await FirebaseService.storeMatch(requesterAddress, matchDataForOther);
+          console.log("💕 Mutual match stored from incoming request");
+        } catch (error) {
+          console.warn("Error storing mutual match from incoming:", error);
+        }
+
+        Alert.alert(
+          "Mutual Fuse! 🔥❤️",
+          `You and ${requesterName} have fused! You're now connected.`
+        );
+      } else {
+        Alert.alert("Request Sent", `Your fuse request has been sent to ${requesterName}.`);
+      }
+    } catch (error) {
+      console.error("Error accepting fuse request:", error);
+      Alert.alert("Error", "Failed to accept fuse request. Please try again.");
+    }
+  };
+
+  const handleRejectIncoming = async (requesterAddress: string) => {
+    try {
+      await FirebaseService.removeFuseRequest(address, requesterAddress);
+      Alert.alert("Request Rejected", "The fuse request has been rejected.");
+    } catch (error) {
+      console.error("Error rejecting fuse request:", error);
+      Alert.alert("Error", "Failed to reject fuse request. Please try again.");
+    }
+  };
+
   return (
     <View
       style={[styles.container, { backgroundColor: theme.backgroundColor }]}
     >
       <Text style={theme.title}>Fusers</Text>
-      <Text style={theme.subtitle}>Your matched connections</Text>
+      <Text style={theme.subtitle}>Your connections and requests</Text>
+
+      {/* Menu Picker */}
+      <View style={styles.pickerContainer}>
+        <Picker
+          selectedValue={selectedMenu}
+          onValueChange={(itemValue) => setSelectedMenu(itemValue)}
+          style={styles.picker}
+        >
+          <Picker.Item label="Fusers" value="matches" />
+          <Picker.Item label="Want to Fuse" value="requests" />
+        </Picker>
+      </View>
 
       <ScrollView style={styles.requestsContainer}>
-        {matchedUsers.length === 0 ? (
-          <Text style={styles.emptyText}>
-            No matches yet. Start fusing to connect with people!
-          </Text>
-        ) : (
-          matchedUsers.map((user, index) => (
-            <View key={user.address} style={styles.matchedUserCard}>
-              <TouchableOpacity
-                style={styles.matchedUserInfo}
-                onPress={() => viewUserProfile(user)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.matchedUserName}>
-                  {user.name}, {calculateAge(user.age)}
-                </Text>
-                <Text style={styles.matchedUserLocation}>{user.city}</Text>
-                <Text style={styles.matchedUserDate}>
-                  Matched {user.matchedDate.toLocaleDateString()}
-                </Text>
-              </TouchableOpacity>
-              <View style={styles.buttonContainer}>
+        {selectedMenu === "matches" ? (
+          // Matches View
+          matchedUsers.length === 0 ? (
+            <Text style={styles.emptyText}>
+              No matches yet. Start fusing to connect with people!
+            </Text>
+          ) : (
+            matchedUsers.map((user, index) => (
+              <View key={user.address} style={styles.matchedUserCard}>
                 <TouchableOpacity
-                  style={styles.messageButton}
-                  onPress={async () => {
-                    // Set the selected user for messaging
-                    await AsyncStorage.setItem(
-                      "selected_chat_user",
-                      user.address
-                    );
-                    // Navigate directly to Chats tab
-                    NavigationService.getInstance().navigateToTab("FuseChats");
-                  }}
+                  style={styles.matchedUserInfo}
+                  onPress={() => viewUserProfile(user)}
+                  activeOpacity={0.8}
                 >
-                  <Text style={styles.buttonText}>💬 Message</Text>
+                  <Text style={styles.matchedUserName}>
+                    {user.name}, {calculateAge(user.age)}
+                  </Text>
+                  <Text style={styles.matchedUserLocation}>{user.city}</Text>
+                  <Text style={styles.matchedUserDate}>
+                    Matched {user.matchedDate.toLocaleDateString()}
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.unfuseButton}
-                  onPress={() => unfuseUser(user.address, user.name)}
-                >
-                  <Text style={styles.unfuseButtonText}>Unfuse</Text>
-                </TouchableOpacity>
+                <View style={styles.buttonContainer}>
+                  <TouchableOpacity
+                    style={styles.messageButton}
+                    onPress={async () => {
+                      // Set the selected user for messaging
+                      await AsyncStorage.setItem(
+                        "selected_chat_user",
+                        user.address
+                      );
+                      // Navigate directly to Chats tab
+                      NavigationService.getInstance().navigateToTab("FuseChats");
+                    }}
+                  >
+                    <Text style={styles.buttonText}>💬 Message</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.unfuseButton}
+                    onPress={() => unfuseUser(user.address, user.name)}
+                  >
+                    <Text style={styles.unfuseButtonText}>Unfuse</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          ))
+            ))
+          )
+        ) : (
+          // Requests View
+          connectionRequests.length === 0 ? (
+            <Text style={styles.emptyText}>
+              No incoming requests. Keep fusing to get more connections!
+            </Text>
+          ) : (
+            connectionRequests.map((request, index) => (
+              <View key={request.requesterAddress || request.address} style={styles.requestCard}>
+                <View style={styles.requestInfo}>
+                  <Text style={styles.requestName}>
+                    {request.name}, {request.age}
+                  </Text>
+                  <Text style={styles.requestLocation}>{request.city}</Text>
+                  <Text style={styles.requestBio}>{request.bio}</Text>
+                  <Text style={styles.requestDate}>
+                    Requested {request.timestamp.toLocaleDateString()}
+                  </Text>
+                </View>
+                <View style={styles.buttonContainer}>
+                  <TouchableOpacity
+                    style={styles.acceptButton}
+                    onPress={() => handleFuseIncoming(request.requesterAddress || request.address, request.name)}
+                  >
+                    <Text style={styles.buttonText}>Accept</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.rejectButton}
+                    onPress={() => handleRejectIncoming(request.requesterAddress || request.address)}
+                  >
+                    <Text style={styles.rejectButtonText}>Reject</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )
         )}
       </ScrollView>
 
@@ -756,5 +938,62 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontStyle: "italic",
     marginTop: 10,
+  },
+  pickerContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    marginBottom: 15,
+    elevation: 2,
+  },
+  picker: {
+    height: 50,
+  },
+  requestCard: {
+    backgroundColor: "#fff",
+    borderRadius: 15,
+    padding: 15,
+    marginBottom: 15,
+    elevation: 3,
+  },
+  requestInfo: {
+    marginBottom: 10,
+  },
+  requestName: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  requestLocation: {
+    fontSize: 16,
+    color: "#666",
+  },
+  requestBio: {
+    fontSize: 14,
+    color: "#888",
+    marginTop: 5,
+  },
+  requestDate: {
+    fontSize: 14,
+    color: "#333",
+    marginTop: 5,
+  },
+  acceptButton: {
+    backgroundColor: "#28a745",
+    borderRadius: 25,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    alignItems: "center",
+    marginRight: 10,
+  },
+  rejectButton: {
+    backgroundColor: "#dc3545",
+    borderRadius: 25,
+    paddingVertical: 10,
+    paddingHorizontal: 15,
+    alignItems: "center",
+  },
+  rejectButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });
