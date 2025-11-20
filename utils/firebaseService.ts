@@ -1608,8 +1608,11 @@ export class FirebaseService {
           "->",
           targetAddress
         );
+<<<<<<< HEAD
       } else {
         console.log("📤 Sent request already exists, skipping");
+=======
+>>>>>>> origin/master
       }
     } catch (error) {
       console.error("❌ Failed to store sent request:", error);

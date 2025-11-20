@@ -314,10 +314,13 @@ export default function FuseScreen() {
         "After filtering - matched addresses:",
         Array.from(localMatchedAddresses)
       );
+<<<<<<< HEAD
       console.log(
         "After filtering - sent requests:",
         Array.from(localSentRequests)
       );
+=======
+>>>>>>> origin/master
       console.log("Filtered matches count:", filteredMatches.length);
       console.log(
         "Filtered match addresses:",
@@ -411,6 +414,7 @@ export default function FuseScreen() {
   useEffect(() => {
     fetchMatches();
   }, [address]);
+<<<<<<< HEAD
 
   // Filter and format matches whenever raw matches or filter sets change
   useEffect(() => {
@@ -528,6 +532,8 @@ export default function FuseScreen() {
 
     filterAndFormatMatches();
   }, [rawMatches, skippedUsers, matchedAddresses, sentRequests]);
+=======
+>>>>>>> origin/master
   const handleFuse = async (userAddress: string) => {
     if (!address) return;
 
