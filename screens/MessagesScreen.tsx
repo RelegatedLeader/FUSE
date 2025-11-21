@@ -476,59 +476,8 @@ export default function MessagesScreen() {
         newMessage.trim()
       );
 
-      // Clear input
+      // Clear input - the message will appear via real-time listener
       setNewMessage("");
-
-      // Immediately add the message to the current conversation view
-      const messageData = {
-        content: newMessage.trim(),
-        messageType: "text",
-        metadata: {
-          timestamp: Date.now(),
-          sender: address,
-        },
-      };
-      const tempMessage = {
-        id: `temp_${Date.now()}`,
-        senderAddress: address,
-        message: JSON.stringify(messageData),
-        timestamp: new Date(),
-        status: "sent",
-      };
-      const processedSentMessage = processMessage(tempMessage);
-      setMessages((prevMessages) => [...prevMessages, processedSentMessage]);
-
-      // Manually update conversations to show the sent message immediately
-      setConversations((prevConversations) => {
-        const updatedConversations = [...prevConversations];
-        const convIndex = updatedConversations.findIndex(
-          (conv) => conv.otherUser === selectedConversation
-        );
-
-        if (convIndex >= 0) {
-          // Update existing conversation
-          updatedConversations[convIndex] = {
-            ...updatedConversations[convIndex],
-            lastMessage: newMessage.trim(),
-            timestamp: new Date(),
-            unread: false, // Sent messages are not unread
-          };
-        } else {
-          // Add new conversation
-          updatedConversations.unshift({
-            id: [address, selectedConversation].sort().join("_"),
-            otherUser: selectedConversation,
-            lastMessage: newMessage.trim(),
-            timestamp: new Date(),
-            unread: false,
-          });
-        }
-
-        // Sort by timestamp (most recent first)
-        return updatedConversations.sort(
-          (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
-        );
-      });
     } catch (error) {
       console.error("Error sending message:", error);
       Alert.alert("Error", "Failed to send message. Please try again.");
@@ -626,13 +575,6 @@ export default function MessagesScreen() {
     );
   };
 
-  const startEditingMessage = (message: Message) => {
-    if (message.from !== address || message.deleted) return;
-
-    setEditingMessageId(message.id);
-    setEditingText(message.message);
-  };
-
   const handleTypingStart = () => {
     if (!isTyping && selectedConversation) {
       setIsTyping(true);
@@ -724,7 +666,22 @@ export default function MessagesScreen() {
                   ]}
                 >
                   <TouchableOpacity
-                    onLongPress={() => startEditingMessage(message)}
+                    onLongPress={() => {
+                      if (message.from === address && !message.deleted) {
+                        Alert.alert(
+                          "Delete Message",
+                          "Are you sure you want to delete this message?",
+                          [
+                            { text: "Cancel", style: "cancel" },
+                            {
+                              text: "Delete",
+                              style: "destructive",
+                              onPress: () => handleDeleteMessage(message.id),
+                            },
+                          ]
+                        );
+                      }
+                    }}
                     style={[
                       styles.messageBubble,
                       message.from === address
@@ -783,16 +740,6 @@ export default function MessagesScreen() {
                         {message.timestamp.toLocaleTimeString()}
                       </Text>
                     </View>
-                    {message.from === address && !message.deleted && (
-                      <TouchableOpacity
-                        onPress={() => handleDeleteMessage(message.id)}
-                        style={styles.deleteButton}
-                      >
-                        <Text style={{ color: theme.buttonText, fontSize: 12 }}>
-                          🗑️
-                        </Text>
-                      </TouchableOpacity>
-                    )}
                   </TouchableOpacity>
                 </View>
               ))}
@@ -1048,17 +995,6 @@ const styles = StyleSheet.create({
   editedLabel: {
     fontSize: 10,
     fontStyle: "italic",
-  },
-  deleteButton: {
-    position: "absolute",
-    top: 5,
-    right: 5,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
   },
   typingIndicator: {
     padding: 10,
