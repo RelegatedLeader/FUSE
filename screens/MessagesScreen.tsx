@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   RefreshControl,
+  Dimensions,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -69,6 +70,44 @@ export default function MessagesScreen() {
   const [recipientTyping, setRecipientTyping] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
+  // Refs for auto-scrolling
+  const messagesScrollRef = useRef<ScrollView>(null);
+  const chatContainerRef = useRef<View>(null);
+
+  // Simplified back navigation (no gesture handling for now)
+
+  // Auto-scroll to bottom when entering chat or messages change
+  useEffect(() => {
+    if (
+      messagesScrollRef.current &&
+      selectedConversation &&
+      messages.length > 0
+    ) {
+      setTimeout(() => {
+        messagesScrollRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [messages, selectedConversation]);
+
+  // Helper function to get user name from address
+  const getUserName = (userAddress: string): string => {
+    const matchedUser = matchedUsers.find(
+      (user) => user.address === userAddress
+    );
+    return matchedUser ? matchedUser.name : userAddress;
+  };
+
+  // Helper function to format address with name
+  const formatAddressWithName = (userAddress: string): string => {
+    const shortAddress = `${userAddress.slice(0, 6)}...${userAddress.slice(
+      -4
+    )}`;
+    const userName = getUserName(userAddress);
+    return userName !== userAddress
+      ? `${shortAddress} (${userName})`
+      : shortAddress;
+  };
+
   const processMessage = (msg: any) => {
     console.log(
       "📨 Processing message:",
@@ -90,7 +129,7 @@ export default function MessagesScreen() {
     return {
       id: msg.id,
       from: msg.senderAddress,
-      fromName: msg.senderAddress === address ? "You" : msg.senderAddress,
+      fromName: getUserName(msg.senderAddress),
       message: parsedMessage.content || msg.message,
       timestamp: msg.timestamp,
       isRead: msg.status === "read",
@@ -638,212 +677,229 @@ export default function MessagesScreen() {
     );
 
     return (
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-      >
-        <View
-          style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+      <View ref={chatContainerRef} style={{ flex: 1 }}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
         >
           <View
             style={[
-              styles.header,
-              { backgroundColor: theme.card.backgroundColor },
+              styles.container,
+              { backgroundColor: theme.backgroundColor },
             ]}
           >
-            <TouchableOpacity onPress={() => setSelectedConversation(null)}>
-              <Text style={{ color: theme.textColor, fontSize: 18 }}>
-                ← Back
+            <View
+              style={[
+                styles.header,
+                { backgroundColor: theme.card.backgroundColor },
+              ]}
+            >
+              <TouchableOpacity onPress={() => setSelectedConversation(null)}>
+                <Text style={{ color: theme.textColor, fontSize: 18 }}>
+                  ← Back
+                </Text>
+              </TouchableOpacity>
+              <Text style={[styles.headerTitle, { color: theme.textColor }]}>
+                {getUserName(selectedConversation)}
               </Text>
-            </TouchableOpacity>
-            <Text style={[styles.headerTitle, { color: theme.textColor }]}>
-              {conversationMessages[0]?.fromName || "Chat"}
-            </Text>
-            <View style={{ width: 50 }} />
-          </View>
+              <View style={{ width: 50 }} />
+            </View>
 
-          <ScrollView style={styles.messagesContainer}>
-            {conversationMessages.map((message) => (
-              <View
-                key={message.id}
-                style={[
-                  styles.messageContainer,
-                  message.from === address
-                    ? styles.sentMessageContainer
-                    : styles.receivedMessageContainer,
-                ]}
-              >
-                <TouchableOpacity
-                  onLongPress={() => startEditingMessage(message)}
+            <ScrollView
+              ref={messagesScrollRef}
+              style={styles.messagesContainer}
+              onContentSizeChange={() => {
+                messagesScrollRef.current?.scrollToEnd({ animated: true });
+              }}
+            >
+              {conversationMessages.map((message) => (
+                <View
+                  key={message.id}
                   style={[
-                    styles.messageBubble,
+                    styles.messageContainer,
                     message.from === address
-                      ? {
-                          backgroundColor: theme.buttonBackground,
-                          alignSelf: "flex-end",
-                        }
-                      : {
-                          backgroundColor: theme.card.backgroundColor,
-                          alignSelf: "flex-start",
-                        },
-                    message.deleted && styles.deletedMessage,
+                      ? styles.sentMessageContainer
+                      : styles.receivedMessageContainer,
                   ]}
                 >
-                  {message.mediaUrl &&
-                    message.mediaType === "image" &&
-                    !message.deleted && (
-                      <Image
-                        source={{ uri: message.mediaUrl }}
-                        style={styles.messageImage}
-                        resizeMode="cover"
-                      />
+                  <TouchableOpacity
+                    onLongPress={() => startEditingMessage(message)}
+                    style={[
+                      styles.messageBubble,
+                      message.from === address
+                        ? {
+                            backgroundColor: theme.buttonBackground,
+                            alignSelf: "flex-end",
+                          }
+                        : {
+                            backgroundColor: theme.card.backgroundColor,
+                            alignSelf: "flex-start",
+                          },
+                      message.deleted && styles.deletedMessage,
+                    ]}
+                  >
+                    {message.mediaUrl &&
+                      message.mediaType === "image" &&
+                      !message.deleted && (
+                        <Image
+                          source={{ uri: message.mediaUrl }}
+                          style={styles.messageImage}
+                          resizeMode="cover"
+                        />
+                      )}
+                    {message.message && !message.deleted && (
+                      <Text style={{ color: theme.buttonText }}>
+                        {message.message}
+                      </Text>
                     )}
-                  {message.message && !message.deleted && (
-                    <Text style={{ color: theme.buttonText }}>
-                      {message.message}
-                    </Text>
-                  )}
-                  {message.deleted && (
-                    <Text
-                      style={{ color: theme.buttonText, fontStyle: "italic" }}
-                    >
-                      {message.message}
-                    </Text>
-                  )}
-                  <View style={styles.messageFooter}>
-                    {message.edited && !message.deleted && (
+                    {message.deleted && (
+                      <Text
+                        style={{
+                          color: theme.buttonText,
+                          fontStyle: "italic",
+                        }}
+                      >
+                        {message.message}
+                      </Text>
+                    )}
+                    <View style={styles.messageFooter}>
+                      {message.edited && !message.deleted && (
+                        <Text
+                          style={[
+                            styles.editedLabel,
+                            { color: theme.buttonText, opacity: 0.7 },
+                          ]}
+                        >
+                          edited
+                        </Text>
+                      )}
                       <Text
                         style={[
-                          styles.editedLabel,
+                          styles.timestamp,
                           { color: theme.buttonText, opacity: 0.7 },
                         ]}
                       >
-                        edited
+                        {message.timestamp.toLocaleTimeString()}
                       </Text>
+                    </View>
+                    {message.from === address && !message.deleted && (
+                      <TouchableOpacity
+                        onPress={() => handleDeleteMessage(message.id)}
+                        style={styles.deleteButton}
+                      >
+                        <Text style={{ color: theme.buttonText, fontSize: 12 }}>
+                          🗑️
+                        </Text>
+                      </TouchableOpacity>
                     )}
-                    <Text
-                      style={[
-                        styles.timestamp,
-                        { color: theme.buttonText, opacity: 0.7 },
-                      ]}
-                    >
-                      {message.timestamp.toLocaleTimeString()}
-                    </Text>
-                  </View>
-                  {message.from === address && !message.deleted && (
-                    <TouchableOpacity
-                      onPress={() => handleDeleteMessage(message.id)}
-                      style={styles.deleteButton}
-                    >
-                      <Text style={{ color: theme.buttonText, fontSize: 12 }}>
-                        🗑️
-                      </Text>
-                    </TouchableOpacity>
-                  )}
-                </TouchableOpacity>
-              </View>
-            ))}
+                  </TouchableOpacity>
+                </View>
+              ))}
 
-            {recipientTyping && (
-              <View
-                style={[
-                  styles.typingIndicator,
-                  { backgroundColor: theme.card.backgroundColor },
-                ]}
-              >
-                <Text style={{ color: theme.textColor, fontSize: 14 }}>
-                  💬 Typing...
-                </Text>
-              </View>
-            )}
-          </ScrollView>
+              {recipientTyping && (
+                <View
+                  style={[
+                    styles.typingIndicator,
+                    { backgroundColor: theme.card.backgroundColor },
+                  ]}
+                >
+                  <Text style={{ color: theme.textColor, fontSize: 14 }}>
+                    💬 Typing...
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
 
-          <View
-            style={[
-              styles.inputContainer,
-              { backgroundColor: theme.card.backgroundColor },
-            ]}
-          >
-            {editingMessageId ? (
-              <>
-                <TouchableOpacity
-                  onPress={() => {
-                    setEditingMessageId(null);
-                    setEditingText("");
-                  }}
-                  style={[styles.cancelButton, { backgroundColor: "#dc3545" }]}
-                >
-                  <Text style={{ color: "#fff" }}>✕</Text>
-                </TouchableOpacity>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: theme.input.backgroundColor,
-                      color: theme.textColor,
-                    },
-                  ]}
-                  placeholder="Edit message..."
-                  placeholderTextColor={theme.textColor}
-                  value={editingText}
-                  onChangeText={setEditingText}
-                  multiline
-                  autoFocus
-                />
-                <TouchableOpacity
-                  onPress={handleEditMessage}
-                  style={[
-                    styles.sendButton,
-                    { backgroundColor: theme.buttonBackground },
-                  ]}
-                >
-                  <Text style={{ color: theme.buttonText }}>✓</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <TouchableOpacity
-                  onPress={handleSendMedia}
-                  style={[
-                    styles.mediaButton,
-                    { backgroundColor: theme.buttonBackground },
-                  ]}
-                >
-                  <Text style={{ color: theme.buttonText }}>📎</Text>
-                </TouchableOpacity>
-                <TextInput
-                  style={[
-                    styles.input,
-                    {
-                      backgroundColor: theme.input.backgroundColor,
-                      color: theme.textColor,
-                    },
-                  ]}
-                  placeholder="Type a message..."
-                  placeholderTextColor={theme.textColor}
-                  value={newMessage}
-                  onChangeText={(text) => {
-                    setNewMessage(text);
-                    handleTypingStart();
-                  }}
-                  onBlur={handleTypingStop}
-                  multiline
-                />
-                <TouchableOpacity
-                  onPress={handleSendMessage}
-                  style={[
-                    styles.sendButton,
-                    { backgroundColor: theme.buttonBackground },
-                  ]}
-                >
-                  <Text style={{ color: theme.buttonText }}>📤</Text>
-                </TouchableOpacity>
-              </>
-            )}
+            <View
+              style={[
+                styles.inputContainer,
+                { backgroundColor: theme.card.backgroundColor },
+              ]}
+            >
+              {editingMessageId ? (
+                <>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEditingMessageId(null);
+                      setEditingText("");
+                    }}
+                    style={[
+                      styles.cancelButton,
+                      { backgroundColor: "#dc3545" },
+                    ]}
+                  >
+                    <Text style={{ color: "#fff" }}>✕</Text>
+                  </TouchableOpacity>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.input.backgroundColor,
+                        color: theme.textColor,
+                      },
+                    ]}
+                    placeholder="Edit message..."
+                    placeholderTextColor={theme.textColor}
+                    value={editingText}
+                    onChangeText={setEditingText}
+                    multiline
+                    autoFocus
+                  />
+                  <TouchableOpacity
+                    onPress={handleEditMessage}
+                    style={[
+                      styles.sendButton,
+                      { backgroundColor: theme.buttonBackground },
+                    ]}
+                  >
+                    <Text style={{ color: theme.buttonText }}>✓</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity
+                    onPress={handleSendMedia}
+                    style={[
+                      styles.mediaButton,
+                      { backgroundColor: theme.buttonBackground },
+                    ]}
+                  >
+                    <Text style={{ color: theme.buttonText }}>📎</Text>
+                  </TouchableOpacity>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.input.backgroundColor,
+                        color: theme.textColor,
+                      },
+                    ]}
+                    placeholder="Type a message..."
+                    placeholderTextColor={theme.textColor}
+                    value={newMessage}
+                    onChangeText={(text) => {
+                      setNewMessage(text);
+                      handleTypingStart();
+                    }}
+                    onBlur={handleTypingStop}
+                    multiline
+                  />
+                  <TouchableOpacity
+                    onPress={handleSendMessage}
+                    style={[
+                      styles.sendButton,
+                      { backgroundColor: theme.buttonBackground },
+                    ]}
+                  >
+                    <Text style={{ color: theme.buttonText }}>📤</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
           </View>
-        </View>
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+      </View>
     );
   }
 
@@ -887,8 +943,7 @@ export default function MessagesScreen() {
             >
               <View style={styles.messageHeader}>
                 <Text style={[styles.senderName, { color: theme.textColor }]}>
-                  {conversation.otherUser.slice(0, 6)}...
-                  {conversation.otherUser.slice(-4)}
+                  {formatAddressWithName(conversation.otherUser)}
                 </Text>
                 {conversation.unread && <View style={styles.unreadDot} />}
               </View>
