@@ -101,6 +101,18 @@ export class MessagingService {
     }
 
     try {
+      // Check if users are currently matched/fused
+      const isMatched = await FirebaseService.areUsersMatched(
+        this.currentUser,
+        recipientAddress
+      );
+
+      if (!isMatched) {
+        throw new Error(
+          "You can only message users you are currently fused with"
+        );
+      }
+
       const conversationId = this.generateConversationId(
         this.currentUser,
         recipientAddress

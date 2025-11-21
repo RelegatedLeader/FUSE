@@ -326,7 +326,7 @@ export default function FusersScreen() {
   const unfuseUser = async (userAddress: string, userName: string) => {
     Alert.alert(
       "Unfuse",
-      `Are you sure you want to unfuse with ${userName}? This will remove them from your matches.`,
+      `Are you sure you want to unfuse with ${userName}? This will:\n\n• Remove them from your Fusers list\n• Delete all messages between you\n• Prevent you from fusing again\n• Remove them from your main screen`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -334,11 +334,14 @@ export default function FusersScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              // Remove from Firebase
+              // Remove match from both users and clean up everything
               await FirebaseService.removeMatch(address, userAddress);
 
               // Local state will update via the listener
-              Alert.alert("Unfused", `You have unfused with ${userName}.`);
+              Alert.alert(
+                "Unfused",
+                `${userName} has been completely unfused. You can no longer message each other or fuse again.`
+              );
             } catch (error) {
               console.error("Error unfusing:", error);
               Alert.alert("Error", "Failed to unfuse. Please try again.");

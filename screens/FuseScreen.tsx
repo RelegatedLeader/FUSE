@@ -209,16 +209,18 @@ export default function FuseScreen() {
       const userProfile = await FirebaseService.getUserProfile(address);
 
       if (!userProfile) {
-        console.log("User profile not found in Firebase - migrating from Polygon");
-        
+        console.log(
+          "User profile not found in Firebase - migrating from Polygon"
+        );
+
         try {
           // Retrieve user data from Polygon contract
           const { getUserData } = await import("../utils/contract");
           const polygonData = await getUserData(address);
-          
+
           if (polygonData && polygonData.birthdate) {
             console.log("Retrieved data from Polygon:", polygonData);
-            
+
             // Convert Polygon data format to Firebase format
             const firebaseProfileData = {
               firstName: polygonData.firstName,
@@ -237,9 +239,12 @@ export default function FuseScreen() {
               transactionHash: "", // Not available from Polygon data
               walletAddress: address,
             };
-            
+
             // Store the profile in Firebase
-            await FirebaseService.storeUserProfile(address, firebaseProfileData);
+            await FirebaseService.storeUserProfile(
+              address,
+              firebaseProfileData
+            );
             console.log("Successfully migrated user profile to Firebase");
           } else {
             console.log("No data found in Polygon contract for user:", address);
@@ -458,22 +463,30 @@ export default function FuseScreen() {
 
         // Define calculateAge function
         const calculateAge = (birthdate: string): number | null => {
-          if (!birthdate || birthdate.trim() === '') return null;
+          if (!birthdate || birthdate.trim() === "") return null;
           try {
             // Parse MM/DD/YYYY format explicitly
-            const parts = birthdate.split('/');
+            const parts = birthdate.split("/");
             if (parts.length !== 3) return null;
-            
+
             const month = parseInt(parts[0], 10) - 1; // Month is 0-based
             const day = parseInt(parts[1], 10);
             const year = parseInt(parts[2], 10);
-            
+
             if (isNaN(month) || isNaN(day) || isNaN(year)) return null;
-            if (month < 0 || month > 11 || day < 1 || day > 31 || year < 1900 || year > 2025) return null;
-            
+            if (
+              month < 0 ||
+              month > 11 ||
+              day < 1 ||
+              day > 31 ||
+              year < 1900 ||
+              year > 2025
+            )
+              return null;
+
             const birth = new Date(year, month, day);
             if (isNaN(birth.getTime())) return null; // Invalid date
-            
+
             const today = new Date();
             let age = today.getFullYear() - birth.getFullYear();
             const monthDiff = today.getMonth() - birth.getMonth();
@@ -485,7 +498,7 @@ export default function FuseScreen() {
             }
             return age > 0 && age < 120 ? age : null; // Sanity check
           } catch (error) {
-            console.warn('Error calculating age:', error);
+            console.warn("Error calculating age:", error);
             return null;
           }
         };
@@ -580,7 +593,7 @@ export default function FuseScreen() {
 
     filterAndFormatMatches();
   }, [rawMatches, skippedUsers, matchedAddresses, sentRequests]);
-  
+
   const handleFuse = async (userAddress: string) => {
     if (!address) return;
 
@@ -1251,18 +1264,25 @@ export default function FuseScreen() {
                                 Personality Traits
                               </Text>
                               <View style={styles.traitsContainer}>
-                                {Object.entries(user.personalityTraits).map(([traitName, traitValue]) => (
-                                  <View key={traitName} style={styles.traitTag}>
-                                    <Text
-                                      style={[
-                                        styles.traitText,
-                                        { color: theme.textColor },
-                                      ]}
+                                {Object.entries(user.personalityTraits).map(
+                                  ([traitName, traitValue]) => (
+                                    <View
+                                      key={traitName}
+                                      style={styles.traitTag}
                                     >
-                                      {traitName.charAt(0).toUpperCase() + traitName.slice(1)}: {Math.round(traitValue)}%
-                                    </Text>
-                                  </View>
-                                ))}
+                                      <Text
+                                        style={[
+                                          styles.traitText,
+                                          { color: theme.textColor },
+                                        ]}
+                                      >
+                                        {traitName.charAt(0).toUpperCase() +
+                                          traitName.slice(1)}
+                                        : {Math.round(traitValue)}%
+                                      </Text>
+                                    </View>
+                                  )
+                                )}
                               </View>
                             </View>
                           )}

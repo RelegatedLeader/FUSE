@@ -1210,6 +1210,23 @@ export class FirebaseService {
       targetAddress
     );
     console.log("🔥 requestData:", requestData);
+
+    const requesterAddress = requestData.requesterAddress;
+
+    // Check if these users have unfused before - prevent re-fusing
+    const haveUnfused = await this.haveUsersUnfused(
+      requesterAddress,
+      targetAddress
+    );
+    if (haveUnfused) {
+      console.log(
+        "🚫 Cannot send fuse request - users have unfused before:",
+        requesterAddress,
+        targetAddress
+      );
+      throw new Error("You cannot fuse with this user again");
+    }
+
     try {
       const requestsRef = doc(db, "fuse_requests", targetAddress);
       console.log("🔥 requestsRef path:", requestsRef.path);
@@ -1509,27 +1526,48 @@ export class FirebaseService {
     matchAddress: string
   ): Promise<void> {
     try {
-      const matchesRef = doc(db, "user_matches", userAddress);
-      const matchSnap = await getDoc(matchesRef);
+      // Remove match from both users' match lists
+      const userMatchesRef = doc(db, "user_matches", userAddress);
+      const matchMatchesRef = doc(db, "user_matches", matchAddress);
 
-      if (matchSnap.exists()) {
-        let matches = matchSnap.data().matches || [];
-        matches = matches.filter(
+      // Remove from user's matches
+      const userMatchSnap = await getDoc(userMatchesRef);
+      if (userMatchSnap.exists()) {
+        let userMatches = userMatchSnap.data().matches || [];
+        userMatches = userMatches.filter(
           (match: any) => match.address !== matchAddress
         );
-
-        await setDoc(matchesRef, {
-          matches,
+        await setDoc(userMatchesRef, {
+          matches: userMatches,
           lastUpdated: Timestamp.now(),
         });
-
-        console.log(
-          "💔 Match removed for:",
-          userAddress,
-          "with:",
-          matchAddress
-        );
       }
+
+      // Remove from match's matches
+      const matchMatchSnap = await getDoc(matchMatchesRef);
+      if (matchMatchSnap.exists()) {
+        let matchMatches = matchMatchSnap.data().matches || [];
+        matchMatches = matchMatches.filter(
+          (match: any) => match.address !== userAddress
+        );
+        await setDoc(matchMatchesRef, {
+          matches: matchMatches,
+          lastUpdated: Timestamp.now(),
+        });
+      }
+
+      // Store unfused pair to prevent re-fusing
+      await this.storeUnfusedPair(userAddress, matchAddress);
+
+      // Delete all messages between the users
+      await this.deleteConversationMessages(userAddress, matchAddress);
+
+      console.log(
+        "💔 Complete unfuse completed for:",
+        userAddress,
+        "and:",
+        matchAddress
+      );
     } catch (error) {
       console.error("Failed to remove match:", error);
       throw error;
@@ -1712,9 +1750,117 @@ export class FirebaseService {
         });
       }
 
+      // Clear unfused_pairs
+      const unfusedRef = collection(db, "unfused_pairs");
+      const unfusedSnapshot = await getDocs(unfusedRef);
+      const batch = writeBatch(db);
+      unfusedSnapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      await batch.commit();
+
       console.log("✅ All fuse data cleared");
     } catch (error) {
       console.error("Failed to clear fuse data:", error);
+      throw error;
+    }
+  }
+
+  // Store unfused pair to prevent re-fusing
+  static async storeUnfusedPair(
+    user1Address: string,
+    user2Address: string
+  ): Promise<void> {
+    try {
+      // Create a consistent pair ID (sorted to ensure uniqueness)
+      const pairId = [user1Address, user2Address].sort().join("_");
+
+      const unfusedRef = doc(db, "unfused_pairs", pairId);
+      await setDoc(unfusedRef, {
+        user1: user1Address,
+        user2: user2Address,
+        unfusedAt: Timestamp.now(),
+      });
+
+      console.log("🚫 Unfused pair stored:", pairId);
+    } catch (error) {
+      console.error("Failed to store unfused pair:", error);
+      throw error;
+    }
+  }
+
+  // Check if two users have unfused before
+  static async haveUsersUnfused(
+    user1Address: string,
+    user2Address: string
+  ): Promise<boolean> {
+    try {
+      const pairId = [user1Address, user2Address].sort().join("_");
+      const unfusedRef = doc(db, "unfused_pairs", pairId);
+      const unfusedSnap = await getDoc(unfusedRef);
+
+      return unfusedSnap.exists();
+    } catch (error) {
+      console.error("Failed to check unfused pair:", error);
+      return false;
+    }
+  }
+
+  // Check if two users are currently matched
+  static async areUsersMatched(
+    user1Address: string,
+    user2Address: string
+  ): Promise<boolean> {
+    try {
+      // Check if user1 has user2 in their matches
+      const user1Matches = await this.loadMatches(user1Address);
+      const hasMatch1 = user1Matches.some(
+        (match) => match.address === user2Address
+      );
+
+      // Check if user2 has user1 in their matches
+      const user2Matches = await this.loadMatches(user2Address);
+      const hasMatch2 = user2Matches.some(
+        (match) => match.address === user1Address
+      );
+
+      // Both must have each other in their matches
+      return hasMatch1 && hasMatch2;
+    } catch (error) {
+      console.error("Failed to check if users are matched:", error);
+      return false;
+    }
+  }
+
+  // Delete all messages between two users
+  static async deleteConversationMessages(
+    user1Address: string,
+    user2Address: string
+  ): Promise<void> {
+    try {
+      const conversationId = [user1Address, user2Address].sort().join("_");
+
+      const messagesRef = collection(db, "messages");
+      const q = query(
+        messagesRef,
+        where("conversationId", "==", conversationId)
+      );
+
+      const snapshot = await getDocs(q);
+
+      const batch = writeBatch(db);
+      snapshot.docs.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+
+      await batch.commit();
+
+      console.log(
+        `🗑️ Deleted ${snapshot.docs.length} messages for conversation:`,
+        conversationId
+      );
+    } catch (error) {
+      console.error("Failed to delete conversation messages:", error);
       throw error;
     }
   }

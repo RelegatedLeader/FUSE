@@ -326,10 +326,25 @@ export class MatchingEngine {
         criteria || {}
       );
 
-      // Filter out matched users
-      const filteredMatches = potentialMatches.filter(
-        (match) => !matchedAddresses.has(match.address)
-      );
+      // Filter out matched users and previously unfused pairs
+      const filteredMatches = [];
+      for (const match of potentialMatches) {
+        if (matchedAddresses.has(match.address)) {
+          continue; // Skip already matched users
+        }
+
+        // Check if these users have unfused before
+        const haveUnfused = await FirebaseService.haveUsersUnfused(
+          userAddress,
+          match.address
+        );
+
+        if (haveUnfused) {
+          continue; // Skip users that have unfused before
+        }
+
+        filteredMatches.push(match);
+      }
 
       const matchesWithScores = filteredMatches.map((match) => ({
         ...match,

@@ -257,15 +257,28 @@ export default function MessagesScreen() {
       setRefreshing(true);
       const { FirebaseService } = await import("../utils/firebaseService");
       await FirebaseService.initializeUser(address);
+
+      // Get current matches
+      const currentMatches = await FirebaseService.loadMatches(address);
+      const matchedAddresses = new Set(
+        currentMatches.map((match) => match.address)
+      );
+
       const messages = await FirebaseService.getAllUserMessages(address);
 
-      // Process messages into conversations
+      // Process messages into conversations, but only for matched users
       const conversationsMap = new Map<string, Conversation>();
       messages.forEach((msg: any) => {
         const otherUser =
           msg.senderAddress === address
             ? msg.recipientAddress
             : msg.senderAddress;
+
+        // Only include conversations with currently matched users
+        if (!matchedAddresses.has(otherUser)) {
+          return; // Skip this message if not matched
+        }
+
         const convId = [address, otherUser].sort().join("_");
         let lastMessage = "";
         try {
