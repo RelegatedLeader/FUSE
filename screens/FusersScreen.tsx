@@ -473,8 +473,7 @@ export default function FusersScreen() {
       <Text style={theme.title}>Fusers</Text>
       <Text style={theme.subtitle}>Your connections and requests</Text>
 
-      {/* Menu Picker */}
-      <View style={styles.pickerContainer}>
+      {/* Menu Picker  <View style={styles.pickerContainer}>
         <Picker
           selectedValue={selectedMenu}
           onValueChange={(itemValue) => setSelectedMenu(itemValue)}
@@ -484,6 +483,7 @@ export default function FusersScreen() {
           <Picker.Item label="Want to Fuse" value="requests" />
         </Picker>
       </View>
+*/}
 
       <ScrollView style={styles.requestsContainer}>
         {selectedMenu === "matches" ? (
