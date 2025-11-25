@@ -214,16 +214,42 @@ export class BioAnalyzer {
   // Analyze sentiment (simplified string-based approach)
   private async analyzeSentiment(text: string): Promise<SentimentAnalysis> {
     try {
-      const positiveWords = ["love", "like", "great", "awesome", "amazing", "wonderful", "fantastic", "excellent", "good", "happy", "joy", "excited", "thrilled"];
-      const negativeWords = ["hate", "dislike", "terrible", "awful", "horrible", "bad", "sad", "angry", "frustrated", "annoyed", "upset"];
+      const positiveWords = [
+        "love",
+        "like",
+        "great",
+        "awesome",
+        "amazing",
+        "wonderful",
+        "fantastic",
+        "excellent",
+        "good",
+        "happy",
+        "joy",
+        "excited",
+        "thrilled",
+      ];
+      const negativeWords = [
+        "hate",
+        "dislike",
+        "terrible",
+        "awful",
+        "horrible",
+        "bad",
+        "sad",
+        "angry",
+        "frustrated",
+        "annoyed",
+        "upset",
+      ];
 
       const words = text.toLowerCase().split(/\s+/);
       let positiveCount = 0;
       let negativeCount = 0;
 
-      words.forEach(word => {
-        if (positiveWords.some(pw => word.includes(pw))) positiveCount++;
-        if (negativeWords.some(nw => word.includes(nw))) negativeCount++;
+      words.forEach((word) => {
+        if (positiveWords.some((pw) => word.includes(pw))) positiveCount++;
+        if (negativeWords.some((nw) => word.includes(nw))) negativeCount++;
       });
 
       const total = positiveCount + negativeCount;

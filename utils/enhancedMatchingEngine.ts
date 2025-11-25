@@ -13,13 +13,21 @@ export class EnhancedMatchingEngine {
     user2Address: string
   ): Promise<CompatibilityResult> {
     try {
+      console.log(
+        `🔍 Calculating compatibility between ${user1Address} and ${user2Address}`
+      );
+
       // Get basic user data
       const [user1Data, user2Data] = await Promise.all([
         FirebaseService.getUserProfile(user1Address),
         FirebaseService.getUserProfile(user2Address),
       ]);
 
+      console.log(`📊 User1 data:`, user1Data);
+      console.log(`📊 User2 data:`, user2Data);
+
       if (!user1Data || !user2Data) {
+        console.log("❌ Missing user data, returning default");
         return this.getDefaultCompatibilityResult();
       }
 
@@ -290,17 +298,17 @@ export class EnhancedMatchingEngine {
     user1: any,
     user2: any
   ): number {
-    // Use MBTI if available
-    if (user1.mbti && user2.mbti) {
-      return this.calculateMBTICompatibility(user1.mbti, user2.mbti);
-    }
-
-    // Fallback to personality traits
+    // Use personality traits if available (more accurate than MBTI)
     if (user1.personalityTraits && user2.personalityTraits) {
       return this.calculateTraitCompatibility(
         user1.personalityTraits,
         user2.personalityTraits
       );
+    }
+
+    // Fallback to MBTI if available
+    if (user1.mbti && user2.mbti) {
+      return this.calculateMBTICompatibility(user1.mbti, user2.mbti);
     }
 
     return 50; // Neutral score
@@ -368,6 +376,8 @@ export class EnhancedMatchingEngine {
     traits1: any,
     traits2: any
   ): number {
+    console.log(`🧬 Comparing traits:`, traits1, traits2);
+
     let totalDiff = 0;
     let traitCount = 0;
 
@@ -376,17 +386,26 @@ export class EnhancedMatchingEngine {
       (trait) => traits2[trait] !== undefined
     );
 
+    console.log(`🧬 Common traits:`, commonTraits);
+
     commonTraits.forEach((trait) => {
       const diff = Math.abs(traits1[trait] - traits2[trait]);
       totalDiff += diff;
       traitCount++;
+      console.log(
+        `🧬 Trait ${trait}: ${traits1[trait]} vs ${traits2[trait]}, diff: ${diff}`
+      );
     });
 
-    if (traitCount === 0) return 50;
+    if (traitCount === 0) {
+      console.log("❌ No common traits found");
+      return 50;
+    }
 
     const avgDiff = totalDiff / traitCount;
-    // Convert difference to compatibility score (0-100)
-    return Math.max(0, Math.min(100, 100 - avgDiff));
+    const score = Math.max(0, Math.min(100, 100 - avgDiff));
+    console.log(`🧬 Average diff: ${avgDiff}, Final score: ${score}`);
+    return score;
   }
 
   // Calculate interest compatibility

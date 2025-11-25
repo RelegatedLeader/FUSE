@@ -18,6 +18,7 @@ import { FirebaseService } from "../utils/firebaseService";
 import { getUserData } from "../utils/contract";
 import NavigationService from "../utils/navigationService";
 import { Picker } from "@react-native-picker/picker";
+import { EnhancedMatchingEngine } from "../utils/enhancedMatchingEngine";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 const isLargeScreen = screenWidth > 768;
@@ -62,6 +63,12 @@ export default function FusersScreen() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedMenu, setSelectedMenu] = useState<MenuOption>("matches");
+  const [compatibilityResult, setCompatibilityResult] = useState<any>(null);
+  const [showCompatibilityDetails, setShowCompatibilityDetails] =
+    useState(false);
+  const [userCompatibilityScores, setUserCompatibilityScores] = useState<
+    Map<string, number>
+  >(new Map());
   const scrollViewRef = useRef<ScrollView>(null);
 
   // Handle swipe down to close modal
@@ -88,6 +95,8 @@ export default function FusersScreen() {
           }));
           const deduplicatedMatches = deduplicateByAddress(matchesWithDates);
           setMatchedUsers(deduplicatedMatches);
+          // Calculate compatibility for all matched users
+          calculateCompatibilityForUsers(deduplicatedMatches);
         }
       );
 
@@ -281,9 +290,42 @@ export default function FusersScreen() {
         deduplicatedMatches
       );
       setMatchedUsers(deduplicatedMatches);
+      // Calculate compatibility for loaded users
+      calculateCompatibilityForUsers(deduplicatedMatches);
     } catch (error) {
       console.error("💥 Error loading matched users:", error);
     }
+  };
+
+  const calculateCompatibilityForUsers = async (users: MatchedUser[]) => {
+    if (!address) return;
+
+    console.log("🔄 Calculating compatibility for users:", users.length);
+    const scores = new Map<string, number>();
+
+    for (const user of users) {
+      try {
+        console.log(`🔄 Calculating compatibility for ${user.name} (${user.address})`);
+        const compatibility =
+          await EnhancedMatchingEngine.calculateCompatibility(
+            address,
+            user.address
+          );
+        scores.set(user.address, compatibility.overallScore);
+        console.log(
+          `✅ Compatibility for ${user.name}: ${compatibility.overallScore}%`
+        );
+      } catch (error) {
+        console.error(
+          `❌ Failed to calculate compatibility for ${user.name}:`,
+          error
+        );
+        scores.set(user.address, 50); // Default score
+      }
+    }
+
+    console.log("🔄 Setting compatibility scores:", Object.fromEntries(scores));
+    setUserCompatibilityScores(scores);
   };
 
   const loadConnectionRequests = async () => {
@@ -306,7 +348,7 @@ export default function FusersScreen() {
     }
   };
 
-  const viewUserProfile = (user: MatchedUser) => {
+  const viewUserProfile = async (user: MatchedUser) => {
     console.log("👤 Opening profile modal for user:", user);
     console.log("👤 User data:", {
       name: user.name,
@@ -321,6 +363,22 @@ export default function FusersScreen() {
     });
     setSelectedUser(user);
     setShowProfileModal(true);
+
+    // Calculate compatibility in background
+    if (address && user.address) {
+      try {
+        const compatibility =
+          await EnhancedMatchingEngine.calculateCompatibility(
+            address,
+            user.address
+          );
+        setCompatibilityResult(compatibility);
+        console.log("Compatibility calculated:", compatibility.overallScore);
+      } catch (error) {
+        console.error("Failed to calculate compatibility:", error);
+        setCompatibilityResult(null);
+      }
+    }
   };
 
   const unfuseUser = async (userAddress: string, userName: string) => {
@@ -352,12 +410,6 @@ export default function FusersScreen() {
     );
   };
 
-  const shit = () => {
-    let nums = [1, 2, 3, 4];
-    nums.map((num) => {
-      console.log(num);
-    });
-  };
   const handleFuseIncoming = async (
     requesterAddress: string,
     requesterName: string
@@ -506,9 +558,24 @@ export default function FusersScreen() {
                   onPress={() => viewUserProfile(user)}
                   activeOpacity={0.8}
                 >
-                  <Text style={styles.matchedUserName}>
-                    {user.name}, {calculateAge(user.age)}
-                  </Text>
+                  <View style={styles.userHeader}>
+                    <Text style={styles.matchedUserName}>
+                      {user.name}, {calculateAge(user.age)}
+                    </Text>
+                    {userCompatibilityScores.has(user.address) ? (
+                      <View style={styles.compatibilityBadge}>
+                        <Text style={styles.compatibilityBadgeText}>
+                          💕 {userCompatibilityScores.get(user.address)}%
+                        </Text>
+                      </View>
+                    ) : (
+                      <View style={styles.compatibilityBadge}>
+                        <Text style={styles.compatibilityBadgeText}>
+                          💕 Calculating...
+                        </Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.matchedUserLocation}>{user.city}</Text>
                   <Text style={styles.matchedUserDate}>
                     Matched {user.matchedDate.toLocaleDateString()}
@@ -655,6 +722,23 @@ export default function FusersScreen() {
                   </ScrollView>
                 )}
 
+                {/* Compatibility Summary */}
+                {compatibilityResult && (
+                  <View style={styles.compatibilitySummary}>
+                    <Text
+                      style={[
+                        styles.compatibilitySummaryText,
+                        { color: theme.textColor },
+                      ]}
+                    >
+                      💕{" "}
+                      {compatibilityResult.insights.length > 0
+                        ? compatibilityResult.insights[0].description
+                        : `You are ${compatibilityResult.overallScore}% compatible!`}
+                    </Text>
+                  </View>
+                )}
+
                 {/* Profile Info */}
                 <View style={styles.profileInfo}>
                   <Text
@@ -735,7 +819,7 @@ export default function FusersScreen() {
                   )}
 
                   {selectedUser.personalityTraits &&
-                    selectedUser.personalityTraits.length > 0 && (
+                    Object.keys(selectedUser.personalityTraits).length > 0 && (
                       <View style={styles.profileField}>
                         <Text
                           style={[
@@ -746,16 +830,16 @@ export default function FusersScreen() {
                           Personality Traits
                         </Text>
                         <View style={styles.traitsContainer}>
-                          {selectedUser.personalityTraits.map(
-                            (trait, index) => (
-                              <View key={index} style={styles.traitTag}>
+                          {Object.entries(selectedUser.personalityTraits).map(
+                            ([trait, value]) => (
+                              <View key={trait} style={styles.traitTag}>
                                 <Text
                                   style={[
                                     styles.traitText,
                                     { color: theme.textColor },
                                   ]}
                                 >
-                                  {trait}
+                                  {trait}: {typeof value === 'number' ? value.toFixed(1) : value}
                                 </Text>
                               </View>
                             )
@@ -773,6 +857,152 @@ export default function FusersScreen() {
                     Matched on {selectedUser.matchedDate.toLocaleDateString()}
                   </Text>
                 </View>
+
+                {/* Compatibility Score */}
+                {compatibilityResult && (
+                  <View style={styles.compatibilityContainer}>
+                    <TouchableOpacity
+                      style={styles.compatibilityScore}
+                      onPress={() =>
+                        setShowCompatibilityDetails(!showCompatibilityDetails)
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.compatibilityLabel,
+                          { color: theme.textColor },
+                        ]}
+                      >
+                        Compatibility
+                      </Text>
+                      <View style={styles.compatibilityRow}>
+                        <Text
+                          style={[
+                            styles.compatibilityPercent,
+                            { color: theme.textColor },
+                          ]}
+                        >
+                          {compatibilityResult.overallScore}%
+                        </Text>
+                        <Text
+                          style={[
+                            styles.compatibilityTapHint,
+                            { color: theme.textColor + "80" },
+                          ]}
+                        >
+                          Tap for details
+                        </Text>
+                      </View>
+                      <View style={styles.compatibilityBar}>
+                        <View
+                          style={[
+                            styles.compatibilityFill,
+                            {
+                              width: `${compatibilityResult.overallScore}%`,
+                              backgroundColor:
+                                compatibilityResult.overallScore >= 80
+                                  ? "#4CAF50"
+                                  : compatibilityResult.overallScore >= 60
+                                  ? "#FFC107"
+                                  : "#F44336",
+                            },
+                          ]}
+                        />
+                      </View>
+                    </TouchableOpacity>
+
+                    {showCompatibilityDetails && (
+                      <ScrollView
+                        style={styles.compatibilityDetails}
+                        showsVerticalScrollIndicator={true}
+                        nestedScrollEnabled={true}
+                      >
+                        {compatibilityResult.breakdown.map(
+                          (item: any, index: number) => (
+                            <View key={index} style={styles.compatibilityItem}>
+                              <View style={styles.compatibilityItemHeader}>
+                                <Text
+                                  style={[
+                                    styles.compatibilityCategory,
+                                    { color: theme.textColor },
+                                  ]}
+                                >
+                                  {item.category}
+                                </Text>
+                                <Text
+                                  style={[
+                                    styles.compatibilityScore,
+                                    { color: theme.textColor },
+                                  ]}
+                                >
+                                  {item.score}%
+                                </Text>
+                              </View>
+                              <Text
+                                style={[
+                                  styles.compatibilityDescription,
+                                  { color: theme.textColor + "CC" },
+                                ]}
+                              >
+                                {item.description}
+                              </Text>
+                              <View style={styles.compatibilityFactors}>
+                                {item.factors.map(
+                                  (factor: string, idx: number) => (
+                                    <Text
+                                      key={idx}
+                                      style={[
+                                        styles.compatibilityFactor,
+                                        { color: theme.textColor + "99" },
+                                      ]}
+                                    >
+                                      • {factor}
+                                    </Text>
+                                  )
+                                )}
+                              </View>
+                            </View>
+                          )
+                        )}
+
+                        {compatibilityResult.insights.length > 0 && (
+                          <View style={styles.compatibilityInsights}>
+                            <Text
+                              style={[
+                                styles.insightsTitle,
+                                { color: theme.textColor },
+                              ]}
+                            >
+                              💡 Match Insights
+                            </Text>
+                            {compatibilityResult.insights.map(
+                              (insight: any, index: number) => (
+                                <View key={index} style={styles.insightItem}>
+                                  <Text
+                                    style={[
+                                      styles.insightTitle,
+                                      { color: theme.textColor },
+                                    ]}
+                                  >
+                                    {insight.title}
+                                  </Text>
+                                  <Text
+                                    style={[
+                                      styles.insightDescription,
+                                      { color: theme.textColor + "CC" },
+                                    ]}
+                                  >
+                                    {insight.description}
+                                  </Text>
+                                </View>
+                              )
+                            )}
+                          </View>
+                        )}
+                      </ScrollView>
+                    )}
+                  </View>
+                )}
               </View>
             )}
           </ScrollView>
@@ -825,8 +1055,26 @@ const styles = StyleSheet.create({
   matchedUserInfo: {
     marginBottom: 10,
   },
+  userHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 5,
+  },
   matchedUserName: {
     fontSize: 18,
+    fontWeight: "bold",
+    flex: 1,
+  },
+  compatibilityBadge: {
+    backgroundColor: "#ff6b9d",
+    borderRadius: 15,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  compatibilityBadgeText: {
+    color: "#fff",
+    fontSize: 14,
     fontWeight: "bold",
   },
   matchedUserLocation: {
@@ -1044,5 +1292,118 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "bold",
+  },
+  // Compatibility Styles
+  compatibilityContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+  },
+  compatibilityScore: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 12,
+    padding: 15,
+  },
+  compatibilityLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 8,
+    opacity: 0.8,
+  },
+  compatibilityRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  compatibilityPercent: {
+    fontSize: 28,
+    fontWeight: "bold",
+  },
+  compatibilityTapHint: {
+    fontSize: 12,
+  },
+  compatibilityBar: {
+    height: 4,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  compatibilityFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  compatibilityDetails: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
+    maxHeight: 300,
+  },
+  compatibilityItem: {
+    marginBottom: 15,
+  },
+  compatibilityItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 5,
+  },
+  compatibilityCategory: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  compatibilityDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
+    opacity: 0.9,
+  },
+  compatibilityFactors: {
+    marginLeft: 10,
+  },
+  compatibilityFactor: {
+    fontSize: 13,
+    lineHeight: 18,
+    opacity: 0.8,
+  },
+  compatibilityInsights: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
+  },
+  insightsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 10,
+  },
+  insightItem: {
+    marginBottom: 12,
+  },
+  insightTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  insightDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    opacity: 0.9,
+  },
+  compatibilitySummary: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: "rgba(76, 175, 80, 0.1)",
+    borderRadius: 8,
+    marginHorizontal: 20,
+    marginBottom: 15,
+  },
+  compatibilitySummaryText: {
+    fontSize: 14,
+    fontWeight: "500",
+    textAlign: "center",
+    lineHeight: 20,
   },
 });

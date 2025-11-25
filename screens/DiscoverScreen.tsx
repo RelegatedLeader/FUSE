@@ -33,6 +33,7 @@ interface DiscoverUser {
   sexuality?: string;
   personalityTraits?: { [key: string]: number };
   interests?: string[];
+  compatibilityScore?: number;
 }
 
 interface Category {
@@ -231,7 +232,10 @@ const DiscoverScreen: React.FC = () => {
           }))
         );
 
-        setAllUsers(discoverUsers);
+        // Calculate compatibility for all users
+        const usersWithCompatibility = await calculateCompatibilityForUsers(discoverUsers);
+        
+        setAllUsers(usersWithCompatibility);
       } catch (error) {
         console.error("Error loading discover data:", error);
       } finally {
@@ -241,6 +245,33 @@ const DiscoverScreen: React.FC = () => {
 
     loadData();
   }, [address, isUnlocked]);
+
+  const calculateCompatibilityForUsers = async (users: DiscoverUser[]): Promise<DiscoverUser[]> => {
+    if (!address) return users;
+
+    const updatedUsers = await Promise.all(
+      users.map(async (user) => {
+        try {
+          const compatibility = await EnhancedMatchingEngine.calculateCompatibility(
+            address,
+            user.address
+          );
+          return {
+            ...user,
+            compatibilityScore: compatibility.overallScore,
+          };
+        } catch (error) {
+          console.error(`Failed to calculate compatibility for ${user.name}:`, error);
+          return {
+            ...user,
+            compatibilityScore: 50, // Default score
+          };
+        }
+      })
+    );
+
+    return updatedUsers;
+  };
 
   // Generate categories based on user profile and available users
   useEffect(() => {
@@ -448,7 +479,10 @@ const DiscoverScreen: React.FC = () => {
         }))
       );
 
-      setAllUsers(discoverUsers);
+      // Calculate compatibility for refreshed users
+      const usersWithCompatibility = await calculateCompatibilityForUsers(discoverUsers);
+
+      setAllUsers(usersWithCompatibility);
     } catch (error) {
       console.error("Error refreshing discover data:", error);
     } finally {
@@ -734,9 +768,18 @@ const DiscoverScreen: React.FC = () => {
                   activeOpacity={0.8}
                 >
                   <View style={styles.userCardContent}>
-                    <Text style={[styles.userName, { color: theme.textColor }]}>
-                      {item.name}, {item.age}
-                    </Text>
+                    <View style={styles.userCardHeader}>
+                      <Text style={[styles.userName, { color: theme.textColor }]}>
+                        {item.name}, {item.age}
+                      </Text>
+                      {item.compatibilityScore !== undefined && (
+                        <View style={styles.compatibilityBadge}>
+                          <Text style={styles.compatibilityBadgeText}>
+                            💕 {item.compatibilityScore}%
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={[styles.userCity, { color: theme.textColor }]}>
                       📍 {item.city}
                     </Text>
@@ -802,146 +845,6 @@ const DiscoverScreen: React.FC = () => {
               <View style={styles.headerSpacer} />
             </View>
 
-            {/* Compatibility Score */}
-            {compatibilityResult && (
-              <View style={styles.compatibilityContainer}>
-                <TouchableOpacity
-                  style={styles.compatibilityScore}
-                  onPress={() =>
-                    setShowCompatibilityDetails(!showCompatibilityDetails)
-                  }
-                >
-                  <Text
-                    style={[
-                      styles.compatibilityLabel,
-                      { color: theme.textColor },
-                    ]}
-                  >
-                    Compatibility
-                  </Text>
-                  <View style={styles.compatibilityRow}>
-                    <Text
-                      style={[
-                        styles.compatibilityPercent,
-                        { color: theme.textColor },
-                      ]}
-                    >
-                      {compatibilityResult.overallScore}%
-                    </Text>
-                    <Text
-                      style={[
-                        styles.compatibilityTapHint,
-                        { color: theme.textColor + "80" },
-                      ]}
-                    >
-                      Tap for details
-                    </Text>
-                  </View>
-                  <View style={styles.compatibilityBar}>
-                    <View
-                      style={[
-                        styles.compatibilityFill,
-                        {
-                          width: `${compatibilityResult.overallScore}%`,
-                          backgroundColor:
-                            compatibilityResult.overallScore >= 80
-                              ? "#4CAF50"
-                              : compatibilityResult.overallScore >= 60
-                              ? "#FFC107"
-                              : "#F44336",
-                        },
-                      ]}
-                    />
-                  </View>
-                </TouchableOpacity>
-
-                {showCompatibilityDetails && (
-                  <View style={styles.compatibilityDetails}>
-                    {compatibilityResult.breakdown.map(
-                      (item: any, index: number) => (
-                        <View key={index} style={styles.compatibilityItem}>
-                          <View style={styles.compatibilityItemHeader}>
-                            <Text
-                              style={[
-                                styles.compatibilityCategory,
-                                { color: theme.textColor },
-                              ]}
-                            >
-                              {item.category}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.compatibilityScore,
-                                { color: theme.textColor },
-                              ]}
-                            >
-                              {item.score}%
-                            </Text>
-                          </View>
-                          <Text
-                            style={[
-                              styles.compatibilityDescription,
-                              { color: theme.textColor + "CC" },
-                            ]}
-                          >
-                            {item.description}
-                          </Text>
-                          <View style={styles.compatibilityFactors}>
-                            {item.factors.map((factor: string, idx: number) => (
-                              <Text
-                                key={idx}
-                                style={[
-                                  styles.compatibilityFactor,
-                                  { color: theme.textColor + "99" },
-                                ]}
-                              >
-                                • {factor}
-                              </Text>
-                            ))}
-                          </View>
-                        </View>
-                      )
-                    )}
-
-                    {compatibilityResult.insights.length > 0 && (
-                      <View style={styles.compatibilityInsights}>
-                        <Text
-                          style={[
-                            styles.insightsTitle,
-                            { color: theme.textColor },
-                          ]}
-                        >
-                          💡 Match Insights
-                        </Text>
-                        {compatibilityResult.insights.map(
-                          (insight: any, index: number) => (
-                            <View key={index} style={styles.insightItem}>
-                              <Text
-                                style={[
-                                  styles.insightTitle,
-                                  { color: theme.textColor },
-                                ]}
-                              >
-                                {insight.title}
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.insightDescription,
-                                  { color: theme.textColor + "CC" },
-                                ]}
-                              >
-                                {insight.description}
-                              </Text>
-                            </View>
-                          )
-                        )}
-                      </View>
-                    )}
-                  </View>
-                )}
-              </View>
-            )}
-
             {/* Fuse Button */}
             {selectedUser && (
               <View style={styles.fuseButtonContainer}>
@@ -996,6 +899,151 @@ const DiscoverScreen: React.FC = () => {
                       />
                     ))}
                   </ScrollView>
+                )}
+
+                {/* Compatibility Score */}
+                  {compatibilityResult && (
+                    <View style={styles.compatibilityContainer}>
+                      <TouchableOpacity
+                        style={styles.compatibilityScore}
+                        onPress={() =>
+                          setShowCompatibilityDetails(!showCompatibilityDetails)
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.compatibilityLabel,
+                            { color: theme.textColor },
+                          ]}
+                        >
+                          Compatibility
+                        </Text>
+                        <View style={styles.compatibilityRow}>
+                          <Text
+                            style={[
+                              styles.compatibilityPercent,
+                              { color: theme.textColor },
+                            ]}
+                          >
+                            {compatibilityResult.overallScore}%
+                          </Text>
+                          <Text
+                            style={[
+                              styles.compatibilityTapHint,
+                              { color: theme.textColor + "80" },
+                            ]}
+                          >
+                            Tap for details
+                          </Text>
+                        </View>
+                        <View style={styles.compatibilityBar}>
+                          <View
+                            style={[
+                              styles.compatibilityFill,
+                              {
+                                width: `${compatibilityResult.overallScore}%`,
+                                backgroundColor:
+                                  compatibilityResult.overallScore >= 80
+                                    ? "#4CAF50"
+                                    : compatibilityResult.overallScore >= 60
+                                    ? "#FFC107"
+                                    : "#F44336",
+                              },
+                            ]}
+                          />
+                        </View>
+                      </TouchableOpacity>
+
+                      {showCompatibilityDetails && (
+                        <ScrollView
+                          style={styles.compatibilityDetails}
+                          showsVerticalScrollIndicator={true}
+                          nestedScrollEnabled={true}
+                        >
+                          {compatibilityResult.breakdown.map(
+                            (item: any, index: number) => (
+                              <View key={index} style={styles.compatibilityItem}>
+                                <View style={styles.compatibilityItemHeader}>
+                                  <Text
+                                    style={[
+                                      styles.compatibilityCategory,
+                                      { color: theme.textColor },
+                                    ]}
+                                  >
+                                    {item.category}
+                                  </Text>
+                                  <Text
+                                    style={[
+                                      styles.compatibilityScore,
+                                      { color: theme.textColor },
+                                    ]}
+                                  >
+                                    {item.score}%
+                                  </Text>
+                                </View>
+                                <Text
+                                  style={[
+                                    styles.compatibilityDescription,
+                                    { color: theme.textColor + "CC" },
+                                  ]}
+                                >
+                                  {item.description}
+                                </Text>
+                                <View style={styles.compatibilityFactors}>
+                                  {item.factors.map((factor: string, idx: number) => (
+                                    <Text
+                                      key={idx}
+                                      style={[
+                                        styles.compatibilityFactor,
+                                        { color: theme.textColor + "99" },
+                                      ]}
+                                    >
+                                      • {factor}
+                                    </Text>
+                                  ))}
+                                </View>
+                              </View>
+                            )
+                          )}
+
+                          {compatibilityResult.insights.length > 0 && (
+                            <View style={styles.compatibilityInsights}>
+                              <Text
+                                style={[
+                                  styles.insightsTitle,
+                                  { color: theme.textColor },
+                                ]}
+                              >
+                                💡 Match Insights
+                              </Text>
+                              {compatibilityResult.insights.map(
+                                (insight: any, index: number) => (
+                                  <View key={index} style={styles.insightItem}>
+                                    <Text
+                                      style={[
+                                        styles.insightTitle,
+                                        { color: theme.textColor },
+                                      ]}
+                                    >
+                                      {insight.title}
+                                    </Text>
+                                    <Text
+                                      style={[
+                                        styles.insightDescription,
+                                        { color: theme.textColor + "CC" },
+                                      ]}
+                                    >
+                                      {insight.description}
+                                    </Text>
+                                  </View>
+                                )
+                              )}
+                            </View>
+                          )}
+                        </ScrollView>
+                      )}
+                    </View>
+                  )}
                 )}
 
                 {/* Basic Info */}
@@ -1222,10 +1270,26 @@ const styles = StyleSheet.create({
   userCardContent: {
     flex: 1,
   },
+  userCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 5,
+  },
   userName: {
     fontSize: 18,
     fontWeight: "bold",
-    marginBottom: 5,
+  },
+  compatibilityBadge: {
+    backgroundColor: "#ff6b9d",
+    borderRadius: 15,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  compatibilityBadgeText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "bold",
   },
   userCity: {
     fontSize: 14,
