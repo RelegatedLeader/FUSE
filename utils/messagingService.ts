@@ -549,24 +549,8 @@ export class MessagingService {
 
   // Get all conversations for current user
   static async getUserConversations(): Promise<any[]> {
-    if (!this.currentUser) {
-      throw new Error("Messaging service not initialized");
-    }
-
-    try {
-      // This would require a more complex query in a production app
-      // For now, return a placeholder - in reality you'd query messages collection
-      // and group by conversationId where user is sender or recipient
-
-      const conversations: any[] = [
-        // This would be populated from Firebase queries
-        // Each conversation would have: lastMessage, timestamp, unreadCount, etc.
-      ];
-
-      return conversations;
-    } catch (error) {
-      throw new Error("Failed to get user conversations: " + error);
-    }
+    // Return empty array for now - conversations not implemented yet
+    return [];
   }
 
   // Mark messages as read

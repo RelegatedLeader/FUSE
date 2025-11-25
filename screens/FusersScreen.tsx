@@ -565,13 +565,13 @@ export default function FusersScreen() {
                     {userCompatibilityScores.has(user.address) ? (
                       <View style={styles.compatibilityBadge}>
                         <Text style={styles.compatibilityBadgeText}>
-                          💕 {userCompatibilityScores.get(user.address)}%
+                          🚀 {userCompatibilityScores.get(user.address)}%
                         </Text>
                       </View>
                     ) : (
                       <View style={styles.compatibilityBadge}>
                         <Text style={styles.compatibilityBadgeText}>
-                          💕 Calculating...
+                          🚀 Calculating...
                         </Text>
                       </View>
                     )}
@@ -1067,7 +1067,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   compatibilityBadge: {
-    backgroundColor: "#ff6b9d",
+    backgroundColor: "#ff8c00",
     borderRadius: 15,
     paddingHorizontal: 10,
     paddingVertical: 5,

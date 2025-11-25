@@ -23,11 +23,7 @@ export class EnhancedMatchingEngine {
         FirebaseService.getUserProfile(user2Address),
       ]);
 
-      console.log(`📊 User1 data:`, user1Data);
-      console.log(`📊 User2 data:`, user2Data);
-
       if (!user1Data || !user2Data) {
-        console.log("❌ Missing user data, returning default");
         return this.getDefaultCompatibilityResult();
       }
 

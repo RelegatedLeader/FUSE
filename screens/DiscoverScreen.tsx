@@ -249,6 +249,7 @@ const DiscoverScreen: React.FC = () => {
   const calculateCompatibilityForUsers = async (users: DiscoverUser[]): Promise<DiscoverUser[]> => {
     if (!address) return users;
 
+    console.log("🔄 Calculating compatibility for discover users:", users.length);
     const updatedUsers = await Promise.all(
       users.map(async (user) => {
         try {
@@ -256,12 +257,13 @@ const DiscoverScreen: React.FC = () => {
             address,
             user.address
           );
+          console.log(`✅ Discover compatibility for ${user.name}: ${compatibility.overallScore}%`);
           return {
             ...user,
             compatibilityScore: compatibility.overallScore,
           };
         } catch (error) {
-          console.error(`Failed to calculate compatibility for ${user.name}:`, error);
+          console.error(`❌ Failed to calculate compatibility for ${user.name}:`, error);
           return {
             ...user,
             compatibilityScore: 50, // Default score
@@ -270,6 +272,7 @@ const DiscoverScreen: React.FC = () => {
       })
     );
 
+    console.log("🔄 Updated discover users with compatibility:", updatedUsers.map(u => ({name: u.name, score: u.compatibilityScore})));
     return updatedUsers;
   };
 
@@ -772,13 +775,11 @@ const DiscoverScreen: React.FC = () => {
                       <Text style={[styles.userName, { color: theme.textColor }]}>
                         {item.name}, {item.age}
                       </Text>
-                      {item.compatibilityScore !== undefined && (
-                        <View style={styles.compatibilityBadge}>
-                          <Text style={styles.compatibilityBadgeText}>
-                            💕 {item.compatibilityScore}%
-                          </Text>
-                        </View>
-                      )}
+                      <View style={styles.compatibilityBadge}>
+                        <Text style={styles.compatibilityBadgeText}>
+                          🚀 {item.compatibilityScore || 75}%
+                        </Text>
+                      </View>
                     </View>
                     <Text style={[styles.userCity, { color: theme.textColor }]}>
                       📍 {item.city}
@@ -1281,7 +1282,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   compatibilityBadge: {
-    backgroundColor: "#ff6b9d",
+    backgroundColor: "#ff8c00",
     borderRadius: 15,
     paddingHorizontal: 8,
     paddingVertical: 4,
