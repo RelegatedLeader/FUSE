@@ -407,24 +407,35 @@ export default function FuseScreen() {
         const photos = await loadUserPhotos(match.address);
 
         // Calculate compatibility score
-        let compatibilityScore = 50; // fallback
+        let compatibilityScore = 42; // fallback like DiscoverScreen
         let compatibilityResult: CompatibilityResult | undefined;
         try {
+          console.log(`🔄 Calculating compatibility for ${match.address} vs ${address}`);
           compatibilityResult =
             await EnhancedMatchingEngine.calculateCompatibility(
               address,
               match.address
             );
-          compatibilityScore = compatibilityResult.overallScore;
+          compatibilityScore = compatibilityResult.overallScore || 42;
+          console.log(
+            `✅ Compatibility result overallScore: ${compatibilityResult.overallScore}, final score: ${compatibilityScore}`
+          );
+          console.log(
+            `✅ Compatibility result: ${JSON.stringify(compatibilityResult)}`
+          );
           console.log(
             `Compatibility for ${match.address}: ${compatibilityScore}%`
           );
+          // Update the match with calculated compatibility
+          match.compatibilityScore = compatibilityScore;
+          match.compatibilityResult = compatibilityResult;
         } catch (error) {
           console.warn(
             "Error calculating compatibility for",
             match.address,
             error
           );
+          compatibilityScore = 42; // fallback
         }
 
         const userData: User = {
@@ -593,6 +604,7 @@ export default function FuseScreen() {
               "This user hasn't written a bio yet",
             photos: photos,
             compatibilityScore: match.compatibilityScore,
+            compatibilityResult: match.compatibilityResult,
             skipped: false,
             mbti: match.profile?.mbti,
             gender: match.profile?.gender,
@@ -828,6 +840,7 @@ export default function FuseScreen() {
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
     const [showProfileModal, setShowProfileModal] = useState(false);
     const [showCompatibilityModal, setShowCompatibilityModal] = useState(false);
+    const [showCompatibilityDetails, setShowCompatibilityDetails] = useState(false);
     const [gestureY, setGestureY] = useState(0);
 
     const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -1059,7 +1072,7 @@ export default function FuseScreen() {
               {user.compatibilityScore !== undefined &&
                 user.compatibilityScore !== null && (
                   <TouchableOpacity
-                    onPress={() => setShowCompatibilityModal(true)}
+                    onPress={() => setShowCompatibilityDetails(!showCompatibilityDetails)}
                     style={styles.compatibilityBadge}
                   >
                     <Text style={styles.compatibilityBadgeText}>
@@ -1068,6 +1081,58 @@ export default function FuseScreen() {
                   </TouchableOpacity>
                 )}
             </View>
+
+            {/* Compatibility Details */}
+            {showCompatibilityDetails && user.compatibilityResult && (
+              <View style={styles.compatibilityDetails}>
+                {user.compatibilityResult.breakdown.map((item, index) => (
+                  <View key={index} style={styles.compatibilityItem}>
+                    <View style={styles.compatibilityItemHeader}>
+                      <Text
+                        style={[
+                          styles.compatibilityCategory,
+                          { color: theme.textColor },
+                        ]}
+                      >
+                        {item.category}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.compatibilityScore,
+                          { color: theme.textColor },
+                        ]}
+                      >
+                        {item.score}%
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.compatibilityDescription,
+                        { color: theme.textColor + "CC" },
+                      ]}
+                    >
+                      {item.description}
+                    </Text>
+                    {item.factors && item.factors.length > 0 && (
+                      <View style={styles.compatibilityFactors}>
+                        {item.factors.map((factor, idx) => (
+                          <Text
+                            key={idx}
+                            style={[
+                              styles.compatibilityFactor,
+                              { color: theme.textColor + "AA" },
+                            ]}
+                          >
+                            • {factor}
+                          </Text>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </View>
+            )}
+
             <Text
               style={[
                 { color: theme?.textColor || "#666" },
@@ -1325,190 +1390,6 @@ export default function FuseScreen() {
                   </GestureScrollView>
                 </View>
               </PanGestureHandler>
-            </View>
-          </Modal>
-
-          {/* Compatibility Modal */}
-          <Modal
-            visible={showCompatibilityModal}
-            animationType="slide"
-            transparent={true}
-            onRequestClose={() => setShowCompatibilityModal(false)}
-          >
-            <View style={styles.modalOverlay}>
-              <View style={styles.compatibilityModalContent}>
-                <View style={styles.modalHeader}>
-                  <View style={styles.headerSpacer} />
-                  <Text
-                    style={[
-                      styles.modalTitle,
-                      { color: theme.textColor },
-                    ]}
-                  >
-                    Compatibility with {user.name}
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.closeArea}
-                    onPress={() => setShowCompatibilityModal(false)}
-                  >
-                    <Text
-                      style={[
-                        styles.closeButtonText,
-                        { color: theme.textColor },
-                      ]}
-                    >
-                      ✕
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-
-                <ScrollView style={styles.compatibilityContent}>
-                  {user.compatibilityResult ? (
-                    <>
-                      <View style={styles.overallScore}>
-                        <Text
-                          style={[
-                            styles.overallScoreText,
-                            { color: theme.textColor },
-                          ]}
-                        >
-                          Overall Compatibility: {Math.round(user.compatibilityResult.overallScore)}%
-                        </Text>
-                        <Text
-                          style={[
-                            styles.confidenceText,
-                            { color: theme.textColor, opacity: 0.7 },
-                          ]}
-                        >
-                          Confidence: {Math.round(user.compatibilityResult.confidence * 100)}%
-                        </Text>
-                      </View>
-
-                      <View style={styles.breakdownSection}>
-                        <Text
-                          style={[
-                            styles.sectionTitle,
-                            { color: theme.textColor },
-                          ]}
-                        >
-                          Compatibility Breakdown
-                        </Text>
-                        {user.compatibilityResult.breakdown.map((item, index) => (
-                          <View key={index} style={styles.breakdownItem}>
-                            <View style={styles.breakdownHeader}>
-                              <Text
-                                style={[
-                                  styles.breakdownCategory,
-                                  { color: theme.textColor },
-                                ]}
-                              >
-                                {item.category}
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.breakdownScore,
-                                  { color: theme.textColor },
-                                ]}
-                              >
-                                {Math.round(item.score)}%
-                              </Text>
-                            </View>
-                            <Text
-                              style={[
-                                styles.breakdownDescription,
-                                { color: theme.textColor, opacity: 0.8 },
-                              ]}
-                            >
-                              {item.description}
-                            </Text>
-                            {item.factors && item.factors.length > 0 && (
-                              <View style={styles.factorsList}>
-                                {item.factors.map((factor, idx) => (
-                                  <Text
-                                    key={idx}
-                                    style={[
-                                      styles.factorText,
-                                      { color: theme.textColor, opacity: 0.7 },
-                                    ]}
-                                  >
-                                    • {factor}
-                                  </Text>
-                                ))}
-                              </View>
-                            )}
-                          </View>
-                        ))}
-                      </View>
-
-                      {user.compatibilityResult.insights && user.compatibilityResult.insights.length > 0 && (
-                        <View style={styles.insightsSection}>
-                          <Text
-                            style={[
-                              styles.sectionTitle,
-                              { color: theme.textColor },
-                            ]}
-                          >
-                            Match Insights
-                          </Text>
-                          {user.compatibilityResult.insights.map((insight, index) => (
-                            <View key={index} style={styles.insightItem}>
-                              <Text
-                                style={[
-                                  styles.insightTitle,
-                                  { color: theme.textColor },
-                                ]}
-                              >
-                                {insight.title}
-                              </Text>
-                              <Text
-                                style={[
-                                  styles.insightDescription,
-                                  { color: theme.textColor, opacity: 0.8 },
-                                ]}
-                              >
-                                {insight.description}
-                              </Text>
-                            </View>
-                          ))}
-                        </View>
-                      )}
-
-                      {user.compatibilityResult.factors && user.compatibilityResult.factors.length > 0 && (
-                        <View style={styles.factorsSection}>
-                          <Text
-                            style={[
-                              styles.sectionTitle,
-                              { color: theme.textColor },
-                            ]}
-                          >
-                            Top Compatibility Factors
-                          </Text>
-                          {user.compatibilityResult.factors.map((factor, index) => (
-                            <Text
-                              key={index}
-                              style={[
-                                styles.factorText,
-                                { color: theme.textColor, opacity: 0.8 },
-                              ]}
-                            >
-                              • {factor}
-                            </Text>
-                          ))}
-                        </View>
-                      )}
-                    </>
-                  ) : (
-                    <Text
-                      style={[
-                        styles.noDataText,
-                        { color: theme.textColor, opacity: 0.7 },
-                      ]}
-                    >
-                      Compatibility details not available
-                    </Text>
-                  )}
-                </ScrollView>
-              </View>
             </View>
           </Modal>
         </TouchableOpacity>
@@ -2407,5 +2288,45 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "center",
     marginTop: 20,
+  },
+  compatibilityDetails: {
+    marginTop: 10,
+    padding: 15,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+  },
+  compatibilityItem: {
+    marginBottom: 15,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+  },
+  compatibilityItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 5,
+  },
+  compatibilityCategory: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  compatibilityScore: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  compatibilityDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 5,
+  },
+  compatibilityFactors: {
+    marginTop: 5,
+  },
+  compatibilityFactor: {
+    fontSize: 12,
+    marginBottom: 2,
   },
 });
