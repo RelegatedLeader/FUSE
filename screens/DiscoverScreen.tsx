@@ -10,6 +10,8 @@ import {
   Alert,
   Modal,
   Image,
+  Animated,
+  Easing,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -86,11 +88,62 @@ const DiscoverScreen: React.FC = () => {
   );
   const [allUsers, setAllUsers] = useState<DiscoverUser[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  // Loading animation values
+  const rotationAnim = useRef(new Animated.Value(0)).current;
+  const starAnimations = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+  ]).current;
 
   // Profile modal state
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<DiscoverUser | null>(null);
+  const [requestedUsers, setRequestedUsers] = useState<Set<string>>(new Set());
+
+  // Start loading animation
+  useEffect(() => {
+    if (isLoading) {
+      // Rotate the magnifying glass
+      Animated.loop(
+        Animated.timing(rotationAnim, {
+          toValue: 1,
+          duration: 2000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
+
+      // Animate stars following the magnifying glass
+      starAnimations.forEach((anim, index) => {
+        Animated.loop(
+          Animated.sequence([
+            Animated.delay(index * 200),
+            Animated.timing(anim, {
+              toValue: 1,
+              duration: 1500,
+              easing: Easing.linear,
+              useNativeDriver: true,
+            }),
+            Animated.timing(anim, {
+              toValue: 0,
+              duration: 0,
+              useNativeDriver: true,
+            }),
+          ])
+        ).start();
+      });
+    } else {
+      // Stop animations when loading is complete
+      rotationAnim.stopAnimation();
+      starAnimations.forEach(anim => anim.stopAnimation());
+    }
+  }, [isLoading, rotationAnim, starAnimations]);
 
   // Check if user has at least 4 matches to unlock Discover
   useEffect(() => {
@@ -114,6 +167,7 @@ const DiscoverScreen: React.FC = () => {
     const loadData = async () => {
       if (!address) return; // Temporarily removed isUnlocked check for testing
 
+      setIsLoading(true);
       try {
         // Load user's own profile
         const userData = await getUserData(address);
@@ -151,9 +205,13 @@ const DiscoverScreen: React.FC = () => {
           interests: user.interests || [],
         }));
 
+        console.log("Discover users loaded:", discoverUsers.map(u => ({ name: u.name, photosCount: u.photos?.length || 0 })));
+
         setAllUsers(discoverUsers);
       } catch (error) {
         console.error("Error loading discover data:", error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
@@ -301,8 +359,85 @@ const DiscoverScreen: React.FC = () => {
   };
 
   const handleUserPress = (user: DiscoverUser) => {
+    console.log("Opening profile modal for user:", user.name);
+    console.log("User photos:", user.photos);
     setSelectedUser(user);
     setShowProfileModal(true);
+  };
+
+  const handleFuse = async (targetAddress: string) => {
+    if (!address || !selectedUser) return;
+
+    try {
+      // Get current user's profile data
+      const currentUserProfile = await FirebaseService.getUserProfile(address);
+      const currentUserPhotos = await FirebaseService.loadUserPhotos(address);
+
+      // Get target user's profile data
+      const targetUserProfile = await FirebaseService.getUserProfile(targetAddress);
+      const targetUserPhotos = await FirebaseService.loadUserPhotos(targetAddress);
+
+      const requestData = {
+        address: address,
+        name: `${currentUserProfile?.firstName || "Unknown"} ${
+          currentUserProfile?.lastName || ""
+        }`.trim(),
+        age: currentUserProfile?.birthdate
+          ? new Date().getFullYear() -
+            new Date(currentUserProfile.birthdate).getFullYear()
+          : 25,
+        city: currentUserProfile?.location || "Unknown",
+        bio: currentUserProfile?.bio || "",
+        photos: currentUserPhotos,
+        mbti: currentUserProfile?.mbti,
+        gender: currentUserProfile?.gender,
+        sexuality: currentUserProfile?.sexuality,
+        personalityTraits: currentUserProfile?.personalityTraits || [],
+        requesterAddress: address,
+        targetAddress: targetAddress,
+      };
+
+      // This will detect mutual match and store for both users
+      const isMutual = await FirebaseService.storeFuseRequest(
+        targetAddress,
+        requestData
+      );
+
+      if (isMutual) {
+        Alert.alert(
+          "Mutual Fuse! 🔥❤️",
+          `You and ${selectedUser.name} have fused! You're now connected.`
+        );
+        // Close modal and refresh data
+        setShowProfileModal(false);
+        // Refresh the data to remove the user from discovery
+        const allUsersData = await FirebaseService.getAllUsersForDiscovery(address);
+        const discoverUsers: DiscoverUser[] = allUsersData.map((user: any) => ({
+          address: user.address,
+          name: user.name || user.firstName || "Anonymous",
+          age: user.age || (user.birthdate ? calculateAge(user.birthdate) : "N/A"),
+          city: user.location || user.city || "Unknown",
+          bio: user.bio || user.description || "No bio available",
+          photos: user.photos || [],
+          mbti: user.mbti,
+          gender: user.gender,
+          sexuality: user.sexuality,
+          personalityTraits: user.personalityTraits || {},
+          interests: user.interests || [],
+        }));
+        setAllUsers(discoverUsers);
+      } else {
+        // Add to requested users
+        setRequestedUsers(prev => new Set([...prev, targetAddress]));
+        Alert.alert(
+          "Request Sent",
+          `Your fuse request has been sent to ${selectedUser.name}.`
+        );
+      }
+    } catch (error) {
+      console.error("Error sending fuse request:", error);
+      Alert.alert("Error", "Failed to send fuse request. Please try again.");
+    }
   };
 
   const handleSearch = (query: string) => {
@@ -354,6 +489,78 @@ const DiscoverScreen: React.FC = () => {
     );
   }
   */
+
+  // Show loading animation while fetching users
+  if (isLoading) {
+    return (
+      <View
+        style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+      >
+        <Text style={theme.title}>Discover</Text>
+        <View style={styles.loadingContainer}>
+          {/* Magnifying Glass */}
+          <Animated.View
+            style={[
+              styles.magnifyingGlass,
+              {
+                transform: [
+                  {
+                    rotate: rotationAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '360deg'],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Text style={styles.magnifyingGlassIcon}>🔍</Text>
+          </Animated.View>
+
+          {/* Following Stars */}
+          {starAnimations.map((anim, index) => {
+            const angle = (index * 72) * (Math.PI / 180); // 72 degrees apart for 5 stars
+            const radius = 80;
+
+            return (
+              <Animated.View
+                key={index}
+                style={[
+                  styles.star,
+                  {
+                    transform: [
+                      {
+                        translateX: anim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, Math.cos(angle) * radius],
+                        }),
+                      },
+                      {
+                        translateY: anim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, Math.sin(angle) * radius],
+                        }),
+                      },
+                    ],
+                    opacity: anim.interpolate({
+                      inputRange: [0, 0.5, 1],
+                      outputRange: [0, 1, 0],
+                    }),
+                  },
+                ]}
+              >
+                <Text style={styles.starIcon}>⭐</Text>
+              </Animated.View>
+            );
+          })}
+
+          <Text style={[styles.loadingText, { color: theme.textColor }]}>
+            Discovering connections...
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View
@@ -469,6 +676,37 @@ const DiscoverScreen: React.FC = () => {
               </Text>
               <View style={styles.headerSpacer} />
             </View>
+
+            {/* Fuse Button */}
+            {selectedUser && (
+              <View style={styles.fuseButtonContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.fuseButton,
+                    {
+                      backgroundColor: requestedUsers.has(selectedUser.address)
+                        ? "#ccc"
+                        : theme.buttonBackground,
+                    },
+                  ]}
+                  onPress={() => handleFuse(selectedUser.address)}
+                  disabled={requestedUsers.has(selectedUser.address)}
+                >
+                  <Text
+                    style={[
+                      styles.fuseButtonText,
+                      {
+                        color: requestedUsers.has(selectedUser.address)
+                          ? "#666"
+                          : theme.buttonText,
+                      },
+                    ]}
+                  >
+                    {requestedUsers.has(selectedUser.address) ? "Request sent" : "🚀 Fuse"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {selectedUser && (
               <ScrollView
@@ -821,6 +1059,51 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 20,
     margin: 4,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 50,
+  },
+  magnifyingGlass: {
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  magnifyingGlassIcon: {
+    fontSize: 60,
+  },
+  star: {
+    position: "absolute",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  starIcon: {
+    fontSize: 24,
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: "500",
+    marginTop: 30,
+    textAlign: "center",
+  },
+  fuseButtonContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+  },
+  fuseButton: {
+    borderRadius: 25,
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  fuseButtonText: {
+    fontSize: 18,
+    fontWeight: "bold",
   },
 });
 
