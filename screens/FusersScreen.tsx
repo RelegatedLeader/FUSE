@@ -471,7 +471,7 @@ export default function FusersScreen() {
       style={[styles.container, { backgroundColor: theme.backgroundColor }]}
     >
       <Text style={theme.title}>Fusers</Text>
-      <Text style={theme.subtitle}>Your connections and requests</Text>
+      <Text style={theme.subtitle}>Your connections</Text>
 
       {/* Menu Picker  <View style={styles.pickerContainer}>
         <Picker

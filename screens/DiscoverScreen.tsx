@@ -186,7 +186,9 @@ const DiscoverScreen: React.FC = () => {
 
         // Load matches to filter out users already fused
         const matches = await FirebaseService.loadMatches(address);
-        const matchedAddresses = new Set(matches.map((match: any) => match.address));
+        const matchedAddresses = new Set(
+          matches.map((match: any) => match.address)
+        );
         setMatchedUsers(matchedAddresses);
 
         // Load all potential matches using the same logic as FuseScreen
@@ -243,7 +245,8 @@ const DiscoverScreen: React.FC = () => {
     const generateCategories = (): Category[] => {
       // Filter out requested users
       const availableUsers = allUsers.filter(
-        (user) => !requestedUsers.has(user.address) && !matchedUsers.has(user.address)
+        (user) =>
+          !requestedUsers.has(user.address) && !matchedUsers.has(user.address)
       );
 
       // Basic category logic (will be enhanced with real algorithm later)
@@ -384,7 +387,7 @@ const DiscoverScreen: React.FC = () => {
   const onRefresh = async () => {
     setRefreshing(true);
     setIsLoading(true); // Show the loading animation
-    
+
     // Reload data similar to loadData function
     if (!address) {
       setRefreshing(false);
@@ -407,7 +410,9 @@ const DiscoverScreen: React.FC = () => {
 
       // Load matches to filter out users already fused
       const matches = await FirebaseService.loadMatches(address);
-      const matchedAddresses = new Set(matches.map((match: any) => match.address));
+      const matchedAddresses = new Set(
+        matches.map((match: any) => match.address)
+      );
       setMatchedUsers(matchedAddresses);
 
       // Load all users for discovery
