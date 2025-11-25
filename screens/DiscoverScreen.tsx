@@ -51,7 +51,9 @@ export default function DiscoverScreen() {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchPlaceholder, setSearchPlaceholder] = useState("Describe your connection");
+  const [searchPlaceholder, setSearchPlaceholder] = useState(
+    "Describe your connection"
+  );
   const [allUsers, setAllUsers] = useState<DiscoverUser[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -76,7 +78,7 @@ export default function DiscoverScreen() {
   // Load user profile and all potential discover users
   useEffect(() => {
     const loadData = async () => {
-      if (!address || !isUnlocked) return;
+      if (!address) return; // Temporarily removed isUnlocked check for testing
 
       try {
         // Load user's own profile
@@ -151,61 +153,99 @@ export default function DiscoverScreen() {
         {
           id: "more-like-you",
           title: "More like you",
-          users: allUsers.filter(user =>
-            user.city === userProfile.location ||
-            user.age === userProfile.age ||
-            (user.interests && userProfile.interests &&
-             user.interests.some(interest => userProfile.interests?.includes(interest)))
-          ).slice(0, 20),
+          users: allUsers
+            .filter(
+              (user) =>
+                user.city === userProfile.location ||
+                user.age === userProfile.age ||
+                (user.interests &&
+                  Array.isArray(user.interests) &&
+                  userProfile.interests &&
+                  Array.isArray(userProfile.interests) &&
+                  user.interests.some((interest) =>
+                    userProfile.interests.includes(interest)
+                  ))
+            )
+            .slice(0, 20),
           shownCount: 3,
         },
         {
           id: "compatible",
           title: "More Compatible with",
-          users: allUsers.filter(user =>
-            (user.mbti && userProfile.mbti && user.mbti !== userProfile.mbti) ||
-            (user.personalityTraits && userProfile.personalityTraits &&
-             user.personalityTraits.some(trait => userProfile.personalityTraits?.includes(trait)))
-          ).slice(0, 20),
+          users: allUsers
+            .filter(
+              (user) =>
+                (user.mbti &&
+                  userProfile.mbti &&
+                  user.mbti !== userProfile.mbti) ||
+                (user.personalityTraits &&
+                  Array.isArray(user.personalityTraits) &&
+                  userProfile.personalityTraits &&
+                  Array.isArray(userProfile.personalityTraits) &&
+                  user.personalityTraits.some((trait) =>
+                    userProfile.personalityTraits.includes(trait)
+                  ))
+            )
+            .slice(0, 20),
           shownCount: 3,
         },
         {
           id: "matches-vibe",
           title: "Matches your vibe",
-          users: allUsers.filter(user =>
-            user.bio && userProfile.bio &&
-            (user.bio.toLowerCase().includes("creative") && userProfile.bio.toLowerCase().includes("art") ||
-             user.bio.toLowerCase().includes("tech") && userProfile.bio.toLowerCase().includes("coding"))
-          ).slice(0, 20),
+          users: allUsers
+            .filter(
+              (user) =>
+                user.bio &&
+                userProfile.bio &&
+                ((user.bio.toLowerCase().includes("creative") &&
+                  userProfile.bio.toLowerCase().includes("art")) ||
+                  (user.bio.toLowerCase().includes("tech") &&
+                    userProfile.bio.toLowerCase().includes("coding")))
+            )
+            .slice(0, 20),
           shownCount: 3,
         },
         {
           id: "enjoys-what-you-do",
           title: "Enjoys what you do",
-          users: allUsers.filter(user =>
-            user.interests && userProfile.interests &&
-            user.interests.some(interest =>
-              userProfile.interests?.some((userInterest: string) =>
-                userInterest.toLowerCase().includes(interest.toLowerCase().split(' ')[0])
-              )
+          users: allUsers
+            .filter(
+              (user) =>
+                user.interests &&
+                Array.isArray(user.interests) &&
+                userProfile.interests &&
+                Array.isArray(userProfile.interests) &&
+                user.interests.some((interest) =>
+                  userProfile.interests.some((userInterest: string) =>
+                    userInterest
+                      .toLowerCase()
+                      .includes(interest.toLowerCase().split(" ")[0])
+                  )
+                )
             )
-          ).slice(0, 20),
+            .slice(0, 20),
           shownCount: 3,
         },
         {
           id: "new-in-area",
           title: "New in your area",
-          users: allUsers.filter(user =>
-            user.city === userProfile.location
-          ).slice(0, 20),
+          users: allUsers
+            .filter((user) => user.city === userProfile.location)
+            .slice(0, 20),
           shownCount: 3,
         },
         {
           id: "adventure-seekers",
           title: "Adventure seekers",
-          users: allUsers.filter(user =>
-            user.interests && (user.interests.includes("Travel") || user.interests.includes("Hiking"))
-          ).slice(0, 20),
+          users: allUsers
+            .filter(
+              (user) =>
+                user.interests &&
+                Array.isArray(user.interests) &&
+                (user.interests.includes("Travel") ||
+                  user.interests.includes("Hiking"))
+            )
+            .slice(0, 20),
           shownCount: 3,
         },
       ];
@@ -228,10 +268,16 @@ export default function DiscoverScreen() {
   }, [searchPlaceholder]);
 
   const handleShowMore = (categoryId: string) => {
-    setCategories(prevCategories =>
-      prevCategories.map(category =>
+    setCategories((prevCategories) =>
+      prevCategories.map((category) =>
         category.id === categoryId
-          ? { ...category, shownCount: Math.min(category.shownCount + 5, category.users.length) }
+          ? {
+              ...category,
+              shownCount: Math.min(
+                category.shownCount + 5,
+                category.users.length
+              ),
+            }
           : category
       )
     );
@@ -247,41 +293,64 @@ export default function DiscoverScreen() {
     // TODO: Implement search algorithm based on bio, traits, etc.
     // For now, just filter by name or bio containing the query
     if (query.trim()) {
-      const filteredUsers = allUsers.filter(user =>
-        user.name.toLowerCase().includes(query.toLowerCase()) ||
-        user.bio.toLowerCase().includes(query.toLowerCase()) ||
-        (user.interests && user.interests.some(interest =>
-          interest.toLowerCase().includes(query.toLowerCase())
-        ))
+      const filteredUsers = allUsers.filter(
+        (user) =>
+          user.name.toLowerCase().includes(query.toLowerCase()) ||
+          user.bio.toLowerCase().includes(query.toLowerCase()) ||
+          (user.interests &&
+            Array.isArray(user.interests) &&
+            user.interests.some((interest) =>
+              interest.toLowerCase().includes(query.toLowerCase())
+            ))
       );
       // TODO: Show search results
       console.log("Search results:", filteredUsers);
     }
   };
 
+  // Temporarily commented out for testing - uncomment when ready for production
+  /*
   if (!isUnlocked) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      <View
+        style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+      >
         <Text style={theme.title}>Discover</Text>
-        <View style={[styles.lockedContainer, { backgroundColor: theme.card.backgroundColor }]}>
-          <Text style={[styles.lockedIcon, { color: theme.textColor }]}>🔒</Text>
+        <View
+          style={[
+            styles.lockedContainer,
+            { backgroundColor: theme.card.backgroundColor },
+          ]}
+        >
+          <Text style={[styles.lockedIcon, { color: theme.textColor }]}>
+            🔒
+          </Text>
           <Text style={[styles.lockedTitle, { color: theme.textColor }]}>
             Discover Locked
           </Text>
           <Text style={[styles.lockedText, { color: theme.textColor }]}>
-            Fuse with at least 4 people to unlock the Discover feature and find your perfect connections!
+            Fuse with at least 4 people to unlock the Discover feature and find
+            your perfect connections!
           </Text>
         </View>
       </View>
     );
   }
+  */
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+    <View
+      style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+    >
       <Text style={theme.title}>Discover</Text>
 
       {/* Search Bar */}
-      <View style={[styles.searchContainer, { backgroundColor: theme.card.backgroundColor }]}>
+      <View
+        style={[
+          styles.searchContainer,
+          { backgroundColor: theme.card.backgroundColor },
+        ]}
+      >
         <TextInput
           style={[styles.searchInput, { color: theme.textColor }]}
           placeholder={searchPlaceholder}
@@ -308,7 +377,10 @@ export default function DiscoverScreen() {
               keyExtractor={(item) => item.address}
               renderItem={({ item }) => (
                 <TouchableOpacity
-                  style={[styles.userCard, { backgroundColor: theme.card.backgroundColor }]}
+                  style={[
+                    styles.userCard,
+                    { backgroundColor: theme.card.backgroundColor },
+                  ]}
                   onPress={() => handleUserPress(item)}
                   activeOpacity={0.8}
                 >
@@ -320,7 +392,9 @@ export default function DiscoverScreen() {
                       📍 {item.city}
                     </Text>
                     <Text style={[styles.userBio, { color: theme.textColor }]}>
-                      {item.bio.length > 60 ? item.bio.substring(0, 60) + "..." : item.bio}
+                      {item.bio.length > 60
+                        ? item.bio.substring(0, 60) + "..."
+                        : item.bio}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -329,10 +403,15 @@ export default function DiscoverScreen() {
               ListFooterComponent={
                 category.shownCount < category.users.length ? (
                   <TouchableOpacity
-                    style={[styles.showMoreButton, { backgroundColor: theme.buttonBackground }]}
+                    style={[
+                      styles.showMoreButton,
+                      { backgroundColor: theme.buttonBackground },
+                    ]}
                     onPress={() => handleShowMore(category.id)}
                   >
-                    <Text style={[styles.showMoreText, { color: theme.buttonText }]}>
+                    <Text
+                      style={[styles.showMoreText, { color: theme.buttonText }]}
+                    >
                       Show More
                     </Text>
                   </TouchableOpacity>
