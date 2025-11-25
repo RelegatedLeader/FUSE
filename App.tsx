@@ -28,6 +28,7 @@ if (Platform.OS !== "web") {
 import WalletScreen from "./screens/WalletScreen";
 import SignInScreen from "./screens/SignInScreen";
 import SignUpScreen from "./screens/SignUpScreen";
+import BioSetupScreen from "./screens/BioSetupScreen";
 import FuseScreen from "./screens/FuseScreen";
 import AlliancesScreen from "./screens/AlliancesScreen";
 import CyberspaceScreen from "./screens/CyberspaceScreen";
@@ -49,6 +50,7 @@ type RootStackParamList = {
   Wallet: undefined;
   SignUp: undefined;
   SignIn: undefined;
+  BioSetup: undefined;
   Main: undefined;
   Settings: undefined;
   Profile: undefined;
@@ -518,6 +520,7 @@ function AppNavigator() {
       <Stack.Screen name="Wallet" component={WalletScreen} />
       <Stack.Screen name="SignUp" component={SignUpScreen} />
       <Stack.Screen name="SignIn" component={SignInScreen} />
+      <Stack.Screen name="BioSetup" component={BioSetupScreen} />
       <Stack.Screen name="Main" component={MainPager} />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="Profile" component={ProfileScreen} />

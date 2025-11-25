@@ -18,6 +18,7 @@ import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { MatchingEngine } from "../utils/matchingEngine";
 import { FirebaseService } from "../utils/firebaseService";
+import { EnhancedMatchingEngine } from "../utils/enhancedMatchingEngine";
 import { getUserData } from "../utils/contract";
 
 interface DiscoverUser {
@@ -107,6 +108,9 @@ const DiscoverScreen: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<DiscoverUser | null>(null);
   const [requestedUsers, setRequestedUsers] = useState<Set<string>>(new Set());
   const [matchedUsers, setMatchedUsers] = useState<Set<string>>(new Set());
+  const [compatibilityResult, setCompatibilityResult] = useState<any>(null);
+  const [showCompatibilityDetails, setShowCompatibilityDetails] =
+    useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Start loading animation
@@ -453,11 +457,27 @@ const DiscoverScreen: React.FC = () => {
     }
   };
 
-  const handleUserPress = (user: DiscoverUser) => {
+  const handleUserPress = async (user: DiscoverUser) => {
     console.log("Opening profile modal for user:", user.name);
     console.log("User photos:", user.photos);
     setSelectedUser(user);
     setShowProfileModal(true);
+
+    // Calculate compatibility in background
+    if (address && user.address) {
+      try {
+        const compatibility =
+          await EnhancedMatchingEngine.calculateCompatibility(
+            address,
+            user.address
+          );
+        setCompatibilityResult(compatibility);
+        console.log("Compatibility calculated:", compatibility.overallScore);
+      } catch (error) {
+        console.error("Failed to calculate compatibility:", error);
+        setCompatibilityResult(null);
+      }
+    }
   };
 
   const handleFuse = async (targetAddress: string) => {
@@ -781,6 +801,146 @@ const DiscoverScreen: React.FC = () => {
               </Text>
               <View style={styles.headerSpacer} />
             </View>
+
+            {/* Compatibility Score */}
+            {compatibilityResult && (
+              <View style={styles.compatibilityContainer}>
+                <TouchableOpacity
+                  style={styles.compatibilityScore}
+                  onPress={() =>
+                    setShowCompatibilityDetails(!showCompatibilityDetails)
+                  }
+                >
+                  <Text
+                    style={[
+                      styles.compatibilityLabel,
+                      { color: theme.textColor },
+                    ]}
+                  >
+                    Compatibility
+                  </Text>
+                  <View style={styles.compatibilityRow}>
+                    <Text
+                      style={[
+                        styles.compatibilityPercent,
+                        { color: theme.textColor },
+                      ]}
+                    >
+                      {compatibilityResult.overallScore}%
+                    </Text>
+                    <Text
+                      style={[
+                        styles.compatibilityTapHint,
+                        { color: theme.textColor + "80" },
+                      ]}
+                    >
+                      Tap for details
+                    </Text>
+                  </View>
+                  <View style={styles.compatibilityBar}>
+                    <View
+                      style={[
+                        styles.compatibilityFill,
+                        {
+                          width: `${compatibilityResult.overallScore}%`,
+                          backgroundColor:
+                            compatibilityResult.overallScore >= 80
+                              ? "#4CAF50"
+                              : compatibilityResult.overallScore >= 60
+                              ? "#FFC107"
+                              : "#F44336",
+                        },
+                      ]}
+                    />
+                  </View>
+                </TouchableOpacity>
+
+                {showCompatibilityDetails && (
+                  <View style={styles.compatibilityDetails}>
+                    {compatibilityResult.breakdown.map(
+                      (item: any, index: number) => (
+                        <View key={index} style={styles.compatibilityItem}>
+                          <View style={styles.compatibilityItemHeader}>
+                            <Text
+                              style={[
+                                styles.compatibilityCategory,
+                                { color: theme.textColor },
+                              ]}
+                            >
+                              {item.category}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.compatibilityScore,
+                                { color: theme.textColor },
+                              ]}
+                            >
+                              {item.score}%
+                            </Text>
+                          </View>
+                          <Text
+                            style={[
+                              styles.compatibilityDescription,
+                              { color: theme.textColor + "CC" },
+                            ]}
+                          >
+                            {item.description}
+                          </Text>
+                          <View style={styles.compatibilityFactors}>
+                            {item.factors.map((factor: string, idx: number) => (
+                              <Text
+                                key={idx}
+                                style={[
+                                  styles.compatibilityFactor,
+                                  { color: theme.textColor + "99" },
+                                ]}
+                              >
+                                • {factor}
+                              </Text>
+                            ))}
+                          </View>
+                        </View>
+                      )
+                    )}
+
+                    {compatibilityResult.insights.length > 0 && (
+                      <View style={styles.compatibilityInsights}>
+                        <Text
+                          style={[
+                            styles.insightsTitle,
+                            { color: theme.textColor },
+                          ]}
+                        >
+                          💡 Match Insights
+                        </Text>
+                        {compatibilityResult.insights.map(
+                          (insight: any, index: number) => (
+                            <View key={index} style={styles.insightItem}>
+                              <Text
+                                style={[
+                                  styles.insightTitle,
+                                  { color: theme.textColor },
+                                ]}
+                              >
+                                {insight.title}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.insightDescription,
+                                  { color: theme.textColor + "CC" },
+                                ]}
+                              >
+                                {insight.description}
+                              </Text>
+                            </View>
+                          )
+                        )}
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+            )}
 
             {/* Fuse Button */}
             {selectedUser && (
@@ -1217,6 +1377,107 @@ const styles = StyleSheet.create({
   fuseButtonText: {
     fontSize: 18,
     fontWeight: "bold",
+  },
+  // Compatibility Styles
+  compatibilityContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.1)",
+  },
+  compatibilityScore: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 12,
+    padding: 15,
+  },
+  compatibilityLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 8,
+    opacity: 0.8,
+  },
+  compatibilityRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  compatibilityPercent: {
+    fontSize: 28,
+    fontWeight: "bold",
+  },
+  compatibilityTapHint: {
+    fontSize: 12,
+  },
+  compatibilityBar: {
+    height: 4,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  compatibilityFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  compatibilityDetails: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
+  },
+  compatibilityItem: {
+    marginBottom: 15,
+  },
+  compatibilityItemHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 5,
+  },
+  compatibilityCategory: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  compatibilityDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
+    opacity: 0.9,
+  },
+  compatibilityFactors: {
+    marginLeft: 10,
+  },
+  compatibilityFactor: {
+    fontSize: 12,
+    marginBottom: 2,
+    opacity: 0.7,
+  },
+  compatibilityInsights: {
+    marginTop: 15,
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
+  },
+  insightsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 10,
+  },
+  insightItem: {
+    marginBottom: 12,
+    padding: 10,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderRadius: 8,
+  },
+  insightTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  insightDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    opacity: 0.9,
   },
 });
 

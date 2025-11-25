@@ -1,9 +1,9 @@
-﻿import Bundlr from "@bundlr-network/client";
+﻿// import Bundlr from "@bundlr-network/client";
 import Arweave from "arweave";
 import { EncryptionService } from "./encryption";
 
 // Bundlr configuration for Polygon (cheapest fees)
-const BUNDLR_NODE = "https://node2.bundlr.network";
+// const BUNDLR_NODE = "https://node2.bundlr.network";
 
 // Arweave configuration
 const arweave = Arweave.init({
@@ -15,28 +15,29 @@ const arweave = Arweave.init({
 });
 
 export class ArweaveService {
-  private static bundlr: Bundlr | null = null;
+  // private static bundlr: Bundlr | null = null;
 
   /**
    * Initialize Bundlr with user's wallet
    */
-  static async initializeBundlr(signer: any): Promise<void> {
-    try {
-      console.log(" Initializing Bundlr for Arweave storage...");
+  // static async initializeBundlr(signer: any): Promise<void> {
+  //   try {
+  //     console.log("🔶 Initializing Bundlr for Arweave storage...");
 
-      // Use Polygon network for cheapest fees
-      this.bundlr = new Bundlr(BUNDLR_NODE, "matic", signer);
+  //     // Use Polygon network for cheapest fees
+  //     this.bundlr = new Bundlr(BUNDLR_NODE, "matic", signer);
 
-      // Check balance
-      const balance = await this.bundlr.getLoadedBalance();
-      const balanceMatic = this.bundlr.utils.unitConverter(balance);
+  //     // Check balance
+  //     const balance = await this.bundlr.getLoadedBalance();
+  //     const balanceMatic = this.bundlr.utils.unitConverter(balance);
 
-      console.log(`Bundlr balance: ${balanceMatic} MATIC`);
-    } catch (error) {
-      console.error(" Failed to initialize Bundlr:", error);
-      throw error;
-    }
-  }
+  //     console.log(`Bundlr balance: ${balanceMatic} MATIC`);
+  //     } catch (error) {
+  //       console.error("❌ Failed to initialize Bundlr:", error);
+  //       throw error;
+  //     }
+  //   }
+  // }
 
   /**
    * Get upload cost for data

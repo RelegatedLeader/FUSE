@@ -135,6 +135,59 @@ export class FirebaseService {
       throw new Error("Failed to store user profile: " + error);
     }
   }
+  static getMessagingKey(): string | null {
+    return this.userKeys?.messagingKey || null;
+  }
+
+  // Update user bio after initial signup
+  static async updateUserBio(walletAddress: string, bio: string): Promise<void> {
+    if (!this.userKeys) {
+      throw new Error("User keys not initialized");
+    }
+
+    try {
+      const userRef = doc(db, "users", walletAddress);
+      const userSnap = await getDoc(userRef);
+
+      if (!userSnap.exists()) {
+        throw new Error("User profile not found");
+      }
+
+      const existingData = userSnap.data();
+
+      // Get existing encrypted profile to update it
+      let decryptedSensitiveData: any = {};
+      if (existingData!.encryptedProfile) {
+        try {
+          decryptedSensitiveData = EncryptionService.decryptUserProfile(
+            existingData!.encryptedProfile,
+            this.userKeys.dataKey
+          );
+        } catch (error) {
+          throw new Error("Failed to decrypt existing profile data");
+        }
+      }
+
+      // Update the bio in the decrypted data
+      decryptedSensitiveData.bio = bio;
+
+      // Re-encrypt the updated sensitive data
+      const updatedEncryptedSensitiveData = EncryptionService.encryptUserProfile(
+        decryptedSensitiveData,
+        this.userKeys.dataKey
+      );
+
+      // Update the document with new encrypted profile
+      await updateDoc(userRef, {
+        encryptedProfile: updatedEncryptedSensitiveData,
+        lastUpdated: Timestamp.now(),
+      });
+
+      console.log("📝 Updated user bio for:", walletAddress);
+    } catch (error) {
+      throw new Error("Failed to update user bio: " + error);
+    }
+  }
 
   // Retrieve and decrypt user profile
   static async getUserProfile(walletAddress: string): Promise<any> {
@@ -1890,7 +1943,7 @@ export class FirebaseService {
           if (data.matchingData) {
             // Load photos for this user
             const photos = await this.loadUserPhotos(docSnap.id);
-            
+
             users.push({
               address: docSnap.id,
               ...data.matchingData,
@@ -1916,17 +1969,129 @@ export class FirebaseService {
     try {
       const userImagesRef = ref(storage, `users/${userAddress}/images`);
       const result = await listAll(userImagesRef);
-      
+
       const photoPromises = result.items.map(async (itemRef) => {
         const url = await getDownloadURL(itemRef);
         return url;
       });
-      
+
       const photos = await Promise.all(photoPromises);
       console.log(`Loaded ${photos.length} photos for user: ${userAddress}`);
       return photos;
     } catch (error) {
       console.error(`Error loading photos for user ${userAddress}:`, error);
+      return [];
+    }
+  }
+
+  // Conversation Tracking Methods for Enhanced Algorithm
+
+  // Store encrypted conversation message
+  static async storeConversationMessage(messageRecord: any): Promise<void> {
+    try {
+      const auth = getAuth();
+      if (!auth.currentUser) {
+        throw new Error("No authenticated user for Firebase write");
+      }
+
+      const messagesRef = doc(db, "conversation_messages", messageRecord.id);
+      await setDoc(messagesRef, {
+        ...messageRecord,
+        lastUpdated: Timestamp.now(),
+      });
+
+      console.log("💬 Conversation message stored:", messageRecord.id);
+    } catch (error) {
+      console.error("❌ Failed to store conversation message:", error);
+      throw error;
+    }
+  }
+
+  // Get conversation summary
+  static async getConversationSummary(conversationId: string): Promise<any> {
+    try {
+      const summaryRef = doc(db, "conversation_summaries", conversationId);
+      const summarySnap = await getDoc(summaryRef);
+
+      if (summarySnap.exists()) {
+        return summarySnap.data();
+      }
+
+      return null;
+    } catch (error) {
+      console.error("Failed to get conversation summary:", error);
+      return null;
+    }
+  }
+
+  // Create conversation summary
+  static async createConversationSummary(summary: any): Promise<void> {
+    try {
+      const auth = getAuth();
+      if (!auth.currentUser) {
+        throw new Error("No authenticated user for Firebase write");
+      }
+
+      const summaryRef = doc(db, "conversation_summaries", summary.id);
+      await setDoc(summaryRef, {
+        ...summary,
+        createdAt: Timestamp.now(),
+        lastUpdated: Timestamp.now(),
+      });
+
+      console.log("📊 Conversation summary created:", summary.id);
+    } catch (error) {
+      console.error("❌ Failed to create conversation summary:", error);
+      throw error;
+    }
+  }
+
+  // Update conversation summary
+  static async updateConversationSummary(
+    conversationId: string,
+    updates: any
+  ): Promise<void> {
+    try {
+      const auth = getAuth();
+      if (!auth.currentUser) {
+        throw new Error("No authenticated user for Firebase write");
+      }
+
+      const summaryRef = doc(db, "conversation_summaries", conversationId);
+      await updateDoc(summaryRef, {
+        ...updates,
+        lastUpdated: Timestamp.now(),
+      });
+
+      console.log("📊 Conversation summary updated:", conversationId);
+    } catch (error) {
+      console.error("❌ Failed to update conversation summary:", error);
+      throw error;
+    }
+  }
+
+  // Get user's conversations
+  static async getUserConversations(userAddress: string): Promise<any[]> {
+    try {
+      // Query for conversations where user is a participant
+      const q = query(
+        collection(db, "conversation_summaries"),
+        where("participants", "array-contains", userAddress)
+      );
+
+      const querySnapshot = await getDocs(q);
+      const conversations: any[] = [];
+
+      querySnapshot.forEach((doc) => {
+        conversations.push({
+          id: doc.id,
+          ...doc.data(),
+        });
+      });
+
+      return conversations;
+    } catch (error) {
+      console.error("Failed to get user conversations:", error);
       return [];
     }
   }

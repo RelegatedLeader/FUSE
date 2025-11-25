@@ -29,6 +29,7 @@ type RootStackParamList = {
   Wallet: undefined;
   SignUp: undefined;
   SignIn: undefined;
+  BioSetup: undefined;
   Main: undefined;
 };
 
@@ -767,10 +768,10 @@ export default function SignUpScreen({ navigation }: Props) {
         }You can use this transaction ID to retrieve your profile data anytime.`,
         [
           {
-            text: "View Profile",
+            text: "Set Up Bio",
             onPress: () => {
               setModalVisible(false);
-              navigation.navigate("Main");
+              navigation.navigate("BioSetup");
             },
           },
         ]
