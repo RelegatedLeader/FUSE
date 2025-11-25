@@ -12,6 +12,7 @@ import {
   Image,
   Animated,
   Easing,
+  RefreshControl,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -105,6 +106,8 @@ const DiscoverScreen: React.FC = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState<DiscoverUser | null>(null);
   const [requestedUsers, setRequestedUsers] = useState<Set<string>>(new Set());
+  const [matchedUsers, setMatchedUsers] = useState<Set<string>>(new Set());
+  const [refreshing, setRefreshing] = useState(false);
 
   // Start loading animation
   useEffect(() => {
@@ -141,7 +144,7 @@ const DiscoverScreen: React.FC = () => {
     } else {
       // Stop animations when loading is complete
       rotationAnim.stopAnimation();
-      starAnimations.forEach(anim => anim.stopAnimation());
+      starAnimations.forEach((anim) => anim.stopAnimation());
     }
   }, [isLoading, rotationAnim, starAnimations]);
 
@@ -177,6 +180,15 @@ const DiscoverScreen: React.FC = () => {
           ...firebaseProfile,
         });
 
+        // Load sent requests to filter out users already requested
+        const sentRequests = await FirebaseService.loadSentRequests(address);
+        setRequestedUsers(sentRequests);
+
+        // Load matches to filter out users already fused
+        const matches = await FirebaseService.loadMatches(address);
+        const matchedAddresses = new Set(matches.map((match: any) => match.address));
+        setMatchedUsers(matchedAddresses);
+
         // Load all potential matches using the same logic as FuseScreen
         const allMatches = await MatchingEngine.findMatchesForUser(address);
 
@@ -205,7 +217,13 @@ const DiscoverScreen: React.FC = () => {
           interests: user.interests || [],
         }));
 
-        console.log("Discover users loaded:", discoverUsers.map(u => ({ name: u.name, photosCount: u.photos?.length || 0 })));
+        console.log(
+          "Discover users loaded:",
+          discoverUsers.map((u) => ({
+            name: u.name,
+            photosCount: u.photos?.length || 0,
+          }))
+        );
 
         setAllUsers(discoverUsers);
       } catch (error) {
@@ -223,12 +241,17 @@ const DiscoverScreen: React.FC = () => {
     if (!userProfile || allUsers.length === 0) return;
 
     const generateCategories = (): Category[] => {
+      // Filter out requested users
+      const availableUsers = allUsers.filter(
+        (user) => !requestedUsers.has(user.address) && !matchedUsers.has(user.address)
+      );
+
       // Basic category logic (will be enhanced with real algorithm later)
       const categories: Category[] = [
         {
           id: "more-like-you",
           title: "More like you",
-          users: allUsers
+          users: availableUsers
             .filter(
               (user) =>
                 user.city === userProfile.location ||
@@ -247,7 +270,7 @@ const DiscoverScreen: React.FC = () => {
         {
           id: "compatible",
           title: "More Compatible with",
-          users: allUsers
+          users: availableUsers
             .filter(
               (user) =>
                 (user.mbti &&
@@ -267,7 +290,7 @@ const DiscoverScreen: React.FC = () => {
         {
           id: "matches-vibe",
           title: "Matches your vibe",
-          users: allUsers
+          users: availableUsers
             .filter(
               (user) =>
                 user.bio &&
@@ -283,7 +306,7 @@ const DiscoverScreen: React.FC = () => {
         {
           id: "enjoys-what-you-do",
           title: "Enjoys what you do",
-          users: allUsers
+          users: availableUsers
             .filter(
               (user) =>
                 user.interests &&
@@ -304,7 +327,7 @@ const DiscoverScreen: React.FC = () => {
         {
           id: "new-in-area",
           title: "New in your area",
-          users: allUsers
+          users: availableUsers
             .filter((user) => user.city === userProfile.location)
             .slice(0, 20),
           shownCount: 3,
@@ -312,7 +335,7 @@ const DiscoverScreen: React.FC = () => {
         {
           id: "adventure-seekers",
           title: "Adventure seekers",
-          users: allUsers
+          users: availableUsers
             .filter(
               (user) =>
                 user.interests &&
@@ -329,7 +352,7 @@ const DiscoverScreen: React.FC = () => {
     };
 
     setCategories(generateCategories());
-  }, [userProfile, allUsers]);
+  }, [userProfile, allUsers, requestedUsers, matchedUsers]);
 
   // Rotate search placeholder every 30 seconds
   useEffect(() => {
@@ -358,6 +381,73 @@ const DiscoverScreen: React.FC = () => {
     );
   };
 
+  const onRefresh = async () => {
+    setRefreshing(true);
+    setIsLoading(true); // Show the loading animation
+    
+    // Reload data similar to loadData function
+    if (!address) {
+      setRefreshing(false);
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      // Load user's own profile
+      const userData = await getUserData(address);
+      const firebaseProfile = await FirebaseService.getUserProfile(address);
+      setUserProfile({
+        ...userData,
+        ...firebaseProfile,
+      });
+
+      // Load sent requests to filter out users already requested
+      const sentRequests = await FirebaseService.loadSentRequests(address);
+      setRequestedUsers(sentRequests);
+
+      // Load matches to filter out users already fused
+      const matches = await FirebaseService.loadMatches(address);
+      const matchedAddresses = new Set(matches.map((match: any) => match.address));
+      setMatchedUsers(matchedAddresses);
+
+      // Load all users for discovery
+      const allUsersData = await FirebaseService.getAllUsersForDiscovery(
+        address
+      );
+
+      // Convert to DiscoverUser format
+      const discoverUsers: DiscoverUser[] = allUsersData.map((user: any) => ({
+        address: user.address,
+        name: user.name || user.firstName || "Anonymous",
+        age:
+          user.age || (user.birthdate ? calculateAge(user.birthdate) : "N/A"),
+        city: user.location || user.city || "Unknown",
+        bio: user.bio || user.description || "No bio available",
+        photos: user.photos || [],
+        mbti: user.mbti,
+        gender: user.gender,
+        sexuality: user.sexuality,
+        personalityTraits: user.personalityTraits || {},
+        interests: user.interests || [],
+      }));
+
+      console.log(
+        "Refreshed discover users:",
+        discoverUsers.map((u) => ({
+          name: u.name,
+          photosCount: u.photos?.length || 0,
+        }))
+      );
+
+      setAllUsers(discoverUsers);
+    } catch (error) {
+      console.error("Error refreshing discover data:", error);
+    } finally {
+      setRefreshing(false);
+      setIsLoading(false);
+    }
+  };
+
   const handleUserPress = (user: DiscoverUser) => {
     console.log("Opening profile modal for user:", user.name);
     console.log("User photos:", user.photos);
@@ -374,8 +464,12 @@ const DiscoverScreen: React.FC = () => {
       const currentUserPhotos = await FirebaseService.loadUserPhotos(address);
 
       // Get target user's profile data
-      const targetUserProfile = await FirebaseService.getUserProfile(targetAddress);
-      const targetUserPhotos = await FirebaseService.loadUserPhotos(targetAddress);
+      const targetUserProfile = await FirebaseService.getUserProfile(
+        targetAddress
+      );
+      const targetUserPhotos = await FirebaseService.loadUserPhotos(
+        targetAddress
+      );
 
       const requestData = {
         address: address,
@@ -411,11 +505,14 @@ const DiscoverScreen: React.FC = () => {
         // Close modal and refresh data
         setShowProfileModal(false);
         // Refresh the data to remove the user from discovery
-        const allUsersData = await FirebaseService.getAllUsersForDiscovery(address);
+        const allUsersData = await FirebaseService.getAllUsersForDiscovery(
+          address
+        );
         const discoverUsers: DiscoverUser[] = allUsersData.map((user: any) => ({
           address: user.address,
           name: user.name || user.firstName || "Anonymous",
-          age: user.age || (user.birthdate ? calculateAge(user.birthdate) : "N/A"),
+          age:
+            user.age || (user.birthdate ? calculateAge(user.birthdate) : "N/A"),
           city: user.location || user.city || "Unknown",
           bio: user.bio || user.description || "No bio available",
           photos: user.photos || [],
@@ -428,7 +525,7 @@ const DiscoverScreen: React.FC = () => {
         setAllUsers(discoverUsers);
       } else {
         // Add to requested users
-        setRequestedUsers(prev => new Set([...prev, targetAddress]));
+        setRequestedUsers((prev) => new Set([...prev, targetAddress]));
         Alert.alert(
           "Request Sent",
           `Your fuse request has been sent to ${selectedUser.name}.`
@@ -507,7 +604,7 @@ const DiscoverScreen: React.FC = () => {
                   {
                     rotate: rotationAnim.interpolate({
                       inputRange: [0, 1],
-                      outputRange: ['0deg', '360deg'],
+                      outputRange: ["0deg", "360deg"],
                     }),
                   },
                 ],
@@ -519,7 +616,7 @@ const DiscoverScreen: React.FC = () => {
 
           {/* Following Stars */}
           {starAnimations.map((anim, index) => {
-            const angle = (index * 72) * (Math.PI / 180); // 72 degrees apart for 5 stars
+            const angle = index * 72 * (Math.PI / 180); // 72 degrees apart for 5 stars
             const radius = 80;
 
             return (
@@ -588,6 +685,9 @@ const DiscoverScreen: React.FC = () => {
         ref={scrollViewRef}
         style={styles.scrollContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         {categories.map((category) => (
           <View key={category.id} style={styles.categoryContainer}>
@@ -702,7 +802,9 @@ const DiscoverScreen: React.FC = () => {
                       },
                     ]}
                   >
-                    {requestedUsers.has(selectedUser.address) ? "Request sent" : "🚀 Fuse"}
+                    {requestedUsers.has(selectedUser.address)
+                      ? "Request sent"
+                      : "🚀 Fuse"}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -798,7 +900,10 @@ const DiscoverScreen: React.FC = () => {
                   Object.keys(selectedUser.personalityTraits).length > 0 && (
                     <View style={styles.profileSection}>
                       <Text
-                        style={[styles.sectionTitle, { color: theme.textColor }]}
+                        style={[
+                          styles.sectionTitle,
+                          { color: theme.textColor },
+                        ]}
                       >
                         Personality Traits
                       </Text>
@@ -813,7 +918,10 @@ const DiscoverScreen: React.FC = () => {
                               ]}
                             >
                               <Text
-                                style={{ color: theme.buttonText, fontSize: 12 }}
+                                style={{
+                                  color: theme.buttonText,
+                                  fontSize: 12,
+                                }}
                               >
                                 {traitName.charAt(0).toUpperCase() +
                                   traitName.slice(1)}
