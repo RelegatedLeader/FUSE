@@ -1,16 +1,10 @@
 // @ts-ignore
-import nlp from "compromise";
-// @ts-ignore
-import { SentimentManager } from "@nlpjs/sentiment";
-// @ts-ignore
 import writeGood from "write-good";
 
-// Bio Analysis and NLP Processing for FUSE
+// Simplified Bio Analysis for FUSE (without external NLP libraries for React Native compatibility)
 export class BioAnalyzer {
-  private sentiment: SentimentManager;
-
   constructor() {
-    this.sentiment = new SentimentManager();
+    // No external dependencies needed
   }
 
   // Analyze bio for personality traits and characteristics
@@ -19,24 +13,24 @@ export class BioAnalyzer {
       return this.getEmptyAnalysis();
     }
 
-    const doc = nlp(bio.toLowerCase());
+    const text = bio.toLowerCase();
 
     // Extract various personality indicators
     const analysis = {
       // Life goals and aspirations
-      lifeGoals: this.extractLifeGoals(doc),
+      lifeGoals: this.extractLifeGoals(text),
 
       // Humor style and wit
-      humorStyle: this.analyzeHumorStyle(doc),
+      humorStyle: this.analyzeHumorStyle(text),
 
       // Communication preferences
-      communicationStyle: this.analyzeCommunicationStyle(doc),
+      communicationStyle: this.analyzeCommunicationStyle(text),
 
       // Emotional maturity indicators
-      emotionalMaturity: this.analyzeEmotionalMaturity(doc),
+      emotionalMaturity: this.analyzeEmotionalMaturity(text),
 
       // Relationship style (casual vs serious)
-      relationshipStyle: this.analyzeRelationshipStyle(doc),
+      relationshipStyle: this.analyzeRelationshipStyle(text),
 
       // Overall sentiment
       sentiment: await this.analyzeSentiment(bio),
@@ -45,7 +39,7 @@ export class BioAnalyzer {
       writingQuality: this.analyzeWritingQuality(bio),
 
       // Content richness score
-      contentScore: this.calculateContentScore(doc, bio),
+      contentScore: this.calculateContentScore(text),
 
       // Algorithm compatibility score (how well this bio will work for matching)
       algorithmCompatibility: 0,
@@ -59,7 +53,7 @@ export class BioAnalyzer {
   }
 
   // Extract life goals and aspirations from bio
-  private extractLifeGoals(doc: any): string[] {
+  private extractLifeGoals(text: string): string[] {
     const goals: string[] = [];
 
     // Look for goal-oriented words and phrases
@@ -83,22 +77,42 @@ export class BioAnalyzer {
     ];
 
     goalIndicators.forEach((indicator) => {
-      if (doc.has(indicator)) {
+      if (text.includes(indicator)) {
         goals.push(indicator);
       }
     });
 
-    return [...new Set(goals)]; // Remove duplicates
+    return Array.from(new Set(goals)); // Remove duplicates
   }
 
   // Analyze humor style
-  private analyzeHumorStyle(doc: any): HumorAnalysis {
+  private analyzeHumorStyle(text: string): HumorAnalysis {
     const humorIndicators = {
-      sarcastic: doc.has("sarcasm|sarcastic|irony|ironic"),
-      witty: doc.has("wit|witty|clever|smart"),
-      silly: doc.has("silly|funny|lol|laugh"),
-      dry: doc.has("dry|deadpan|straight"),
-      none: !doc.has("humor|funny|lol|joke|wit"),
+      sarcastic:
+        text.includes("sarcasm") ||
+        text.includes("sarcastic") ||
+        text.includes("irony") ||
+        text.includes("ironic"),
+      witty:
+        text.includes("wit") ||
+        text.includes("witty") ||
+        text.includes("clever") ||
+        text.includes("smart"),
+      silly:
+        text.includes("silly") ||
+        text.includes("funny") ||
+        text.includes("lol") ||
+        text.includes("laugh"),
+      dry:
+        text.includes("dry") ||
+        text.includes("deadpan") ||
+        text.includes("straight"),
+      none:
+        !text.includes("humor") &&
+        !text.includes("funny") &&
+        !text.includes("lol") &&
+        !text.includes("joke") &&
+        !text.includes("wit"),
     };
 
     const styles = Object.entries(humorIndicators)
@@ -107,29 +121,55 @@ export class BioAnalyzer {
 
     return {
       styles: styles.length > 0 ? styles : ["moderate"],
-      intensity: this.calculateHumorIntensity(doc),
+      intensity: this.calculateHumorIntensity(text),
     };
   }
 
   // Analyze communication style
-  private analyzeCommunicationStyle(doc: any): CommunicationStyle {
+  private analyzeCommunicationStyle(text: string): CommunicationStyle {
     return {
-      formality: this.getFormalityLevel(doc),
-      directness: this.getDirectnessLevel(doc),
-      verbosity: this.getVerbosityLevel(doc),
-      emojiUsage: doc.has("#Emoji") ? "frequent" : "minimal",
-      slangUsage: this.detectSlangUsage(doc),
+      formality: this.getFormalityLevel(text),
+      directness: this.getDirectnessLevel(text),
+      verbosity: this.getVerbosityLevel(text),
+      emojiUsage:
+        text.includes("😊") || text.includes("😂") || text.includes("❤️")
+          ? "frequent"
+          : "minimal",
+      slangUsage: this.detectSlangUsage(text),
     };
   }
 
   // Analyze emotional maturity
-  private analyzeEmotionalMaturity(doc: any): EmotionalMaturity {
+  private analyzeEmotionalMaturity(text: string): EmotionalMaturity {
     const maturityIndicators = {
-      empathy: doc.has("empathy|understanding|care|support|help"),
-      selfAwareness: doc.has("growth|learn|change|reflect|aware"),
-      resilience: doc.has("overcome|through|despite|challenge"),
-      positivity: doc.has("positive|optimistic|hopeful|grateful"),
-      negativity: doc.has("hate|angry|bitter|resentful|toxic"),
+      empathy:
+        text.includes("empathy") ||
+        text.includes("understanding") ||
+        text.includes("care") ||
+        text.includes("support") ||
+        text.includes("help"),
+      selfAwareness:
+        text.includes("growth") ||
+        text.includes("learn") ||
+        text.includes("change") ||
+        text.includes("reflect") ||
+        text.includes("aware"),
+      resilience:
+        text.includes("overcome") ||
+        text.includes("through") ||
+        text.includes("despite") ||
+        text.includes("challenge"),
+      positivity:
+        text.includes("positive") ||
+        text.includes("optimistic") ||
+        text.includes("hopeful") ||
+        text.includes("grateful"),
+      negativity:
+        text.includes("hate") ||
+        text.includes("angry") ||
+        text.includes("bitter") ||
+        text.includes("resentful") ||
+        text.includes("toxic"),
     };
 
     const score = Object.values(maturityIndicators).filter(Boolean).length;
@@ -144,13 +184,21 @@ export class BioAnalyzer {
   }
 
   // Analyze relationship style
-  private analyzeRelationshipStyle(doc: any): RelationshipStyle {
-    const casualIndicators = doc.has(
-      "casual|fun|hang out|chill|laid back|easy going"
-    );
-    const seriousIndicators = doc.has(
-      "serious|committed|long-term|relationship|deep|meaningful"
-    );
+  private analyzeRelationshipStyle(text: string): RelationshipStyle {
+    const casualIndicators =
+      text.includes("casual") ||
+      text.includes("fun") ||
+      text.includes("hang out") ||
+      text.includes("chill") ||
+      text.includes("laid back") ||
+      text.includes("easy going");
+    const seriousIndicators =
+      text.includes("serious") ||
+      text.includes("committed") ||
+      text.includes("long-term") ||
+      text.includes("relationship") ||
+      text.includes("deep") ||
+      text.includes("meaningful");
 
     if (casualIndicators && seriousIndicators) {
       return { style: "balanced", preference: "flexible" };
@@ -163,15 +211,30 @@ export class BioAnalyzer {
     }
   }
 
-  // Analyze sentiment
+  // Analyze sentiment (simplified string-based approach)
   private async analyzeSentiment(text: string): Promise<SentimentAnalysis> {
     try {
-      const result = await this.sentiment.process("en", text);
-      return {
-        score: result.sentiment.score || 0,
-        magnitude: Math.abs(result.sentiment.score || 0),
-        label: result.sentiment.vote || "neutral",
-      };
+      const positiveWords = ["love", "like", "great", "awesome", "amazing", "wonderful", "fantastic", "excellent", "good", "happy", "joy", "excited", "thrilled"];
+      const negativeWords = ["hate", "dislike", "terrible", "awful", "horrible", "bad", "sad", "angry", "frustrated", "annoyed", "upset"];
+
+      const words = text.toLowerCase().split(/\s+/);
+      let positiveCount = 0;
+      let negativeCount = 0;
+
+      words.forEach(word => {
+        if (positiveWords.some(pw => word.includes(pw))) positiveCount++;
+        if (negativeWords.some(nw => word.includes(nw))) negativeCount++;
+      });
+
+      const total = positiveCount + negativeCount;
+      const score = total > 0 ? (positiveCount - negativeCount) / total : 0;
+      const magnitude = Math.abs(score);
+
+      let label = "neutral";
+      if (score > 0.2) label = "positive";
+      else if (score < -0.2) label = "negative";
+
+      return { score, magnitude, label };
     } catch (error) {
       return { score: 0, magnitude: 0, label: "neutral" };
     }
@@ -197,11 +260,13 @@ export class BioAnalyzer {
   }
 
   // Calculate content richness score
-  private calculateContentScore(doc: any, text: string): number {
+  private calculateContentScore(text: string): number {
     let score = 0;
 
     // Length score (0-20 points)
-    const wordCount = doc.wordCount();
+    const wordCount = text
+      .split(/\s+/)
+      .filter((word) => word.length > 0).length;
     if (wordCount >= 50) score += 20;
     else if (wordCount >= 30) score += 15;
     else if (wordCount >= 20) score += 10;
@@ -217,7 +282,9 @@ export class BioAnalyzer {
       "goal",
       "future",
     ];
-    const detailCount = detailIndicators.filter((word) => doc.has(word)).length;
+    const detailCount = detailIndicators.filter((word) =>
+      text.includes(word)
+    ).length;
     score += Math.min(detailCount * 5, 30);
 
     // Personality indicators (0-25 points)
@@ -231,13 +298,16 @@ export class BioAnalyzer {
       "funny",
     ];
     const personalityCount = personalityWords.filter((word) =>
-      doc.has(word)
+      text.includes(word)
     ).length;
     score += Math.min(personalityCount * 5, 25);
 
-    // Interest variety (0-25 points)
-    const interests = doc.match("#Noun").out("array").length;
-    score += Math.min(interests * 2, 25);
+    // Interest variety (0-25 points) - simplified noun counting
+    const words = text.split(/\s+/);
+    const potentialNouns = words.filter(
+      (word) => word.length > 3 && !word.includes("ing") && !word.includes("ed")
+    );
+    score += Math.min(potentialNouns.length * 2, 25);
 
     return Math.min(score, 100);
   }
@@ -283,37 +353,57 @@ export class BioAnalyzer {
   }
 
   // Helper methods
-  private calculateHumorIntensity(doc: any): number {
+  private calculateHumorIntensity(text: string): number {
     const humorWords = ["lol", "haha", "funny", "joke", "wit", "clever"];
-    return humorWords.filter((word) => doc.has(word)).length;
+    return humorWords.filter((word) => text.includes(word)).length;
   }
 
-  private getFormalityLevel(doc: any): "formal" | "casual" | "mixed" {
-    const formalWords = doc.has("therefore|however|moreover|consequently");
-    const casualWords = doc.has("kinda|sorta|wanna|gonna|lol|omg");
+  private getFormalityLevel(text: string): "formal" | "casual" | "mixed" {
+    const formalWords =
+      text.includes("therefore") ||
+      text.includes("however") ||
+      text.includes("moreover") ||
+      text.includes("consequently");
+    const casualWords =
+      text.includes("kinda") ||
+      text.includes("sorta") ||
+      text.includes("wanna") ||
+      text.includes("gonna") ||
+      text.includes("lol") ||
+      text.includes("omg");
 
     if (formalWords && !casualWords) return "formal";
     if (casualWords && !formalWords) return "casual";
     return "mixed";
   }
 
-  private getDirectnessLevel(doc: any): "direct" | "indirect" | "balanced" {
-    const directWords = doc.has("i want|i need|i love|i hate");
-    const indirectWords = doc.has("maybe|perhaps|kinda|sorta");
+  private getDirectnessLevel(text: string): "direct" | "indirect" | "balanced" {
+    const directWords =
+      text.includes("i want") ||
+      text.includes("i need") ||
+      text.includes("i love") ||
+      text.includes("i hate");
+    const indirectWords =
+      text.includes("maybe") ||
+      text.includes("perhaps") ||
+      text.includes("kinda") ||
+      text.includes("sorta");
 
     if (directWords && !indirectWords) return "direct";
     if (indirectWords && !directWords) return "indirect";
     return "balanced";
   }
 
-  private getVerbosityLevel(doc: any): "concise" | "moderate" | "verbose" {
-    const wordCount = doc.wordCount();
+  private getVerbosityLevel(text: string): "concise" | "moderate" | "verbose" {
+    const wordCount = text
+      .split(/\s+/)
+      .filter((word) => word.length > 0).length;
     if (wordCount < 20) return "concise";
     if (wordCount < 50) return "moderate";
     return "verbose";
   }
 
-  private detectSlangUsage(doc: any): "minimal" | "moderate" | "heavy" {
+  private detectSlangUsage(text: string): "minimal" | "moderate" | "heavy" {
     const slangWords = [
       "lit",
       "fam",
@@ -325,7 +415,7 @@ export class BioAnalyzer {
       "vibe",
       "flex",
     ];
-    const slangCount = slangWords.filter((word) => doc.has(word)).length;
+    const slangCount = slangWords.filter((word) => text.includes(word)).length;
 
     if (slangCount === 0) return "minimal";
     if (slangCount <= 2) return "moderate";

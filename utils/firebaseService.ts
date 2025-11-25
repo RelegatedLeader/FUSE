@@ -140,7 +140,10 @@ export class FirebaseService {
   }
 
   // Update user bio after initial signup
-  static async updateUserBio(walletAddress: string, bio: string): Promise<void> {
+  static async updateUserBio(
+    walletAddress: string,
+    bio: string
+  ): Promise<void> {
     if (!this.userKeys) {
       throw new Error("User keys not initialized");
     }
@@ -172,10 +175,11 @@ export class FirebaseService {
       decryptedSensitiveData.bio = bio;
 
       // Re-encrypt the updated sensitive data
-      const updatedEncryptedSensitiveData = EncryptionService.encryptUserProfile(
-        decryptedSensitiveData,
-        this.userKeys.dataKey
-      );
+      const updatedEncryptedSensitiveData =
+        EncryptionService.encryptUserProfile(
+          decryptedSensitiveData,
+          this.userKeys.dataKey
+        );
 
       // Update the document with new encrypted profile
       await updateDoc(userRef, {

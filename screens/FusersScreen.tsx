@@ -352,6 +352,12 @@ export default function FusersScreen() {
     );
   };
 
+  const shit = () => {
+    let nums = [1, 2, 3, 4];
+    nums.map((num) => {
+      console.log(num);
+    });
+  };
   const handleFuseIncoming = async (
     requesterAddress: string,
     requesterName: string

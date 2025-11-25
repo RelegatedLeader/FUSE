@@ -24,7 +24,10 @@ export class ConversationTracker {
       if (!messagingKey) {
         throw new Error("Firebase service not initialized");
       }
-      const encryptedData = EncryptionService.encrypt(messageJson, messagingKey);
+      const encryptedData = EncryptionService.encrypt(
+        messageJson,
+        messagingKey
+      );
 
       const messageRecord = {
         id: `${conversationId}_${timestamp}`,

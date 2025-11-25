@@ -3,6 +3,7 @@ import { getFirestore } from "firebase/firestore";
 import {
   initializeAuth,
   signInAnonymously,
+  getReactNativePersistence,
 } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -31,7 +32,9 @@ const app = initializeApp(firebaseConfig);
 
 // Initialize Firebase services
 export const db = getFirestore(app);
-export const auth = initializeAuth(app);
+export const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage),
+});
 export const storage = getStorage(app, "gs://fuse-ede12.firebasestorage.app");
 
 // Initialize anonymous authentication
@@ -39,19 +42,19 @@ export const initializeFirebaseAuth = async () => {
   try {
     console.log(
       "🔐 initializeFirebaseAuth called, current user:",
-      ((auth.currentUser as any)?.uid) || "none"
+      (auth.currentUser as any)?.uid || "none"
     );
     if (!auth.currentUser) {
       console.log("🔐 Signing in anonymously...");
       await signInAnonymously(auth);
       console.log(
         "🔐 Firebase anonymous authentication initialized, user:",
-        ((auth.currentUser as any)?.uid) || "none"
+        (auth.currentUser as any)?.uid || "none"
       );
     } else {
       console.log(
         "🔐 Already authenticated, user:",
-        ((auth.currentUser as any)?.uid) || "none"
+        (auth.currentUser as any)?.uid || "none"
       );
     }
   } catch (error) {

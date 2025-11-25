@@ -118,15 +118,15 @@ const BioSetupScreen: React.FC = () => {
     try {
       // Submit the bio to Firebase
       await FirebaseService.updateUserBio(address!, bio);
-      
+
       Alert.alert(
         "Success",
         "Your bio has been saved! You can now discover friends.",
         [
           {
             text: "Start Discovering",
-            onPress: () => navigation.navigate("Main")
-          }
+            onPress: () => navigation.navigate("Main"),
+          },
         ]
       );
     } catch (error) {
@@ -381,11 +381,14 @@ const BioSetupScreen: React.FC = () => {
                 analysis && analysis.algorithmCompatibility >= 50
                   ? theme.buttonBackground
                   : "#666",
-              opacity: analysis && analysis.algorithmCompatibility >= 50 ? 1 : 0.6,
+              opacity:
+                analysis && analysis.algorithmCompatibility >= 50 ? 1 : 0.6,
             },
           ]}
           onPress={handleSubmit}
-          disabled={!analysis || (analysis && analysis.algorithmCompatibility < 50)}
+          disabled={
+            !analysis || (analysis && analysis.algorithmCompatibility < 50)
+          }
         >
           <Text style={[styles.submitButtonText, { color: theme.buttonText }]}>
             Save Bio & Continue
