@@ -95,6 +95,62 @@ export class EnhancedMatchingEngine {
     }
   }
 
+  // Default compatibility result when calculation fails
+  private static getDefaultCompatibilityResult(): CompatibilityResult {
+    return {
+      overallScore: 50,
+      scores: {
+        profileCompatibility: 50,
+        bioCompatibility: 50,
+        interactionCompatibility: 50,
+        personalityCompatibility: 50,
+        interestCompatibility: 50,
+        valueAlignment: 50,
+      },
+      breakdown: [
+        {
+          category: "Profile Basics",
+          score: 50,
+          description: "Unable to analyze profile information",
+          factors: [],
+        },
+        {
+          category: "Communication Style",
+          score: 50,
+          description: "Unable to analyze communication preferences",
+          factors: [],
+        },
+        {
+          category: "Interaction History",
+          score: 50,
+          description: "No interaction data available",
+          factors: [],
+        },
+        {
+          category: "Personality Match",
+          score: 50,
+          description: "Unable to analyze personality compatibility",
+          factors: [],
+        },
+        {
+          category: "Shared Interests",
+          score: 50,
+          description: "Unable to analyze interests",
+          factors: [],
+        },
+        {
+          category: "Values Alignment",
+          score: 50,
+          description: "Unable to analyze values",
+          factors: [],
+        },
+      ],
+      insights: [],
+      confidence: 0.5,
+      factors: ["Limited data available"],
+    };
+  }
+
   // Calculate profile compatibility (age, location, basic info)
   private static calculateProfileCompatibility(user1: any, user2: any): number {
     let score = 0;
@@ -482,7 +538,7 @@ export class EnhancedMatchingEngine {
       }
     });
 
-    return Math.round(totalScore / totalWeight);
+    return Math.max(50, Math.round(totalScore / totalWeight));
   }
 
   // Generate detailed compatibility breakdown
@@ -731,6 +787,50 @@ export class EnhancedMatchingEngine {
       confidence: 30,
       factors: ["Limited Data"],
     };
+  }
+
+  // Description methods for compatibility breakdown
+  private static getProfileDescription(score: number): string {
+    if (score >= 80) return "Excellent match on basic profile information";
+    if (score >= 60) return "Good alignment on age, location, and basic info";
+    if (score >= 40) return "Moderate match on profile basics";
+    return "Limited profile information alignment";
+  }
+
+  private static getBioDescription(score: number): string {
+    if (score >= 80) return "Communication styles are highly compatible";
+    if (score >= 60) return "Good communication style alignment";
+    if (score >= 40) return "Moderate communication compatibility";
+    return "Communication styles may differ";
+  }
+
+  private static getInteractionDescription(score: number): string {
+    if (score >= 80) return "Interaction patterns are very compatible";
+    if (score >= 60) return "Good alignment in interaction preferences";
+    if (score >= 40) return "Moderate interaction compatibility";
+    return "Interaction patterns may need adjustment";
+  }
+
+  private static getPersonalityDescription(score: number): string {
+    if (score >= 80) return "Personality traits are highly compatible";
+    if (score >= 60) return "Good personality trait alignment";
+    if (score >= 40) return "Moderate personality compatibility";
+    return "Personality traits may differ significantly";
+  }
+
+  private static getInterestDescription(score: number): string {
+    if (score >= 80)
+      return "Shared interests create strong connection potential";
+    if (score >= 60) return "Good overlap in interests and hobbies";
+    if (score >= 40) return "Some shared interests found";
+    return "Limited shared interests";
+  }
+
+  private static getValueDescription(score: number): string {
+    if (score >= 80) return "Life values and goals are highly aligned";
+    if (score >= 60) return "Good alignment in life values";
+    if (score >= 40) return "Moderate value alignment";
+    return "Life values may differ";
   }
 }
 

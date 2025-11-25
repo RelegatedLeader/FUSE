@@ -305,7 +305,9 @@ export default function FusersScreen() {
 
     for (const user of users) {
       try {
-        console.log(`🔄 Calculating compatibility for ${user.name} (${user.address})`);
+        console.log(
+          `🔄 Calculating compatibility for ${user.name} (${user.address})`
+        );
         const compatibility =
           await EnhancedMatchingEngine.calculateCompatibility(
             address,
@@ -839,7 +841,10 @@ export default function FusersScreen() {
                                     { color: theme.textColor },
                                   ]}
                                 >
-                                  {trait}: {typeof value === 'number' ? value.toFixed(1) : value}
+                                  {trait}:{" "}
+                                  {typeof value === "number"
+                                    ? value.toFixed(1)
+                                    : value}
                                 </Text>
                               </View>
                             )

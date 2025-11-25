@@ -247,32 +247,39 @@ const DiscoverScreen: React.FC = () => {
   }, [address, isUnlocked]);
 
   const calculateCompatibilityForUsers = async (users: DiscoverUser[]): Promise<DiscoverUser[]> => {
-    if (!address) return users;
+    console.log("🔄 Starting compatibility calculation for", users.length, "users");
+    if (!address) {
+      console.log("❌ No address available for compatibility calculation");
+      return users;
+    }
 
     console.log("🔄 Calculating compatibility for discover users:", users.length);
     const updatedUsers = await Promise.all(
       users.map(async (user) => {
         try {
+          console.log(`🔄 Calculating for ${user.name} (${user.address})`);
           const compatibility = await EnhancedMatchingEngine.calculateCompatibility(
             address,
             user.address
           );
           console.log(`✅ Discover compatibility for ${user.name}: ${compatibility.overallScore}%`);
-          return {
+          const updatedUser = {
             ...user,
-            compatibilityScore: compatibility.overallScore,
+            compatibilityScore: compatibility.overallScore || 42, // Use calculated or fallback
           };
+          console.log(`📊 Updated user ${user.name} with score:`, updatedUser.compatibilityScore);
+          return updatedUser;
         } catch (error) {
           console.error(`❌ Failed to calculate compatibility for ${user.name}:`, error);
           return {
             ...user,
-            compatibilityScore: 50, // Default score
+            compatibilityScore: 42, // Default score
           };
         }
       })
     );
 
-    console.log("🔄 Updated discover users with compatibility:", updatedUsers.map(u => ({name: u.name, score: u.compatibilityScore})));
+    console.log("🔄 Final updated users:", updatedUsers.map(u => `${u.name}: ${u.compatibilityScore}%`));
     return updatedUsers;
   };
 
@@ -777,7 +784,7 @@ const DiscoverScreen: React.FC = () => {
                       </Text>
                       <View style={styles.compatibilityBadge}>
                         <Text style={styles.compatibilityBadgeText}>
-                          🚀 {item.compatibilityScore || 75}%
+                          🚀 {item.compatibilityScore !== undefined ? item.compatibilityScore : '??'}%
                         </Text>
                       </View>
                     </View>

@@ -23,6 +23,7 @@ import {
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { MatchingEngine } from "../utils/matchingEngine";
+import { EnhancedMatchingEngine, CompatibilityResult } from "../utils/enhancedMatchingEngine";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CryptoJS from "crypto-js";
 
@@ -40,6 +41,7 @@ interface User {
   bio: string;
   photos: string[];
   compatibilityScore?: number;
+  compatibilityResult?: CompatibilityResult;
   skipped?: boolean;
   mbti?: string;
   gender?: string;
@@ -404,6 +406,27 @@ export default function FuseScreen() {
         // Load photos from local storage
         const photos = await loadUserPhotos(match.address);
 
+        // Calculate compatibility score
+        let compatibilityScore = 50; // fallback
+        let compatibilityResult: CompatibilityResult | undefined;
+        try {
+          compatibilityResult =
+            await EnhancedMatchingEngine.calculateCompatibility(
+              address,
+              match.address
+            );
+          compatibilityScore = compatibilityResult.overallScore;
+          console.log(
+            `Compatibility for ${match.address}: ${compatibilityScore}%`
+          );
+        } catch (error) {
+          console.warn(
+            "Error calculating compatibility for",
+            match.address,
+            error
+          );
+        }
+
         const userData: User = {
           address: match.address,
           name: name,
@@ -414,7 +437,8 @@ export default function FuseScreen() {
             match.profile?.traits?.bio ||
             "This user hasn't written a bio yet",
           photos: photos,
-          compatibilityScore: match.compatibilityScore,
+          compatibilityScore: compatibilityScore,
+          compatibilityResult: compatibilityResult,
           skipped: false,
           mbti: match.profile?.mbti,
           gender: match.profile?.gender,
@@ -803,6 +827,7 @@ export default function FuseScreen() {
     const modalScrollRef = useRef<GestureScrollView>(null);
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
     const [showProfileModal, setShowProfileModal] = useState(false);
+    const [showCompatibilityModal, setShowCompatibilityModal] = useState(false);
     const [gestureY, setGestureY] = useState(0);
 
     const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -1031,6 +1056,17 @@ export default function FuseScreen() {
               {hasIncomingRequest && (
                 <Text style={styles.rocketIndicator}>🚀</Text>
               )}
+              {user.compatibilityScore !== undefined &&
+                user.compatibilityScore !== null && (
+                  <TouchableOpacity
+                    onPress={() => setShowCompatibilityModal(true)}
+                    style={styles.compatibilityBadge}
+                  >
+                    <Text style={styles.compatibilityBadgeText}>
+                      🚀 {Math.round(user.compatibilityScore)}%
+                    </Text>
+                  </TouchableOpacity>
+                )}
             </View>
             <Text
               style={[
@@ -1040,21 +1076,6 @@ export default function FuseScreen() {
             >
               {String("📍 " + (user.city || "Unknown Location"))}
             </Text>
-            {user.compatibilityScore !== undefined &&
-              user.compatibilityScore !== null && (
-                <Text
-                  style={[
-                    { color: theme?.textColor || "#666" },
-                    styles.compactCompatibility,
-                  ]}
-                >
-                  {String(
-                    "Compatibility: " +
-                      Math.round(user.compatibilityScore) +
-                      "%"
-                  )}
-                </Text>
-              )}
             <Text
               style={[{ color: theme?.textColor || "#666" }, styles.compactBio]}
               numberOfLines={isLargeScreen ? 8 : 4}
@@ -1304,6 +1325,190 @@ export default function FuseScreen() {
                   </GestureScrollView>
                 </View>
               </PanGestureHandler>
+            </View>
+          </Modal>
+
+          {/* Compatibility Modal */}
+          <Modal
+            visible={showCompatibilityModal}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setShowCompatibilityModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.compatibilityModalContent}>
+                <View style={styles.modalHeader}>
+                  <View style={styles.headerSpacer} />
+                  <Text
+                    style={[
+                      styles.modalTitle,
+                      { color: theme.textColor },
+                    ]}
+                  >
+                    Compatibility with {user.name}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.closeArea}
+                    onPress={() => setShowCompatibilityModal(false)}
+                  >
+                    <Text
+                      style={[
+                        styles.closeButtonText,
+                        { color: theme.textColor },
+                      ]}
+                    >
+                      ✕
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <ScrollView style={styles.compatibilityContent}>
+                  {user.compatibilityResult ? (
+                    <>
+                      <View style={styles.overallScore}>
+                        <Text
+                          style={[
+                            styles.overallScoreText,
+                            { color: theme.textColor },
+                          ]}
+                        >
+                          Overall Compatibility: {Math.round(user.compatibilityResult.overallScore)}%
+                        </Text>
+                        <Text
+                          style={[
+                            styles.confidenceText,
+                            { color: theme.textColor, opacity: 0.7 },
+                          ]}
+                        >
+                          Confidence: {Math.round(user.compatibilityResult.confidence * 100)}%
+                        </Text>
+                      </View>
+
+                      <View style={styles.breakdownSection}>
+                        <Text
+                          style={[
+                            styles.sectionTitle,
+                            { color: theme.textColor },
+                          ]}
+                        >
+                          Compatibility Breakdown
+                        </Text>
+                        {user.compatibilityResult.breakdown.map((item, index) => (
+                          <View key={index} style={styles.breakdownItem}>
+                            <View style={styles.breakdownHeader}>
+                              <Text
+                                style={[
+                                  styles.breakdownCategory,
+                                  { color: theme.textColor },
+                                ]}
+                              >
+                                {item.category}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.breakdownScore,
+                                  { color: theme.textColor },
+                                ]}
+                              >
+                                {Math.round(item.score)}%
+                              </Text>
+                            </View>
+                            <Text
+                              style={[
+                                styles.breakdownDescription,
+                                { color: theme.textColor, opacity: 0.8 },
+                              ]}
+                            >
+                              {item.description}
+                            </Text>
+                            {item.factors && item.factors.length > 0 && (
+                              <View style={styles.factorsList}>
+                                {item.factors.map((factor, idx) => (
+                                  <Text
+                                    key={idx}
+                                    style={[
+                                      styles.factorText,
+                                      { color: theme.textColor, opacity: 0.7 },
+                                    ]}
+                                  >
+                                    • {factor}
+                                  </Text>
+                                ))}
+                              </View>
+                            )}
+                          </View>
+                        ))}
+                      </View>
+
+                      {user.compatibilityResult.insights && user.compatibilityResult.insights.length > 0 && (
+                        <View style={styles.insightsSection}>
+                          <Text
+                            style={[
+                              styles.sectionTitle,
+                              { color: theme.textColor },
+                            ]}
+                          >
+                            Match Insights
+                          </Text>
+                          {user.compatibilityResult.insights.map((insight, index) => (
+                            <View key={index} style={styles.insightItem}>
+                              <Text
+                                style={[
+                                  styles.insightTitle,
+                                  { color: theme.textColor },
+                                ]}
+                              >
+                                {insight.title}
+                              </Text>
+                              <Text
+                                style={[
+                                  styles.insightDescription,
+                                  { color: theme.textColor, opacity: 0.8 },
+                                ]}
+                              >
+                                {insight.description}
+                              </Text>
+                            </View>
+                          ))}
+                        </View>
+                      )}
+
+                      {user.compatibilityResult.factors && user.compatibilityResult.factors.length > 0 && (
+                        <View style={styles.factorsSection}>
+                          <Text
+                            style={[
+                              styles.sectionTitle,
+                              { color: theme.textColor },
+                            ]}
+                          >
+                            Top Compatibility Factors
+                          </Text>
+                          {user.compatibilityResult.factors.map((factor, index) => (
+                            <Text
+                              key={index}
+                              style={[
+                                styles.factorText,
+                                { color: theme.textColor, opacity: 0.8 },
+                              ]}
+                            >
+                              • {factor}
+                            </Text>
+                          ))}
+                        </View>
+                      )}
+                    </>
+                  ) : (
+                    <Text
+                      style={[
+                        styles.noDataText,
+                        { color: theme.textColor, opacity: 0.7 },
+                      ]}
+                    >
+                      Compatibility details not available
+                    </Text>
+                  )}
+                </ScrollView>
+              </View>
             </View>
           </Modal>
         </TouchableOpacity>
@@ -2046,6 +2251,26 @@ const styles = StyleSheet.create({
     fontSize: 18,
     marginLeft: 8,
   },
+  compatibilityBadge: {
+    backgroundColor: "#FF6B35", // Orange rocket color
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginLeft: 8,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  compatibilityBadgeText: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
   navButton: {
     width: 50,
     height: 50,
@@ -2092,5 +2317,95 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: "center",
     opacity: 0.8,
+  },
+  compatibilityModalContent: {
+    backgroundColor: "white",
+    margin: 20,
+    borderRadius: 20,
+    maxHeight: Dimensions.get("window").height * 0.8,
+    width: Dimensions.get("window").width - 40,
+  },
+  compatibilityContent: {
+    padding: 20,
+  },
+  overallScore: {
+    alignItems: "center",
+    marginBottom: 20,
+    padding: 15,
+    backgroundColor: "#FFF8E1",
+    borderRadius: 10,
+  },
+  overallScoreText: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
+  confidenceText: {
+    fontSize: 16,
+    opacity: 0.8,
+  },
+  breakdownSection: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  breakdownItem: {
+    backgroundColor: "#F5F5F5",
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  breakdownHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 5,
+  },
+  breakdownCategory: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  breakdownScore: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  breakdownDescription: {
+    fontSize: 14,
+    marginBottom: 5,
+  },
+  factorsList: {
+    marginTop: 5,
+  },
+  factorText: {
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  insightsSection: {
+    marginBottom: 20,
+  },
+  insightItem: {
+    backgroundColor: "#E8F5E8",
+    padding: 15,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  insightTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
+  insightDescription: {
+    fontSize: 14,
+  },
+  factorsSection: {
+    marginBottom: 20,
+  },
+  noDataText: {
+    fontSize: 16,
+    textAlign: "center",
+    marginTop: 20,
   },
 });
