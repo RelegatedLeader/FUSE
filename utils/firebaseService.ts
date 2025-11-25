@@ -1864,4 +1864,70 @@ export class FirebaseService {
       throw error;
     }
   }
+
+  static async getAllUsersForDiscovery(
+    currentUserAddress: string
+  ): Promise<any[]> {
+    try {
+      const usersRef = collection(db, "users");
+      const querySnapshot = await getDocs(usersRef);
+      console.log(
+        "Firebase getAllUsersForDiscovery: Found",
+        querySnapshot.docs.length,
+        "total users in database"
+      );
+
+      const users = [];
+      for (const docSnap of querySnapshot.docs) {
+        if (docSnap.id === currentUserAddress) {
+          continue; // Skip self
+        }
+
+        try {
+          const data = docSnap.data();
+
+          // Get public matching data (not encrypted)
+          if (data.matchingData) {
+            // Load photos for this user
+            const photos = await this.loadUserPhotos(docSnap.id);
+            
+            users.push({
+              address: docSnap.id,
+              ...data.matchingData,
+              photos: photos,
+            });
+          } else {
+            console.log("No matching data for user:", docSnap.id);
+          }
+        } catch (error) {
+          console.log("Cannot process user:", docSnap.id);
+        }
+      }
+
+      return users;
+    } catch (error) {
+      console.error("Error getting all users for discovery:", error);
+      return [];
+    }
+  }
+
+  // Load user photos from Firebase Storage
+  static async loadUserPhotos(userAddress: string): Promise<string[]> {
+    try {
+      const userImagesRef = ref(storage, `users/${userAddress}/images`);
+      const result = await listAll(userImagesRef);
+      
+      const photoPromises = result.items.map(async (itemRef) => {
+        const url = await getDownloadURL(itemRef);
+        return url;
+      });
+      
+      const photos = await Promise.all(photoPromises);
+      console.log(`Loaded ${photos.length} photos for user: ${userAddress}`);
+      return photos;
+    } catch (error) {
+      console.error(`Error loading photos for user ${userAddress}:`, error);
+      return [];
+    }
+  }
 }

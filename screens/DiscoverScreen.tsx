@@ -8,9 +8,12 @@ import {
   TextInput,
   FlatList,
   Alert,
+  Modal,
+  Image,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { MatchingEngine } from "../utils/matchingEngine";
 import { FirebaseService } from "../utils/firebaseService";
 import { getUserData } from "../utils/contract";
 
@@ -24,7 +27,7 @@ interface DiscoverUser {
   mbti?: string;
   gender?: string;
   sexuality?: string;
-  personalityTraits?: string[];
+  personalityTraits?: { [key: string]: number };
   interests?: string[];
 }
 
@@ -45,7 +48,34 @@ const SEARCH_PLACEHOLDERS = [
   "Describe your connection",
 ];
 
-export default function DiscoverScreen() {
+// Helper function to calculate age from birthdate
+const calculateAge = (birthdate: string): number | string => {
+  if (!birthdate) return "N/A";
+  try {
+    // Handle MM/DD/YYYY format
+    const [month, day, year] = birthdate.split("/");
+    const birthDate = new Date(
+      parseInt(year),
+      parseInt(month) - 1,
+      parseInt(day)
+    );
+    const today = new Date();
+    let age = today.getFullYear() - birthDate.getFullYear();
+    const monthDiff = today.getMonth() - birthDate.getMonth();
+    if (
+      monthDiff < 0 ||
+      (monthDiff === 0 && today.getDate() < birthDate.getDate())
+    ) {
+      age--;
+    }
+    return age;
+  } catch (error) {
+    console.warn("Error parsing birthdate:", birthdate);
+    return "N/A";
+  }
+};
+
+const DiscoverScreen: React.FC = () => {
   const { address } = useWallet();
   const { theme } = useTheme();
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -57,6 +87,10 @@ export default function DiscoverScreen() {
   const [allUsers, setAllUsers] = useState<DiscoverUser[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  // Profile modal state
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<DiscoverUser | null>(null);
 
   // Check if user has at least 4 matches to unlock Discover
   useEffect(() => {
@@ -89,52 +123,35 @@ export default function DiscoverScreen() {
           ...firebaseProfile,
         });
 
-        // For now, load some mock users (in real app, this would be all users minus matches/blocked)
-        // TODO: Replace with real user discovery algorithm
-        const mockUsers: DiscoverUser[] = [
-          {
-            address: "0x001",
-            name: "Sarah",
-            age: 26,
-            city: "New York",
-            bio: "Creative artist who loves painting and hiking. Looking for someone who appreciates nature and art.",
-            photos: [],
-            mbti: "ENFP",
-            gender: "female",
-            sexuality: "bisexual",
-            personalityTraits: ["Creative", "Adventurous", "Empathetic"],
-            interests: ["Art", "Hiking", "Nature"],
-          },
-          {
-            address: "0x002",
-            name: "Mike",
-            age: 29,
-            city: "Los Angeles",
-            bio: "Tech entrepreneur and fitness enthusiast. Love coding, gym, and good conversations.",
-            photos: [],
-            mbti: "INTJ",
-            gender: "male",
-            sexuality: "straight",
-            personalityTraits: ["Analytical", "Ambitious", "Honest"],
-            interests: ["Technology", "Fitness", "Coding"],
-          },
-          {
-            address: "0x003",
-            name: "Jamie",
-            age: 24,
-            city: "Austin",
-            bio: "Music lover and foodie. Always exploring new restaurants and live shows.",
-            photos: [],
-            mbti: "ESFP",
-            gender: "non-binary",
-            sexuality: "pansexual",
-            personalityTraits: ["Energetic", "Social", "Curious"],
-            interests: ["Music", "Food", "Travel"],
-          },
-          // Add more mock users as needed
-        ];
+        // Load all potential matches using the same logic as FuseScreen
+        const allMatches = await MatchingEngine.findMatchesForUser(address);
 
-        setAllUsers(mockUsers);
+        // Filter out users already matched with (this is already done by findMatchesForUser)
+        // But we want ALL users for discovery, not just compatible ones
+        // So let's get all users from Firebase directly using the public data
+
+        // For now, let's use a simpler approach - get all users and filter manually
+        const allUsersData = await FirebaseService.getAllUsersForDiscovery(
+          address
+        );
+
+        // Convert to DiscoverUser format
+        const discoverUsers: DiscoverUser[] = allUsersData.map((user: any) => ({
+          address: user.address,
+          name: user.name || user.firstName || "Anonymous",
+          age:
+            user.age || (user.birthdate ? calculateAge(user.birthdate) : "N/A"),
+          city: user.location || user.city || "Unknown",
+          bio: user.bio || user.description || "No bio available",
+          photos: user.photos || [],
+          mbti: user.mbti,
+          gender: user.gender,
+          sexuality: user.sexuality,
+          personalityTraits: user.personalityTraits || {},
+          interests: user.interests || [],
+        }));
+
+        setAllUsers(discoverUsers);
       } catch (error) {
         console.error("Error loading discover data:", error);
       }
@@ -284,8 +301,8 @@ export default function DiscoverScreen() {
   };
 
   const handleUserPress = (user: DiscoverUser) => {
-    // TODO: Navigate to user profile or start conversation
-    Alert.alert("User Selected", `View profile for ${user.name}?`);
+    setSelectedUser(user);
+    setShowProfileModal(true);
   };
 
   const handleSearch = (query: string) => {
@@ -421,9 +438,211 @@ export default function DiscoverScreen() {
           </View>
         ))}
       </ScrollView>
+
+      {/* Profile Modal */}
+      <Modal
+        visible={showProfileModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowProfileModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: theme.backgroundColor },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <TouchableOpacity
+                style={styles.closeArea}
+                onPress={() => setShowProfileModal(false)}
+              >
+                <Text
+                  style={[styles.closeButtonText, { color: theme.textColor }]}
+                >
+                  ✕
+                </Text>
+              </TouchableOpacity>
+              <Text style={[styles.modalTitle, { color: theme.textColor }]}>
+                {selectedUser?.name}'s Profile
+              </Text>
+              <View style={styles.headerSpacer} />
+            </View>
+
+            {selectedUser && (
+              <ScrollView
+                style={styles.profileScrollContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Profile Images */}
+                {selectedUser.photos && selectedUser.photos.length > 0 && (
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.photosContainer}
+                  >
+                    {selectedUser.photos.map((photo, index) => (
+                      <Image
+                        key={index}
+                        source={{ uri: photo }}
+                        style={styles.profileImage}
+                        resizeMode="cover"
+                      />
+                    ))}
+                  </ScrollView>
+                )}
+
+                {/* Basic Info */}
+                <View style={styles.profileSection}>
+                  <Text
+                    style={[styles.profileName, { color: theme.textColor }]}
+                  >
+                    {selectedUser.name}, {selectedUser.age}
+                  </Text>
+                  <Text
+                    style={[styles.profileLocation, { color: theme.textColor }]}
+                  >
+                    📍 {selectedUser.city}
+                  </Text>
+                </View>
+
+                {/* Bio */}
+                {selectedUser.bio && (
+                  <View style={styles.profileSection}>
+                    <Text
+                      style={[styles.sectionTitle, { color: theme.textColor }]}
+                    >
+                      About
+                    </Text>
+                    <Text
+                      style={[styles.profileBio, { color: theme.textColor }]}
+                    >
+                      {selectedUser.bio}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Interests */}
+                {selectedUser.interests &&
+                  selectedUser.interests.length > 0 && (
+                    <View style={styles.profileSection}>
+                      <Text
+                        style={[
+                          styles.sectionTitle,
+                          { color: theme.textColor },
+                        ]}
+                      >
+                        Interests
+                      </Text>
+                      <View style={styles.interestsContainer}>
+                        {selectedUser.interests.map((interest, index) => (
+                          <View
+                            key={index}
+                            style={[
+                              styles.interestTag,
+                              { backgroundColor: theme.buttonBackground },
+                            ]}
+                          >
+                            <Text
+                              style={{ color: theme.buttonText, fontSize: 12 }}
+                            >
+                              {interest}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                  )}
+
+                {/* Personality Traits */}
+                {selectedUser.personalityTraits &&
+                  Object.keys(selectedUser.personalityTraits).length > 0 && (
+                    <View style={styles.profileSection}>
+                      <Text
+                        style={[styles.sectionTitle, { color: theme.textColor }]}
+                      >
+                        Personality Traits
+                      </Text>
+                      <View style={styles.interestsContainer}>
+                        {Object.entries(selectedUser.personalityTraits).map(
+                          ([traitName, traitValue]) => (
+                            <View
+                              key={traitName}
+                              style={[
+                                styles.interestTag,
+                                { backgroundColor: theme.buttonBackground },
+                              ]}
+                            >
+                              <Text
+                                style={{ color: theme.buttonText, fontSize: 12 }}
+                              >
+                                {traitName.charAt(0).toUpperCase() +
+                                  traitName.slice(1)}
+                                : {Math.round(traitValue as number)}%
+                              </Text>
+                            </View>
+                          )
+                        )}
+                      </View>
+                    </View>
+                  )}
+
+                {/* Gender */}
+                {selectedUser.gender && (
+                  <View style={styles.profileSection}>
+                    <Text
+                      style={[styles.sectionTitle, { color: theme.textColor }]}
+                    >
+                      Gender
+                    </Text>
+                    <Text
+                      style={[styles.profileDetail, { color: theme.textColor }]}
+                    >
+                      {selectedUser.gender}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Sexuality */}
+                {selectedUser.sexuality && (
+                  <View style={styles.profileSection}>
+                    <Text
+                      style={[styles.sectionTitle, { color: theme.textColor }]}
+                    >
+                      Sexuality
+                    </Text>
+                    <Text
+                      style={[styles.profileDetail, { color: theme.textColor }]}
+                    >
+                      {selectedUser.sexuality}
+                    </Text>
+                  </View>
+                )}
+
+                {/* MBTI */}
+                {selectedUser.mbti && (
+                  <View style={styles.profileSection}>
+                    <Text
+                      style={[styles.sectionTitle, { color: theme.textColor }]}
+                    >
+                      MBTI
+                    </Text>
+                    <Text
+                      style={[styles.profileDetail, { color: theme.textColor }]}
+                    >
+                      {selectedUser.mbti}
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -518,4 +737,91 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    maxHeight: "80%",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 20,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#333",
+  },
+  closeArea: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  closeButtonText: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    textAlign: "center",
+  },
+  headerSpacer: {
+    width: 40,
+  },
+  profileScrollContent: {
+    padding: 20,
+  },
+  photosContainer: {
+    marginBottom: 20,
+  },
+  profileImage: {
+    width: 300,
+    height: 300,
+    borderRadius: 15,
+    marginRight: 10,
+  },
+  profileSection: {
+    marginBottom: 25,
+  },
+  profileName: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
+  profileLocation: {
+    fontSize: 16,
+    marginBottom: 15,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  profileBio: {
+    fontSize: 16,
+    lineHeight: 24,
+  },
+  profileDetail: {
+    fontSize: 16,
+  },
+  interestsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  interestTag: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    margin: 4,
+  },
 });
+
+export default DiscoverScreen;
