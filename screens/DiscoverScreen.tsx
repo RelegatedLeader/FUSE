@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -501,7 +501,7 @@ const DiscoverScreen: React.FC = () => {
     }
   };
 
-  const handleUserPress = async (user: DiscoverUser) => {
+  const handleUserPress = useCallback(async (user: DiscoverUser) => {
     console.log("Opening profile modal for user:", user.name);
     console.log("User photos:", user.photos);
     setSelectedUser(user);
@@ -522,7 +522,7 @@ const DiscoverScreen: React.FC = () => {
         setCompatibilityResult(null);
       }
     }
-  };
+  }, [address, setSelectedUser, setShowProfileModal, setCompatibilityResult]);
 
   const handleFuse = async (targetAddress: string) => {
     if (!address || !selectedUser) return;
@@ -728,6 +728,38 @@ const DiscoverScreen: React.FC = () => {
     );
   }
 
+  const UserCard: React.FC<{ user: DiscoverUser; onPress: () => void }> = React.memo(({ user, onPress }) => (
+    <TouchableOpacity
+      style={[
+        styles.userCard,
+        { backgroundColor: theme.card.backgroundColor },
+      ]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <View style={styles.userCardContent}>
+        <View style={styles.userCardHeader}>
+          <Text style={[styles.userName, { color: theme.textColor }]}>
+            {user.name}, {user.age}
+          </Text>
+          <View style={styles.compatibilityBadge}>
+            <Text style={styles.compatibilityBadgeText}>
+              🚀 {user.compatibilityScore !== undefined ? user.compatibilityScore : '??'}%
+            </Text>
+          </View>
+        </View>
+        <Text style={[styles.userCity, { color: theme.textColor }]}>
+          📍 {user.city}
+        </Text>
+        <Text style={[styles.userBio, { color: theme.textColor }]}>
+          {user.bio.length > 60
+            ? user.bio.substring(0, 60) + "..."
+            : user.bio}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  ));
+
   return (
     <View
       style={[styles.container, { backgroundColor: theme.backgroundColor }]}
@@ -769,37 +801,17 @@ const DiscoverScreen: React.FC = () => {
               data={category.users.slice(0, category.shownCount)}
               keyExtractor={(item) => item.address}
               renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={[
-                    styles.userCard,
-                    { backgroundColor: theme.card.backgroundColor },
-                  ]}
-                  onPress={() => handleUserPress(item)}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.userCardContent}>
-                    <View style={styles.userCardHeader}>
-                      <Text style={[styles.userName, { color: theme.textColor }]}>
-                        {item.name}, {item.age}
-                      </Text>
-                      <View style={styles.compatibilityBadge}>
-                        <Text style={styles.compatibilityBadgeText}>
-                          🚀 {item.compatibilityScore !== undefined ? item.compatibilityScore : '??'}%
-                        </Text>
-                      </View>
-                    </View>
-                    <Text style={[styles.userCity, { color: theme.textColor }]}>
-                      📍 {item.city}
-                    </Text>
-                    <Text style={[styles.userBio, { color: theme.textColor }]}>
-                      {item.bio.length > 60
-                        ? item.bio.substring(0, 60) + "..."
-                        : item.bio}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+                <UserCard user={item} onPress={() => handleUserPress(item)} />
               )}
+              getItemLayout={(data, index) => ({
+                length: 295, // 280 width + 15 margin
+                offset: 295 * index,
+                index,
+              })}
               showsHorizontalScrollIndicator={false}
+              initialNumToRender={5}
+              maxToRenderPerBatch={5}
+              windowSize={5}
               ListFooterComponent={
                 category.shownCount < category.users.length ? (
                   <TouchableOpacity

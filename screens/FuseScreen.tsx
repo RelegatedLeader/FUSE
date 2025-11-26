@@ -829,7 +829,7 @@ export default function FuseScreen() {
     opacity: Animated.Value;
   }
 
-  const UserCard: React.FC<UserCardProps> = ({
+  const UserCardComponent = ({
     user,
     onFuse,
     onSkip,
@@ -839,7 +839,7 @@ export default function FuseScreen() {
     requestedUsers,
     skippedUsers,
     opacity,
-  }) => {
+  }: UserCardProps) => {
     const scrollViewRef = useRef<ScrollView>(null);
     const modalScrollRef = useRef<GestureScrollView>(null);
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
@@ -1595,6 +1595,8 @@ export default function FuseScreen() {
     );
   };
 
+  const UserCard = React.memo(UserCardComponent);
+
   if (!address) {
     return (
       <View
@@ -1712,6 +1714,11 @@ export default function FuseScreen() {
           keyExtractor={(item, index) => `${item.address}-${index}`}
           showsVerticalScrollIndicator={false}
           style={{ flex: 1 }}
+          getItemLayout={(data, index) => ({
+            length: 650,
+            offset: 650 * index,
+            index,
+          })}
           snapToInterval={Dimensions.get("window").height - 100}
           snapToAlignment="start"
           decelerationRate="fast"
