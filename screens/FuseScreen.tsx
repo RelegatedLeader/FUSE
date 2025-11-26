@@ -1051,6 +1051,14 @@ export default function FuseScreen() {
                               inputRange: [0, 1],
                               outputRange: ["#ff6347", "#00bfff"],
                             }),
+                        borderColor: requestedUsers.has(user.address)
+                          ? "transparent"
+                          : fuseAnim.interpolate({
+                              inputRange: [0, 1],
+                              outputRange: ["#00ff00", "#ff0000"],
+                            }),
+                        shadowOpacity: 0.8,
+                        shadowRadius: 15,
                       },
                       { transform: [{ scale: pulseAnim }] },
                     ]}
@@ -1147,14 +1155,14 @@ export default function FuseScreen() {
               )}
               {user.compatibilityScore !== undefined &&
                 user.compatibilityScore !== null && (
-                  <TouchableOpacity
+                  <AnimatedTouchableOpacity
                     onPress={() => setShowCompatibilityModal(true)}
-                    style={styles.compatibilityBadge}
+                    style={[styles.compatibilityBadge, { transform: [{ scale: pulseAnim }] }]}
                   >
                     <Text style={styles.compatibilityBadgeText}>
                       🚀 {Math.round(user.compatibilityScore)}%
                     </Text>
-                  </TouchableOpacity>
+                  </AnimatedTouchableOpacity>
                 )}
             </View>
 
@@ -1905,11 +1913,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ff4757",
     borderRadius: 30,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    borderWidth: 3,
   },
   overlayButtonText: {
     color: "white",
@@ -2323,19 +2327,21 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   compatibilityBadge: {
-    backgroundColor: "#FF6B35", // Orange rocket color
+    backgroundColor: "#E55A2B", // Darker orange for better glow contrast
     borderRadius: 20,
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginLeft: 8,
-    shadowColor: "#000",
+    shadowColor: "#E55A2B",
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 0,
     },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.8,
+    shadowRadius: 10,
+    elevation: 10,
+    borderWidth: 2,
+    borderColor: "rgba(229, 90, 43, 0.5)", // Semi-transparent darker orange for glow effect
   },
   compatibilityBadgeText: {
     color: "white",
@@ -2635,7 +2641,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 20,
-    textAlign: 'center',
+    textAlign: "center",
   },
   insightItem: {
     borderRadius: 12,
