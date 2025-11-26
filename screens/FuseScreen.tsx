@@ -23,7 +23,10 @@ import {
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { MatchingEngine } from "../utils/matchingEngine";
-import { EnhancedMatchingEngine, CompatibilityResult } from "../utils/enhancedMatchingEngine";
+import {
+  EnhancedMatchingEngine,
+  CompatibilityResult,
+} from "../utils/enhancedMatchingEngine";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CryptoJS from "crypto-js";
 
@@ -410,7 +413,9 @@ export default function FuseScreen() {
         let compatibilityScore = 42; // fallback like DiscoverScreen
         let compatibilityResult: CompatibilityResult | undefined;
         try {
-          console.log(`🔄 Calculating compatibility for ${match.address} vs ${address}`);
+          console.log(
+            `🔄 Calculating compatibility for ${match.address} vs ${address}`
+          );
           compatibilityResult =
             await EnhancedMatchingEngine.calculateCompatibility(
               address,
@@ -840,7 +845,6 @@ export default function FuseScreen() {
     const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
     const [showProfileModal, setShowProfileModal] = useState(false);
     const [showCompatibilityModal, setShowCompatibilityModal] = useState(false);
-    const [showCompatibilityDetails, setShowCompatibilityDetails] = useState(false);
     const [gestureY, setGestureY] = useState(0);
 
     const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -895,6 +899,78 @@ export default function FuseScreen() {
     const viewUserProfile = () => {
       console.log("👤 Opening profile modal for user:", user);
       setShowProfileModal(true);
+    };
+
+    const generateSummary = (result: CompatibilityResult) => {
+      const score = result.overallScore;
+      const topFactors = result.factors.slice(0, 3).join(", ");
+      if (score >= 90) {
+        return `This is an exceptional match! With a ${score}% compatibility score, you share ${topFactors}. This connection has the potential to be truly transformative - don't miss this opportunity to meet someone who aligns so perfectly with your values and interests.`;
+      } else if (score >= 80) {
+        return `An outstanding match with ${score}% compatibility! You both excel in ${topFactors}, creating a strong foundation for a meaningful connection. This person could be the perfect complement to your personality and lifestyle.`;
+      } else if (score >= 70) {
+        return `A very good match at ${score}% compatibility. Your shared ${topFactors} provide a good starting point. With mutual effort and communication, this could develop into a rewarding relationship.`;
+      } else if (score >= 60) {
+        return `A solid match with ${score}% compatibility. While you have some differences, your ${topFactors} provide a good starting point. With open-mindedness, this could develop into a rewarding relationship.`;
+      } else {
+        return `A moderate match at ${score}% compatibility. Though you have differences in ${topFactors}, every connection starts somewhere. Sometimes the most unexpected pairings lead to the most interesting journeys.`;
+      }
+    };
+
+    const getInsightColor = (type: string) => {
+      switch (type) {
+        case "strength":
+          return "#4CAF50";
+        case "consideration":
+          return "#FF9800";
+        case "opportunity":
+          return "#2196F3";
+        default:
+          return theme.textColor;
+      }
+    };
+
+    const getCategoryIcon = (category: string) => {
+      switch (category) {
+        case "Profile Basics":
+          return "👤";
+        case "Communication Style":
+          return "💬";
+        case "Interaction History":
+          return "🤝";
+        case "Personality Match":
+          return "🧠";
+        case "Shared Interests":
+          return "🎯";
+        case "Values Alignment":
+          return "❤️";
+        default:
+          return "📊";
+      }
+    };
+
+    const getScoreColor = (score: number) => {
+      if (score >= 80) return "#4CAF50";
+      if (score >= 60) return "#FF9800";
+      return "#F44336";
+    };
+
+    const getInsightBackground = (type: string, theme: any) => {
+      const baseColor = getInsightColor(type);
+      return theme.isDark ? `${baseColor}20` : `${baseColor}15`; // Add transparency
+    };
+
+    const getInsightEmoji = (type: string) => {
+      switch (type) {
+        case "strength":
+          return "💪";
+        case "consideration":
+          return "⚠️";
+        case "opportunity":
+          return "🚀";
+        default:
+          return "💡";
+      }
     };
 
     return (
@@ -1072,7 +1148,7 @@ export default function FuseScreen() {
               {user.compatibilityScore !== undefined &&
                 user.compatibilityScore !== null && (
                   <TouchableOpacity
-                    onPress={() => setShowCompatibilityDetails(!showCompatibilityDetails)}
+                    onPress={() => setShowCompatibilityModal(true)}
                     style={styles.compatibilityBadge}
                   >
                     <Text style={styles.compatibilityBadgeText}>
@@ -1081,57 +1157,6 @@ export default function FuseScreen() {
                   </TouchableOpacity>
                 )}
             </View>
-
-            {/* Compatibility Details */}
-            {showCompatibilityDetails && user.compatibilityResult && (
-              <View style={styles.compatibilityDetails}>
-                {user.compatibilityResult.breakdown.map((item, index) => (
-                  <View key={index} style={styles.compatibilityItem}>
-                    <View style={styles.compatibilityItemHeader}>
-                      <Text
-                        style={[
-                          styles.compatibilityCategory,
-                          { color: theme.textColor },
-                        ]}
-                      >
-                        {item.category}
-                      </Text>
-                      <Text
-                        style={[
-                          styles.compatibilityScore,
-                          { color: theme.textColor },
-                        ]}
-                      >
-                        {item.score}%
-                      </Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.compatibilityDescription,
-                        { color: theme.textColor + "CC" },
-                      ]}
-                    >
-                      {item.description}
-                    </Text>
-                    {item.factors && item.factors.length > 0 && (
-                      <View style={styles.compatibilityFactors}>
-                        {item.factors.map((factor, idx) => (
-                          <Text
-                            key={idx}
-                            style={[
-                              styles.compatibilityFactor,
-                              { color: theme.textColor + "AA" },
-                            ]}
-                          >
-                            • {factor}
-                          </Text>
-                        ))}
-                      </View>
-                    )}
-                  </View>
-                ))}
-              </View>
-            )}
 
             <Text
               style={[
@@ -1390,6 +1415,171 @@ export default function FuseScreen() {
                   </GestureScrollView>
                 </View>
               </PanGestureHandler>
+            </View>
+          </Modal>
+          {/* Compatibility Modal */}
+          <Modal
+            visible={showCompatibilityModal}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => setShowCompatibilityModal(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View
+                style={[
+                  styles.compatibilityModalContent,
+                  {
+                    backgroundColor: "#1a1a1a",
+                    borderWidth: 1,
+                    borderColor: "#333",
+                  },
+                ]}
+              >
+                <View style={styles.modalHeader}>
+                  <View style={styles.headerContent}>
+                    <Text style={[styles.modalTitle, { color: "#fff" }]}>
+                      🚀 Compatibility Analysis
+                    </Text>
+                    {user.compatibilityResult && (
+                      <View style={styles.scoreBadge}>
+                        <Text style={styles.scoreText}>
+                          {Math.round(user.compatibilityResult.overallScore)}%
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <TouchableOpacity
+                    style={styles.closeButton}
+                    onPress={() => setShowCompatibilityModal(false)}
+                  >
+                    <Text style={styles.closeButtonText}>✖</Text>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView
+                  style={styles.scrollContent}
+                  contentInset={{ bottom: 20 }}
+                >
+                  {/* Summary */}
+                  <View style={styles.summaryContainer}>
+                    <Text style={[styles.summaryTitle, { color: "#fff" }]}>
+                      ✨ Why Fuse with {user.name}?
+                    </Text>
+                    <Text style={[styles.summaryText, { color: "#fff" }]}>
+                      {user.compatibilityResult
+                        ? generateSummary(user.compatibilityResult)
+                        : "No compatibility data available."}
+                    </Text>
+                  </View>
+                  {/* Detailed Breakdown */}
+                  {user.compatibilityResult && (
+                    <View style={styles.breakdownContainer}>
+                      <Text style={[styles.breakdownTitle, { color: "#fff" }]}>
+                        🔍 Detailed Analysis
+                      </Text>
+                      {user.compatibilityResult.breakdown.map((item, index) => (
+                        <View key={index} style={styles.breakdownItem}>
+                          <View style={styles.breakdownHeader}>
+                            <Text
+                              style={[
+                                styles.breakdownCategory,
+                                { color: "#fff" },
+                              ]}
+                            >
+                              {getCategoryIcon(item.category)} {item.category}
+                            </Text>
+                            <View
+                              style={[
+                                styles.scoreCircle,
+                                { backgroundColor: getScoreColor(item.score) },
+                              ]}
+                            >
+                              <Text style={styles.breakdownScore}>
+                                {item.score}%
+                              </Text>
+                            </View>
+                          </View>
+                          <Text
+                            style={[
+                              styles.breakdownDescription,
+                              { color: "#fff" },
+                            ]}
+                          >
+                            {item.description}
+                          </Text>
+                          {item.factors && item.factors.length > 0 && (
+                            <View style={styles.breakdownFactors}>
+                              {item.factors.map((factor, idx) => (
+                                <Text
+                                  key={idx}
+                                  style={[
+                                    styles.breakdownFactor,
+                                    { color: "#fff" },
+                                  ]}
+                                >
+                                  • {factor}
+                                </Text>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      ))}
+                      {/* Insights */}
+                      {user.compatibilityResult.insights &&
+                        user.compatibilityResult.insights.length > 0 && (
+                          <View style={styles.insightsContainer}>
+                            <Text
+                              style={[styles.insightsTitle, { color: "#fff" }]}
+                            >
+                              💡 Key Insights
+                            </Text>
+                            {user.compatibilityResult.insights.map(
+                              (insight, index) => (
+                                <View
+                                  key={index}
+                                  style={[
+                                    styles.insightItem,
+                                    {
+                                      backgroundColor: getInsightBackground(
+                                        insight.type,
+                                        { isDark: true }
+                                      ),
+                                    },
+                                  ]}
+                                >
+                                  <Text
+                                    style={[
+                                      styles.insightType,
+                                      { color: getInsightColor(insight.type) },
+                                    ]}
+                                  >
+                                    {getInsightEmoji(insight.type)}{" "}
+                                    {insight.type.toUpperCase()}
+                                  </Text>
+                                  <Text
+                                    style={[
+                                      styles.insightTitle,
+                                      { color: "#fff" },
+                                    ]}
+                                  >
+                                    {insight.title}
+                                  </Text>
+                                  <Text
+                                    style={[
+                                      styles.insightDescription,
+                                      { color: "#fff" },
+                                    ]}
+                                  >
+                                    {insight.description}
+                                  </Text>
+                                </View>
+                              )
+                            )}
+                          </View>
+                        )}
+                    </View>
+                  )}
+                </ScrollView>
+              </View>
             </View>
           </Modal>
         </TouchableOpacity>
@@ -2200,14 +2390,21 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   compatibilityModalContent: {
-    backgroundColor: "white",
+    backgroundColor: "#1a1a1a",
     margin: 20,
     borderRadius: 20,
     maxHeight: Dimensions.get("window").height * 0.8,
     width: Dimensions.get("window").width - 40,
+    borderWidth: 2,
+    borderColor: "#FF6B6B",
+    shadowColor: "#FF6B6B",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    elevation: 10,
   },
-  compatibilityContent: {
-    padding: 20,
+  scrollContent: {
+    padding: 15,
   },
   overallScore: {
     alignItems: "center",
@@ -2328,5 +2525,141 @@ const styles = StyleSheet.create({
   compatibilityFactor: {
     fontSize: 12,
     marginBottom: 2,
+  },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flex: 1,
+  },
+  scoreBadge: {
+    backgroundColor: "#FF6B6B",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  scoreText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  summaryContainer: {
+    marginBottom: 25,
+    padding: 25,
+    borderRadius: 20,
+    backgroundColor: "rgba(33, 150, 243, 0.2)",
+    borderWidth: 1,
+    borderColor: "#2196F3",
+    shadowColor: "#2196F3",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  summaryTitle: {
+    fontSize: 22,
+    fontWeight: "bold",
+    marginBottom: 15,
+    textAlign: "center",
+  },
+  summaryText: {
+    fontSize: 17,
+    lineHeight: 26,
+    textAlign: "center",
+  },
+  breakdownContainer: {
+    paddingHorizontal: 5,
+  },
+  breakdownTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  breakdownItem: {
+    borderRadius: 15,
+    padding: 20,
+    marginBottom: 15,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  breakdownHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  breakdownCategory: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  scoreCircle: {
+    borderRadius: 25,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginLeft: 10,
+  },
+  breakdownScore: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "white",
+  },
+  breakdownDescription: {
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 10,
+  },
+  breakdownFactors: {
+    marginTop: 8,
+  },
+  breakdownFactor: {
+    fontSize: 14,
+    marginBottom: 4,
+    lineHeight: 20,
+  },
+  insightsContainer: {
+    marginTop: 25,
+  },
+  insightsTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  insightItem: {
+    borderRadius: 12,
+    padding: 15,
+    marginBottom: 10,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  insightType: {
+    fontSize: 12,
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
+  insightTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 5,
+  },
+  insightDescription: {
+    fontSize: 14,
+    lineHeight: 20,
   },
 });
