@@ -1005,9 +1005,6 @@ export default function FuseScreen() {
                     <TouchableOpacity
                       key={index}
                       activeOpacity={1}
-                      onPress={() =>
-                        openFullScreenImage(photo, index, user.photos)
-                      }
                     >
                       <Image
                         source={{ uri: photo }}
