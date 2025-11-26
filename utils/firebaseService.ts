@@ -12,7 +12,6 @@ import {
   limit,
   Timestamp,
   writeBatch,
-  QuerySnapshot,
 } from "firebase/firestore";
 import {
   ref,
@@ -23,8 +22,6 @@ import {
   listAll,
 } from "firebase/storage";
 import { getAuth, getIdToken } from "firebase/auth";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import CryptoJS from "crypto-js";
 import { db, storage } from "./firebase";
 import { EncryptionService } from "./encryption";
 import { KeyManager } from "./keyManager";
@@ -99,11 +96,6 @@ export class FirebaseService {
         bio: profileData.bio, // Include bio in matching data so it can be displayed
       };
 
-      // Clean matchingData to remove undefined values
-      const cleanedMatchingData = Object.fromEntries(
-        Object.entries(matchingData).filter(([_, value]) => value !== undefined)
-      );
-
       const sensitiveData = {
         email: profileData.email,
         occupation: profileData.occupation,
@@ -123,7 +115,7 @@ export class FirebaseService {
       const userRef = doc(db, "users", walletAddress);
       await setDoc(userRef, {
         // Public matching data (unencrypted)
-        matchingData: cleanedMatchingData,
+        matchingData,
         // Encrypted sensitive data
         encryptedProfile: encryptedSensitiveData,
         lastUpdated: Timestamp.now(),
@@ -133,63 +125,6 @@ export class FirebaseService {
       console.log("💾 Stored user profile for:", walletAddress);
     } catch (error) {
       throw new Error("Failed to store user profile: " + error);
-    }
-  }
-  static getMessagingKey(): string | null {
-    return this.userKeys?.messagingKey || null;
-  }
-
-  // Update user bio after initial signup
-  static async updateUserBio(
-    walletAddress: string,
-    bio: string
-  ): Promise<void> {
-    if (!this.userKeys) {
-      throw new Error("User keys not initialized");
-    }
-
-    try {
-      const userRef = doc(db, "users", walletAddress);
-      const userSnap = await getDoc(userRef);
-
-      if (!userSnap.exists()) {
-        throw new Error("User profile not found");
-      }
-
-      const existingData = userSnap.data();
-
-      // Get existing encrypted profile to update it
-      let decryptedSensitiveData: any = {};
-      if (existingData!.encryptedProfile) {
-        try {
-          decryptedSensitiveData = EncryptionService.decryptUserProfile(
-            existingData!.encryptedProfile,
-            this.userKeys.dataKey
-          );
-        } catch (error) {
-          throw new Error("Failed to decrypt existing profile data");
-        }
-      }
-
-      // Update the bio in the decrypted data
-      decryptedSensitiveData.bio = bio;
-
-      // Re-encrypt the updated sensitive data
-      const updatedEncryptedSensitiveData =
-        EncryptionService.encryptUserProfile(
-          decryptedSensitiveData,
-          this.userKeys.dataKey
-        );
-
-      // Update the document with new encrypted profile
-      await updateDoc(userRef, {
-        encryptedProfile: updatedEncryptedSensitiveData,
-        lastUpdated: Timestamp.now(),
-      });
-
-      console.log("📝 Updated user bio for:", walletAddress);
-    } catch (error) {
-      throw new Error("Failed to update user bio: " + error);
     }
   }
 
@@ -275,8 +210,11 @@ export class FirebaseService {
       const messageId = `${conversationId}_${Date.now()}_${Math.random()
         .toString(36)
         .substr(2, 9)}`;
-      // Message is already encrypted by MessagingService
-      const encryptedMessage = message;
+      const encryptedMessage = EncryptionService.encryptMessage(
+        message,
+        this.userKeys.messagingKey,
+        this.userKeys.messagingKey
+      );
 
       const messageRef = doc(db, "messages", messageId);
       await setDoc(messageRef, {
@@ -315,7 +253,7 @@ export class FirebaseService {
         try {
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
-            "fuse_shared_messaging_key_2024"
+            this.userKeys.messagingKey
           );
           messages.push({
             id: docSnap.id,
@@ -339,6 +277,32 @@ export class FirebaseService {
     }
   }
 
+  // Get conversation summary
+  static async getConversationSummary(conversationId: string): Promise<any> {
+    try {
+      const summaryRef = doc(db, "conversation_summaries", conversationId);
+      const summarySnap = await getDoc(summaryRef);
+      
+      if (summarySnap.exists()) {
+        return summarySnap.data();
+      }
+      return null;
+    } catch (error) {
+      console.error("Failed to get conversation summary:", error);
+      return null;
+    }
+  }
+
+  // Update conversation summary
+  static async updateConversationSummary(conversationId: string, updates: any): Promise<void> {
+    try {
+      const summaryRef = doc(db, "conversation_summaries", conversationId);
+      await setDoc(summaryRef, updates, { merge: true });
+    } catch (error) {
+      console.error("Failed to update conversation summary:", error);
+    }
+  }
+
   // Listen to real-time messages
   static listenToMessages(
     conversationId: string,
@@ -349,30 +313,20 @@ export class FirebaseService {
     }
 
     const messagesRef = collection(db, "messages");
-    const q = query(messagesRef, where("conversationId", "==", conversationId));
+    const q = query(
+      messagesRef,
+      where("conversationId", "==", conversationId)
+    );
 
-    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const messages: any[] = [];
-
-      // Get the conversation key once for this snapshot
-      const conversationKey = await this.getConversationKey(conversationId);
-      console.log(
-        "🔐 Using conversation key:",
-        conversationKey.substring(0, 8) + "..."
-      );
-
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         try {
-          console.log(
-            "🔐 Decrypting message:",
-            data.encryptedMessage.substring(0, 50) + "..."
-          );
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
-            conversationKey
+            this.userKeys.messagingKey
           );
-          console.log("🔐 Decrypted message:", decryptedMessage);
           messages.push({
             id: doc.id,
             message: decryptedMessage,
@@ -382,17 +336,7 @@ export class FirebaseService {
             status: data.status,
           });
         } catch (decryptError) {
-          console.warn("❌ Failed to decrypt message:", doc.id, decryptError);
-          console.warn("❌ Encrypted message:", data.encryptedMessage);
-          // Still add the message with encrypted content for debugging
-          messages.push({
-            id: doc.id,
-            message: data.encryptedMessage, // Show encrypted content
-            senderAddress: data.senderAddress,
-            recipientAddress: data.recipientAddress,
-            timestamp: data.timestamp.toDate(),
-            status: data.status,
-          });
+          console.warn("Failed to decrypt message:", doc.id, decryptError);
         }
       });
 
@@ -402,85 +346,6 @@ export class FirebaseService {
     });
 
     return unsubscribe;
-  }
-
-  // Get all messages for a user (for manual refresh)
-  static async getAllUserMessages(userAddress: string): Promise<any[]> {
-    if (!this.userKeys) {
-      throw new Error("User keys not initialized");
-    }
-
-    const messagesRef = collection(db, "messages");
-    const q = query(messagesRef);
-    const querySnapshot = await getDocs(q);
-
-    const messages: any[] = [];
-    for (const doc of querySnapshot.docs) {
-      const data = doc.data();
-      if (
-        data.senderAddress === userAddress ||
-        data.recipientAddress === userAddress
-      ) {
-        try {
-          const conversationId = [data.senderAddress, data.recipientAddress]
-            .sort()
-            .join("_");
-          const conversationKey = await this.getConversationKey(conversationId);
-          const decryptedMessage = EncryptionService.decryptMessage(
-            data.encryptedMessage,
-            conversationKey
-          );
-          messages.push({
-            id: doc.id,
-            message: decryptedMessage,
-            senderAddress: data.senderAddress,
-            recipientAddress: data.recipientAddress,
-            timestamp: data.timestamp.toDate(),
-            status: data.status,
-          });
-        } catch (error) {
-          console.warn("Failed to decrypt message:", doc.id);
-        }
-      }
-    }
-
-    return messages.sort(
-      (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
-    );
-  }
-
-  // Get or create conversation key for E2E encryption
-  private static async getConversationKey(
-    conversationId: string
-  ): Promise<string> {
-    const keyStorageKey = `conversation_key_v2_${conversationId}`;
-
-    // Try to get existing key
-    let conversationKey = await AsyncStorage.getItem(keyStorageKey);
-
-    if (!conversationKey) {
-      // Generate deterministic key for this conversation (both users will generate the same key)
-      // Use hash of conversation ID as the key - take first 32 bytes for AES-256
-      const hash = CryptoJS.SHA256(
-        conversationId + "fuse_shared_messaging_key_2024"
-      );
-      conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(0, 64); // 64 hex chars = 32 bytes
-
-      // Store the key
-      await AsyncStorage.setItem(keyStorageKey, conversationKey);
-
-      console.log(
-        "🔑 FirebaseService: Generated deterministic conversation key for:",
-        conversationId
-      );
-    } else {
-      console.log(
-        "🔑 FirebaseService: Retrieved conversation key for:",
-        conversationId
-      );
-    }
-
-    return conversationKey;
   }
 
   // Listen to all messages for a user (for Chats tab)
@@ -493,81 +358,35 @@ export class FirebaseService {
     }
 
     const messagesRef = collection(db, "messages");
-    let allMessages: any[] = [];
-    let callbackScheduled = false;
-
-    const scheduleCallback = () => {
-      if (!callbackScheduled) {
-        callbackScheduled = true;
-        setTimeout(async () => {
-          // Filter for user's messages, decrypt with conversation keys, remove duplicates, sort, and limit
-          const userMessages = allMessages.filter(
-            (msg) =>
-              msg.senderAddress === userAddress ||
-              msg.recipientAddress === userAddress
-          );
-
-          // Decrypt messages with their conversation keys
-          const decryptedMessages = await Promise.all(
-            userMessages.map(async (msg) => {
-              try {
-                const conversationId = [msg.senderAddress, msg.recipientAddress]
-                  .sort()
-                  .join("_");
-                const conversationKey = await this.getConversationKey(
-                  conversationId
-                );
-                const decryptedMessage = EncryptionService.decryptMessage(
-                  msg.encryptedMessage,
-                  conversationKey
-                );
-                return {
-                  ...msg,
-                  message: decryptedMessage,
-                };
-              } catch (error) {
-                console.warn("Failed to decrypt message:", msg.id);
-                return null;
-              }
-            })
-          );
-
-          const validMessages = decryptedMessages.filter((msg) => msg !== null);
-          const uniqueMessages = validMessages.filter(
-            (msg, index, self) =>
-              index === self.findIndex((m) => m.id === msg.id)
-          );
-          uniqueMessages.sort(
-            (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
-          );
-          const limitedMessages = uniqueMessages.slice(0, 50);
-          callback(limitedMessages);
-          callbackScheduled = false;
-        }, 100); // Small delay to batch updates
-      }
-    };
-
-    // Single query for all messages (filter on client)
-    const q = query(messagesRef, orderBy("timestamp", "desc"), limit(200));
+    const q = query(
+      messagesRef,
+      where("recipientAddress", "==", userAddress),
+      orderBy("timestamp", "desc"),
+      limit(100)
+    );
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const snapshotMessages: any[] = [];
+      const messages: any[] = [];
       querySnapshot.forEach((doc) => {
         const data = doc.data();
-        // Store raw encrypted message - decryption happens in scheduleCallback
-        snapshotMessages.push({
-          id: doc.id,
-          encryptedMessage: data.encryptedMessage,
-          senderAddress: data.senderAddress,
-          recipientAddress: data.recipientAddress,
-          timestamp: data.timestamp.toDate(),
-          status: data.status,
-        });
+        try {
+          const decryptedMessage = EncryptionService.decryptMessage(
+            data.encryptedMessage,
+            this.userKeys!.messagingKey
+          );
+          messages.unshift({
+            id: doc.id,
+            message: decryptedMessage,
+            senderAddress: data.senderAddress,
+            recipientAddress: data.recipientAddress,
+            timestamp: data.timestamp.toDate(),
+            status: data.status,
+          });
+        } catch (error) {
+          console.warn("Failed to decrypt message:", doc.id);
+        }
       });
-
-      // Update allMessages with latest snapshot
-      allMessages = snapshotMessages;
-      scheduleCallback();
+      callback(messages);
     });
 
     return unsubscribe;
@@ -607,23 +426,14 @@ export class FirebaseService {
     try {
       const usersRef = collection(db, "users");
       const querySnapshot = await getDocs(usersRef);
-      console.log(
-        "Firebase findMatches: Found",
-        querySnapshot.docs.length,
-        "total users in database"
-      );
 
       const matches = [];
       for (const docSnap of querySnapshot.docs) {
-        if (docSnap.id === userAddress) {
-          console.log("Skipping self:", docSnap.id);
-          continue; // Skip self
-        }
+        if (docSnap.id === userAddress) continue; // Skip self
 
         try {
           const userData = await this.getUserProfile(docSnap.id);
           if (userData && this.matchesCriteria(userData, criteria)) {
-            console.log("Adding match:", docSnap.id);
             matches.push({
               address: docSnap.id,
               profile: userData,
@@ -632,12 +442,6 @@ export class FirebaseService {
                 criteria
               ),
             });
-          } else {
-            console.log(
-              "User doesn't match criteria or no profile:",
-              docSnap.id,
-              !!userData
-            );
           }
         } catch (error) {
           console.warn("Failed to process user for matching:", docSnap.id);
@@ -645,7 +449,6 @@ export class FirebaseService {
       }
 
       // Sort by compatibility score
-      console.log("Firebase findMatches: Returning", matches.length, "matches");
       return matches.sort(
         (a, b) => b.compatibilityScore - a.compatibilityScore
       );
@@ -741,7 +544,8 @@ export class FirebaseService {
         });
       });
 
-      await console.log("📦 Batch stored user data and interactions");
+      await
+      console.log("📦 Batch stored user data and interactions");
     } catch (error) {
       throw new Error("Failed to batch store user data: " + error);
     }
@@ -1262,31 +1066,8 @@ export class FirebaseService {
     targetAddress: string,
     requestData: any
   ): Promise<boolean> {
-    console.log(
-      "🔥 storeFuseRequest called with targetAddress:",
-      targetAddress
-    );
-    console.log("🔥 requestData:", requestData);
-
-    const requesterAddress = requestData.requesterAddress;
-
-    // Check if these users have unfused before - prevent re-fusing
-    const haveUnfused = await this.haveUsersUnfused(
-      requesterAddress,
-      targetAddress
-    );
-    if (haveUnfused) {
-      console.log(
-        "🚫 Cannot send fuse request - users have unfused before:",
-        requesterAddress,
-        targetAddress
-      );
-      throw new Error("You cannot fuse with this user again");
-    }
-
     try {
       const requestsRef = doc(db, "fuse_requests", targetAddress);
-      console.log("🔥 requestsRef path:", requestsRef.path);
       const requestSnap = await getDoc(requestsRef);
 
       let requests = [];
@@ -1296,44 +1077,18 @@ export class FirebaseService {
 
       // Check for mutual request before adding new request
       const requesterAddress = requestData.requesterAddress;
-
-      // Check if the target user has already sent a request to the requester
-      const targetRequestsRef = doc(db, "fuse_requests", requesterAddress);
-      const targetRequestSnap = await getDoc(targetRequestsRef);
-      let targetRequests = [];
-      if (targetRequestSnap.exists()) {
-        targetRequests = targetRequestSnap.data().requests || [];
-      }
-
-      const mutualRequest = targetRequests.find(
+      const mutualRequest = requests.find(
         (req: any) =>
           req.requesterAddress === targetAddress &&
           req.targetAddress === requesterAddress
       );
-
-      console.log("🔥 Checking for mutual request:");
-      console.log("🔥   Looking in document:", requesterAddress);
-      console.log("🔥   targetRequests:", targetRequests);
-      console.log(
-        "🔥   Looking for req.requesterAddress ===",
-        targetAddress,
-        "AND req.targetAddress ===",
-        requesterAddress
-      );
-      console.log("🔥   mutualRequest found:", mutualRequest);
 
       if (mutualRequest) {
         // Mutual match found! Remove both requests since they're now matched
         console.log("🔥 Mutual fuse request detected! Creating match...");
 
         // Remove the mutual requests
-        await this.removeFuseRequest(requesterAddress, targetAddress);
         await this.removeFuseRequest(targetAddress, requesterAddress);
-
-        // Remove sent requests since match is created
-        await this.removeSentRequest(requesterAddress, targetAddress);
-        await this.removeSentRequest(targetAddress, requesterAddress);
-
         // Don't add the new request since it's mutual
 
         console.log(
@@ -1356,25 +1111,13 @@ export class FirebaseService {
           "🔄 Updating existing fuse request from:",
           requesterAddress
         );
-        // Clean the requestData to remove undefined values
-        const cleanedRequestData = Object.fromEntries(
-          Object.entries(requestData).filter(
-            ([_, value]) => value !== undefined
-          )
-        );
-        Object.assign(existingRequest, cleanedRequestData, {
+        Object.assign(existingRequest, requestData, {
           timestamp: Timestamp.now(),
         });
       } else {
         // Add new request (no mutual match found)
-        // Clean the requestData to remove undefined values
-        const cleanedRequestData = Object.fromEntries(
-          Object.entries(requestData).filter(
-            ([_, value]) => value !== undefined
-          )
-        );
         requests.push({
-          ...cleanedRequestData,
+          ...requestData,
           timestamp: Timestamp.now(),
         });
       }
@@ -1384,11 +1127,7 @@ export class FirebaseService {
         lastUpdated: Timestamp.now(),
       });
 
-      // Store sent request for persistence
-      await this.storeSentRequest(requesterAddress, targetAddress);
-
       console.log("🔥 Fuse request stored in Firebase for:", targetAddress);
-      console.log("🔥 Stored requests:", requests);
       return false; // Not mutual
     } catch (error) {
       console.error("Failed to store fuse request:", error);
@@ -1398,19 +1137,13 @@ export class FirebaseService {
 
   // Get fuse requests for a user synchronously
   static async getFuseRequests(userAddress: string): Promise<any[]> {
-    console.log("🔥 getFuseRequests called for:", userAddress);
     try {
       const requestsRef = doc(db, "fuse_requests", userAddress);
-      console.log("🔥 getFuseRequests ref path:", requestsRef.path);
       const requestSnap = await getDoc(requestsRef);
-      console.log("🔥 getFuseRequests doc exists:", requestSnap.exists());
 
       if (requestSnap.exists()) {
-        const data = requestSnap.data();
-        console.log("🔥 getFuseRequests data:", data);
-        return data.requests || [];
+        return requestSnap.data().requests || [];
       }
-      console.log("🔥 getFuseRequests: no document found");
       return [];
     } catch (error) {
       console.error("Error getting fuse requests:", error);
@@ -1423,23 +1156,15 @@ export class FirebaseService {
     userAddress: string,
     callback: (requests: any[]) => void
   ): () => void {
-    console.log("🔥 listenToFuseRequests called for:", userAddress);
     const requestsRef = doc(db, "fuse_requests", userAddress);
-    console.log("🔥 listenToFuseRequests ref path:", requestsRef.path);
 
     const unsubscribe = onSnapshot(
       requestsRef,
       (doc) => {
-        console.log(
-          "🔥 listenToFuseRequests snapshot received, doc exists:",
-          doc.exists()
-        );
         if (doc.exists()) {
           const data = doc.data();
-          console.log("🔥 listenToFuseRequests data:", data);
           callback(data.requests || []);
         } else {
-          console.log("🔥 listenToFuseRequests: no document");
           callback([]);
         }
       },
@@ -1478,625 +1203,6 @@ export class FirebaseService {
     } catch (error) {
       console.error("Failed to remove fuse request:", error);
       throw error;
-    }
-  }
-
-  // Store a match in Firebase for a user
-  static async storeMatch(userAddress: string, matchData: any): Promise<void> {
-    console.log("💕 storeMatch called with userAddress:", userAddress);
-    console.log("💕 matchData:", matchData);
-    try {
-      const matchesRef = doc(db, "user_matches", userAddress);
-      console.log("💕 matchesRef path:", matchesRef.path);
-      const matchSnap = await getDoc(matchesRef);
-
-      let matches = [];
-      if (matchSnap.exists()) {
-        matches = matchSnap.data().matches || [];
-      }
-
-      // Check if match already exists
-      const existingMatch = matches.find(
-        (match: any) => match.address === matchData.address
-      );
-
-      if (!existingMatch) {
-        // Clean the matchData to remove undefined values (Firestore doesn't allow undefined)
-        const cleanedMatchData = Object.fromEntries(
-          Object.entries(matchData).filter(([_, value]) => value !== undefined)
-        );
-
-        matches.push({
-          ...cleanedMatchData,
-          matchedDate: Timestamp.now(),
-        });
-
-        await setDoc(matchesRef, {
-          matches,
-          lastUpdated: Timestamp.now(),
-        });
-
-        console.log(
-          "💕 Match stored for:",
-          userAddress,
-          "with:",
-          matchData.address
-        );
-        console.log("💕 Stored matches:", matches);
-      }
-    } catch (error) {
-      console.error("Failed to store match:", error);
-      throw error;
-    }
-  }
-
-  // Load matches from Firebase for a user
-  static async loadMatches(userAddress: string): Promise<any[]> {
-    console.log("💕 loadMatches called for:", userAddress);
-    try {
-      const loadMatchesRef = doc(db, "user_matches", userAddress);
-      console.log("💕 loadMatches ref path:", loadMatchesRef.path);
-      const matchSnap = await getDoc(loadMatchesRef);
-      console.log("💕 loadMatches doc exists:", matchSnap.exists());
-
-      if (matchSnap.exists()) {
-        const data = matchSnap.data();
-        console.log("💕 loadMatches data:", data);
-        return data.matches || [];
-      }
-      console.log("💕 loadMatches: no document found");
-      return [];
-    } catch (error) {
-      console.error("Failed to load matches:", error);
-      return [];
-    }
-  }
-
-  // Listen to matches for real-time updates
-  static listenToMatches(
-    userAddress: string,
-    callback: (matches: any[]) => void
-  ): () => void {
-    console.log("💕 listenToMatches called for:", userAddress);
-    const listenMatchesRef = doc(db, "user_matches", userAddress);
-    console.log("💕 listenToMatches ref path:", listenMatchesRef.path);
-
-    return onSnapshot(listenMatchesRef, (doc) => {
-      console.log(
-        "💕 listenToMatches snapshot received, doc exists:",
-        doc.exists()
-      );
-      if (doc.exists()) {
-        const data = doc.data();
-        console.log("💕 listenToMatches data:", data);
-        callback(data.matches || []);
-      } else {
-        console.log("💕 listenToMatches: no document");
-        callback([]);
-      }
-    });
-  }
-
-  // Remove a match from Firebase
-  static async removeMatch(
-    userAddress: string,
-    matchAddress: string
-  ): Promise<void> {
-    try {
-      // Remove match from both users' match lists
-      const userMatchesRef = doc(db, "user_matches", userAddress);
-      const matchMatchesRef = doc(db, "user_matches", matchAddress);
-
-      // Remove from user's matches
-      const userMatchSnap = await getDoc(userMatchesRef);
-      if (userMatchSnap.exists()) {
-        let userMatches = userMatchSnap.data().matches || [];
-        userMatches = userMatches.filter(
-          (match: any) => match.address !== matchAddress
-        );
-        await setDoc(userMatchesRef, {
-          matches: userMatches,
-          lastUpdated: Timestamp.now(),
-        });
-      }
-
-      // Remove from match's matches
-      const matchMatchSnap = await getDoc(matchMatchesRef);
-      if (matchMatchSnap.exists()) {
-        let matchMatches = matchMatchSnap.data().matches || [];
-        matchMatches = matchMatches.filter(
-          (match: any) => match.address !== userAddress
-        );
-        await setDoc(matchMatchesRef, {
-          matches: matchMatches,
-          lastUpdated: Timestamp.now(),
-        });
-      }
-
-      // Store unfused pair to prevent re-fusing
-      await this.storeUnfusedPair(userAddress, matchAddress);
-
-      // Delete all messages between the users
-      await this.deleteConversationMessages(userAddress, matchAddress);
-
-      console.log(
-        "💔 Complete unfuse completed for:",
-        userAddress,
-        "and:",
-        matchAddress
-      );
-    } catch (error) {
-      console.error("Failed to remove match:", error);
-      throw error;
-    }
-  }
-
-  // Clear all messages (for testing/reset)
-  static async clearAllMessages(): Promise<void> {
-    try {
-      console.log("🧹 Clearing all messages...");
-
-      const messagesRef = collection(db, "messages");
-      const snapshot = await getDocs(messagesRef);
-
-      const batch = writeBatch(db);
-      snapshot.docs.forEach((doc) => {
-        batch.delete(doc.ref);
-      });
-
-      await batch.commit();
-      console.log(`✅ Cleared ${snapshot.docs.length} messages`);
-    } catch (error) {
-      console.error("Failed to clear messages:", error);
-      throw error;
-    }
-  }
-
-  // Store sent request in Firebase for persistence
-  static async storeSentRequest(
-    requesterAddress: string,
-    targetAddress: string
-  ): Promise<void> {
-    console.log(
-      "📤 storeSentRequest called with:",
-      requesterAddress,
-      "->",
-      targetAddress
-    );
-    try {
-      const auth = getAuth();
-      console.log(
-        "📤 Firebase auth currentUser:",
-        auth.currentUser?.uid || "null"
-      );
-      if (!auth.currentUser) {
-        throw new Error("No authenticated user for Firebase write");
-      }
-
-      const sentRequestsRef = doc(db, "sent_requests", requesterAddress);
-      console.log("📤 sentRequestsRef path:", sentRequestsRef.path);
-      const sentRequestSnap = await getDoc(sentRequestsRef);
-      console.log("📤 sentRequestSnap exists:", sentRequestSnap.exists());
-
-      let sentRequests = [];
-      if (sentRequestSnap.exists()) {
-        sentRequests = sentRequestSnap.data().sentRequests || [];
-        console.log("📤 existing sentRequests:", sentRequests);
-      }
-
-      // Check if already exists
-      const existingRequest = sentRequests.find(
-        (addr: string) => addr === targetAddress
-      );
-      console.log("📤 existingRequest found:", !!existingRequest);
-
-      if (!existingRequest) {
-        sentRequests.push(targetAddress);
-        console.log("📤 adding targetAddress to sentRequests:", sentRequests);
-        await setDoc(sentRequestsRef, {
-          sentRequests,
-          lastUpdated: Timestamp.now(),
-        });
-        console.log(
-          "📤 Sent request stored in Firebase for:",
-          requesterAddress,
-          "->",
-          targetAddress
-        );
-      } else {
-        console.log("📤 Sent request already exists, skipping");
-      }
-    } catch (error) {
-      console.error("❌ Failed to store sent request:", error);
-      throw error;
-    }
-  }
-
-  // Load sent requests from Firebase
-  static async loadSentRequests(
-    requesterAddress: string
-  ): Promise<Set<string>> {
-    try {
-      const sentRequestsRef = doc(db, "sent_requests", requesterAddress);
-      const sentRequestSnap = await getDoc(sentRequestsRef);
-
-      if (sentRequestSnap.exists()) {
-        const sentRequests = sentRequestSnap.data().sentRequests || [];
-        console.log(
-          "📥 Loaded sent requests from Firebase for:",
-          requesterAddress,
-          sentRequests
-        );
-        return new Set(sentRequests);
-      }
-
-      console.log(
-        "📥 No sent requests found in Firebase for:",
-        requesterAddress
-      );
-      return new Set();
-    } catch (error) {
-      console.error("Failed to load sent requests:", error);
-      return new Set();
-    }
-  }
-
-  // Remove sent request from Firebase (when match is created)
-  static async removeSentRequest(
-    requesterAddress: string,
-    targetAddress: string
-  ): Promise<void> {
-    try {
-      const sentRequestsRef = doc(db, "sent_requests", requesterAddress);
-      const sentRequestSnap = await getDoc(sentRequestsRef);
-
-      if (sentRequestSnap.exists()) {
-        const sentRequests = sentRequestSnap.data().sentRequests || [];
-        const filteredRequests = sentRequests.filter(
-          (addr: string) => addr !== targetAddress
-        );
-
-        await setDoc(sentRequestsRef, {
-          sentRequests: filteredRequests,
-          lastUpdated: Timestamp.now(),
-        });
-        console.log(
-          "🗑️ Sent request removed from Firebase for:",
-          requesterAddress,
-          "->",
-          targetAddress
-        );
-      }
-    } catch (error) {
-      console.error("Failed to remove sent request:", error);
-      throw error;
-    }
-  }
-
-  // Clear all fuse data (for testing/reset)
-  static async clearAllFuseData(): Promise<void> {
-    try {
-      console.log("🧹 Clearing all fuse data...");
-
-      // Get all users from users collection
-      const usersRef = collection(db, "users");
-      const usersSnap = await getDocs(usersRef);
-      const userAddresses = usersSnap.docs.map((doc) => doc.id);
-
-      // Clear fuse_requests for each user
-      for (const userAddr of userAddresses) {
-        const requestsRef = doc(db, "fuse_requests", userAddr);
-        await setDoc(requestsRef, {
-          requests: [],
-          lastUpdated: Timestamp.now(),
-        });
-      }
-
-      // Clear user_matches for each user
-      for (const userAddr of userAddresses) {
-        const matchesRef = doc(db, "user_matches", userAddr);
-        await setDoc(matchesRef, { matches: [], lastUpdated: Timestamp.now() });
-      }
-
-      // Clear sent_requests for each user
-      for (const userAddr of userAddresses) {
-        const sentRequestsRef = doc(db, "sent_requests", userAddr);
-        await setDoc(sentRequestsRef, {
-          sentRequests: [],
-          lastUpdated: Timestamp.now(),
-        });
-      }
-
-      // Clear unfused_pairs
-      const unfusedRef = collection(db, "unfused_pairs");
-      const unfusedSnapshot = await getDocs(unfusedRef);
-      const batch = writeBatch(db);
-      unfusedSnapshot.docs.forEach((doc) => {
-        batch.delete(doc.ref);
-      });
-      await batch.commit();
-
-      console.log("✅ All fuse data cleared");
-    } catch (error) {
-      console.error("Failed to clear fuse data:", error);
-      throw error;
-    }
-  }
-
-  // Store unfused pair to prevent re-fusing
-  static async storeUnfusedPair(
-    user1Address: string,
-    user2Address: string
-  ): Promise<void> {
-    try {
-      // Create a consistent pair ID (sorted to ensure uniqueness)
-      const pairId = [user1Address, user2Address].sort().join("_");
-
-      const unfusedRef = doc(db, "unfused_pairs", pairId);
-      await setDoc(unfusedRef, {
-        user1: user1Address,
-        user2: user2Address,
-        unfusedAt: Timestamp.now(),
-      });
-
-      console.log("🚫 Unfused pair stored:", pairId);
-    } catch (error) {
-      console.error("Failed to store unfused pair:", error);
-      throw error;
-    }
-  }
-
-  // Check if two users have unfused before
-  static async haveUsersUnfused(
-    user1Address: string,
-    user2Address: string
-  ): Promise<boolean> {
-    try {
-      const pairId = [user1Address, user2Address].sort().join("_");
-      const unfusedRef = doc(db, "unfused_pairs", pairId);
-      const unfusedSnap = await getDoc(unfusedRef);
-
-      return unfusedSnap.exists();
-    } catch (error) {
-      console.error("Failed to check unfused pair:", error);
-      return false;
-    }
-  }
-
-  // Check if two users are currently matched
-  static async areUsersMatched(
-    user1Address: string,
-    user2Address: string
-  ): Promise<boolean> {
-    try {
-      // Check if user1 has user2 in their matches
-      const user1Matches = await this.loadMatches(user1Address);
-      const hasMatch1 = user1Matches.some(
-        (match) => match.address === user2Address
-      );
-
-      // Check if user2 has user1 in their matches
-      const user2Matches = await this.loadMatches(user2Address);
-      const hasMatch2 = user2Matches.some(
-        (match) => match.address === user1Address
-      );
-
-      // Both must have each other in their matches
-      return hasMatch1 && hasMatch2;
-    } catch (error) {
-      console.error("Failed to check if users are matched:", error);
-      return false;
-    }
-  }
-
-  // Delete all messages between two users
-  static async deleteConversationMessages(
-    user1Address: string,
-    user2Address: string
-  ): Promise<void> {
-    try {
-      const conversationId = [user1Address, user2Address].sort().join("_");
-
-      const messagesRef = collection(db, "messages");
-      const q = query(
-        messagesRef,
-        where("conversationId", "==", conversationId)
-      );
-
-      const snapshot = await getDocs(q);
-
-      const batch = writeBatch(db);
-      snapshot.docs.forEach((doc) => {
-        batch.delete(doc.ref);
-      });
-
-      await batch.commit();
-
-      console.log(
-        `🗑️ Deleted ${snapshot.docs.length} messages for conversation:`,
-        conversationId
-      );
-    } catch (error) {
-      console.error("Failed to delete conversation messages:", error);
-      throw error;
-    }
-  }
-
-  static async getAllUsersForDiscovery(
-    currentUserAddress: string
-  ): Promise<any[]> {
-    try {
-      const usersRef = collection(db, "users");
-      const querySnapshot = await getDocs(usersRef);
-      console.log(
-        "Firebase getAllUsersForDiscovery: Found",
-        querySnapshot.docs.length,
-        "total users in database"
-      );
-
-      const users = [];
-      for (const docSnap of querySnapshot.docs) {
-        if (docSnap.id === currentUserAddress) {
-          continue; // Skip self
-        }
-
-        try {
-          const data = docSnap.data();
-
-          // Get public matching data (not encrypted)
-          if (data.matchingData) {
-            // Load photos for this user
-            const photos = await this.loadUserPhotos(docSnap.id);
-
-            users.push({
-              address: docSnap.id,
-              ...data.matchingData,
-              photos: photos,
-            });
-          } else {
-            console.log("No matching data for user:", docSnap.id);
-          }
-        } catch (error) {
-          console.log("Cannot process user:", docSnap.id);
-        }
-      }
-
-      return users;
-    } catch (error) {
-      console.error("Error getting all users for discovery:", error);
-      return [];
-    }
-  }
-
-  // Load user photos from Firebase Storage
-  static async loadUserPhotos(userAddress: string): Promise<string[]> {
-    try {
-      const userImagesRef = ref(storage, `users/${userAddress}/images`);
-      const result = await listAll(userImagesRef);
-
-      const photoPromises = result.items.map(async (itemRef) => {
-        const url = await getDownloadURL(itemRef);
-        return url;
-      });
-
-      const photos = await Promise.all(photoPromises);
-      console.log(`Loaded ${photos.length} photos for user: ${userAddress}`);
-      return photos;
-    } catch (error) {
-      console.error(`Error loading photos for user ${userAddress}:`, error);
-      return [];
-    }
-  }
-
-  // Conversation Tracking Methods for Enhanced Algorithm
-
-  // Store encrypted conversation message
-  static async storeConversationMessage(messageRecord: any): Promise<void> {
-    try {
-      const auth = getAuth();
-      if (!auth.currentUser) {
-        throw new Error("No authenticated user for Firebase write");
-      }
-
-      const messagesRef = doc(db, "conversation_messages", messageRecord.id);
-      await setDoc(messagesRef, {
-        ...messageRecord,
-        lastUpdated: Timestamp.now(),
-      });
-
-      console.log("💬 Conversation message stored:", messageRecord.id);
-    } catch (error) {
-      console.error("❌ Failed to store conversation message:", error);
-      throw error;
-    }
-  }
-
-  // Get conversation summary
-  static async getConversationSummary(conversationId: string): Promise<any> {
-    try {
-      const summaryRef = doc(db, "conversation_summaries", conversationId);
-      const summarySnap = await getDoc(summaryRef);
-
-      if (summarySnap.exists()) {
-        return summarySnap.data();
-      }
-
-      return null;
-    } catch (error) {
-      console.error("Failed to get conversation summary:", error);
-      return null;
-    }
-  }
-
-  // Create conversation summary
-  static async createConversationSummary(summary: any): Promise<void> {
-    try {
-      const auth = getAuth();
-      if (!auth.currentUser) {
-        throw new Error("No authenticated user for Firebase write");
-      }
-
-      const summaryRef = doc(db, "conversation_summaries", summary.id);
-      await setDoc(summaryRef, {
-        ...summary,
-        createdAt: Timestamp.now(),
-        lastUpdated: Timestamp.now(),
-      });
-
-      console.log("📊 Conversation summary created:", summary.id);
-    } catch (error) {
-      console.error("❌ Failed to create conversation summary:", error);
-      throw error;
-    }
-  }
-
-  // Update conversation summary
-  static async updateConversationSummary(
-    conversationId: string,
-    updates: any
-  ): Promise<void> {
-    try {
-      const auth = getAuth();
-      if (!auth.currentUser) {
-        throw new Error("No authenticated user for Firebase write");
-      }
-
-      const summaryRef = doc(db, "conversation_summaries", conversationId);
-      await updateDoc(summaryRef, {
-        ...updates,
-        lastUpdated: Timestamp.now(),
-      });
-
-      console.log("📊 Conversation summary updated:", conversationId);
-    } catch (error) {
-      console.error("❌ Failed to update conversation summary:", error);
-      throw error;
-    }
-  }
-
-  // Get user's conversations
-  static async getUserConversations(userAddress: string): Promise<any[]> {
-    try {
-      // Query for conversations where user is a participant
-      const q = query(
-        collection(db, "conversation_summaries"),
-        where("participants", "array-contains", userAddress)
-      );
-
-      const querySnapshot = await getDocs(q);
-      const conversations: any[] = [];
-
-      querySnapshot.forEach((doc) => {
-        conversations.push({
-          id: doc.id,
-          ...doc.data(),
-        });
-      });
-
-      return conversations;
-    } catch (error) {
-      console.error("Failed to get user conversations:", error);
-      return [];
     }
   }
 }

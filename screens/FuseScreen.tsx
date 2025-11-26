@@ -1157,7 +1157,10 @@ export default function FuseScreen() {
                 user.compatibilityScore !== null && (
                   <AnimatedTouchableOpacity
                     onPress={() => setShowCompatibilityModal(true)}
-                    style={[styles.compatibilityBadge, { transform: [{ scale: pulseAnim }] }]}
+                    style={[
+                      styles.compatibilityBadge,
+                      { transform: [{ scale: pulseAnim }] },
+                    ]}
                   >
                     <Text style={styles.compatibilityBadgeText}>
                       🚀 {Math.round(user.compatibilityScore)}%
