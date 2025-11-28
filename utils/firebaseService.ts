@@ -527,6 +527,31 @@ export class FirebaseService {
     }
   }
 
+  // Listen to matches for real-time updates
+  static listenToMatches(
+    userAddress: string,
+    callback: (matches: any[]) => void
+  ): () => void {
+    console.log("💕 listenToMatches called for:", userAddress);
+    const matchesRef = doc(db, "user_matches", userAddress);
+    console.log("💕 listenToMatches ref path:", matchesRef.path);
+
+    return onSnapshot(matchesRef, (doc) => {
+      console.log(
+        "💕 listenToMatches snapshot received, doc exists:",
+        doc.exists()
+      );
+      if (doc.exists()) {
+        const data = doc.data();
+        console.log("💕 listenToMatches data:", data);
+        callback(data.matches || []);
+      } else {
+        console.log("💕 listenToMatches: no document");
+        callback([]);
+      }
+    });
+  }
+
   // Store encrypted interaction data
   static async storeInteraction(interactionData: any): Promise<void> {
     if (!this.userKeys) {
@@ -1287,7 +1312,7 @@ export class FirebaseService {
       );
 
       const querySnapshot = await getDocs(q);
-      const conversations = [];
+      const conversations: any[] = [];
 
       querySnapshot.forEach((doc) => {
         conversations.push({
