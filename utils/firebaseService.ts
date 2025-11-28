@@ -1404,7 +1404,6 @@ export class FirebaseService {
       return [];
     }
   }
-<<<<<<< HEAD
 
   // Get all users for discovery (public data only)
   static async getAllUsersForDiscovery(
