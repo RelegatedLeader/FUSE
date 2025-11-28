@@ -293,6 +293,23 @@ export class FirebaseService {
     }
   }
 
+  // Create conversation summary
+  static async createConversationSummary(summary: any): Promise<void> {
+    try {
+      const summaryRef = doc(db, "conversation_summaries", summary.id);
+      await setDoc(summaryRef, {
+        ...summary,
+        createdAt: Timestamp.now(),
+        lastUpdated: Timestamp.now(),
+      });
+
+      console.log("📊 Conversation summary created:", summary.id);
+    } catch (error) {
+      console.error("❌ Failed to create conversation summary:", error);
+      throw error;
+    }
+  }
+
   // Update conversation summary
   static async updateConversationSummary(
     conversationId: string,
@@ -1387,6 +1404,7 @@ export class FirebaseService {
       return [];
     }
   }
+<<<<<<< HEAD
 
   // Get all users for discovery (public data only)
   static async getAllUsersForDiscovery(
