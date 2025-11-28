@@ -282,7 +282,7 @@ export class FirebaseService {
     try {
       const summaryRef = doc(db, "conversation_summaries", conversationId);
       const summarySnap = await getDoc(summaryRef);
-      
+
       if (summarySnap.exists()) {
         return summarySnap.data();
       }
@@ -294,7 +294,10 @@ export class FirebaseService {
   }
 
   // Update conversation summary
-  static async updateConversationSummary(conversationId: string, updates: any): Promise<void> {
+  static async updateConversationSummary(
+    conversationId: string,
+    updates: any
+  ): Promise<void> {
     try {
       const summaryRef = doc(db, "conversation_summaries", conversationId);
       await setDoc(summaryRef, updates, { merge: true });
@@ -313,10 +316,7 @@ export class FirebaseService {
     }
 
     const messagesRef = collection(db, "messages");
-    const q = query(
-      messagesRef,
-      where("conversationId", "==", conversationId)
-    );
+    const q = query(messagesRef, where("conversationId", "==", conversationId));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const messages: any[] = [];
@@ -457,6 +457,82 @@ export class FirebaseService {
     }
   }
 
+  // Load matches from Firebase for a user
+  static async loadMatches(userAddress: string): Promise<any[]> {
+    console.log("💕 loadMatches called for:", userAddress);
+    try {
+      const loadMatchesRef = doc(db, "user_matches", userAddress);
+      console.log("💕 loadMatches ref path:", loadMatchesRef.path);
+      const matchSnap = await getDoc(loadMatchesRef);
+      console.log("💕 loadMatches doc exists:", matchSnap.exists());
+
+      if (matchSnap.exists()) {
+        const data = matchSnap.data();
+        console.log("💕 loadMatches data:", data);
+        return data.matches || [];
+      }
+      console.log("💕 loadMatches: no document found");
+      return [];
+    } catch (error) {
+      console.error("Failed to load matches:", error);
+      return [];
+    }
+  }
+
+  // Store a match for a user
+  static async storeMatch(userAddress: string, matchData: any): Promise<void> {
+    console.log("💕 storeMatch called for:", userAddress, "with data:", matchData);
+    try {
+      const matchesRef = doc(db, "user_matches", userAddress);
+      const currentMatches = await this.loadMatches(userAddress);
+      
+      // Check if match already exists
+      const existingIndex = currentMatches.findIndex((m: any) => m.address === matchData.address);
+      if (existingIndex >= 0) {
+        // Update existing match
+        currentMatches[existingIndex] = matchData;
+      } else {
+        // Add new match
+        currentMatches.push(matchData);
+      }
+      
+      await setDoc(matchesRef, {
+        matches: currentMatches,
+        lastUpdated: Timestamp.now(),
+      });
+      
+      console.log("💕 Match stored for user:", userAddress);
+    } catch (error) {
+      console.error("Failed to store match:", error);
+      throw error;
+    }
+  }
+
+  // Listen to matches for real-time updates
+  static listenToMatches(
+    userAddress: string,
+    callback: (matches: any[]) => void
+  ): () => void {
+    console.log("💕 listenToMatches called for:", userAddress);
+    const matchesRef = doc(db, "user_matches", userAddress);
+    console.log("💕 listenToMatches ref path:", matchesRef.path);
+
+    return onSnapshot(matchesRef, (doc) => {
+      console.log(
+        "💕 listenToMatches snapshot received, doc exists:",
+        doc.exists()
+      );
+      if (doc.exists()) {
+        const data = doc.data();
+        console.log("💕 listenToMatches data:", data);
+        callback(data.matches || []);
+      } else {
+        console.log("💕 listenToMatches: no document");
+        callback([]);
+      }
+    });
+  }
+
   // Store encrypted interaction data
   static async storeInteraction(interactionData: any): Promise<void> {
     if (!this.userKeys) {
@@ -544,8 +620,7 @@ export class FirebaseService {
         });
       });
 
-      await
-      console.log("📦 Batch stored user data and interactions");
+      await console.log("📦 Batch stored user data and interactions");
     } catch (error) {
       throw new Error("Failed to batch store user data: " + error);
     }
@@ -1203,6 +1278,178 @@ export class FirebaseService {
     } catch (error) {
       console.error("Failed to remove fuse request:", error);
       throw error;
+    }
+  }
+
+  // Store a sent request in Firebase
+  static async storeSentRequest(
+    fromAddress: string,
+    toAddress: string,
+    requestData: any
+  ): Promise<void> {
+    try {
+      const sentRequestsRef = doc(db, "sent_requests", fromAddress);
+      const sentSnap = await getDoc(sentRequestsRef);
+
+      let sentRequests = [];
+      if (sentSnap.exists()) {
+        sentRequests = sentSnap.data().requests || [];
+      }
+
+      // Check if request already exists
+      const existingRequest = sentRequests.find(
+        (request: any) => request.toAddress === toAddress
+      );
+
+      if (!existingRequest) {
+        sentRequests.push({
+          toAddress,
+          ...requestData,
+          sentDate: Timestamp.now(),
+        });
+
+        await setDoc(sentRequestsRef, {
+          requests: sentRequests,
+          lastUpdated: Timestamp.now(),
+        });
+      }
+    } catch (error) {
+      console.error("Failed to store sent request:", error);
+      throw error;
+    }
+  }
+
+  // Load sent requests from Firebase
+  static async loadSentRequests(fromAddress: string): Promise<any[]> {
+    try {
+      const sentRequestsRef = doc(db, "sent_requests", fromAddress);
+      const sentSnap = await getDoc(sentRequestsRef);
+
+      if (sentSnap.exists()) {
+        return sentSnap.data().requests || [];
+      }
+      return [];
+    } catch (error) {
+      console.error("Failed to load sent requests:", error);
+      return [];
+    }
+  }
+
+  // Remove a sent request from Firebase
+  static async removeSentRequest(
+    fromAddress: string,
+    toAddress: string
+  ): Promise<void> {
+    try {
+      const sentRequestsRef = doc(db, "sent_requests", fromAddress);
+      const sentSnap = await getDoc(sentRequestsRef);
+
+      if (sentSnap.exists()) {
+        let sentRequests = sentSnap.data().requests || [];
+        sentRequests = sentRequests.filter(
+          (request: any) => request.toAddress !== toAddress
+        );
+
+        await setDoc(sentRequestsRef, {
+          requests: sentRequests,
+          lastUpdated: Timestamp.now(),
+        });
+      }
+    } catch (error) {
+      console.error("Failed to remove sent request:", error);
+      throw error;
+    }
+  }
+
+  // Get user conversations
+  static async getUserConversations(userAddress: string): Promise<any[]> {
+    try {
+      const conversationsRef = collection(db, "conversation_summaries");
+      const q = query(
+        conversationsRef,
+        where("participants", "array-contains", userAddress),
+        orderBy("lastMessageTime", "desc")
+      );
+
+      const querySnapshot = await getDocs(q);
+      const conversations: any[] = [];
+
+      querySnapshot.forEach((doc) => {
+        conversations.push({
+          id: doc.id,
+          ...doc.data(),
+        });
+      });
+
+      return conversations;
+    } catch (error) {
+      console.error("Failed to get user conversations:", error);
+      return [];
+    }
+  }
+
+  // Get all users for discovery (public data only)
+  static async getAllUsersForDiscovery(
+    currentUserAddress: string
+  ): Promise<any[]> {
+    try {
+      const usersRef = collection(db, "users");
+      const querySnapshot = await getDocs(usersRef);
+
+      const users: any[] = [];
+      for (const docSnap of querySnapshot.docs) {
+        // Skip current user
+        if (docSnap.id === currentUserAddress) continue;
+
+        try {
+          // Get user profile (this will return public data)
+          const userData = await this.getUserProfile(docSnap.id);
+          if (userData) {
+            users.push({
+              address: docSnap.id,
+              ...userData,
+            });
+          }
+        } catch (error) {
+          // Skip users we can't access
+          console.warn("Failed to load user for discovery:", docSnap.id);
+        }
+      }
+
+      return users;
+    } catch (error) {
+      console.error("Failed to get all users for discovery:", error);
+      return [];
+    }
+  }
+
+  // Check if two users have unfused before
+  static async haveUsersUnfused(userA: string, userB: string): Promise<boolean> {
+    try {
+      // Create a consistent pair ID by sorting the addresses
+      const pairId = userA < userB ? `${userA}_${userB}` : `${userB}_${userA}`;
+      const unfusedRef = doc(db, "unfused_pairs", pairId);
+      const unfusedSnap = await getDoc(unfusedRef);
+      return unfusedSnap.exists();
+    } catch (error) {
+      console.error("Failed to check if users have unfused:", error);
+      return false;
+    }
+  }
+
+  // Check if two users are currently matched
+  static async areUsersMatched(userA: string, userB: string): Promise<boolean> {
+    try {
+      const matchesA = await this.loadMatches(userA);
+      const matchesB = await this.loadMatches(userB);
+      
+      const hasMatchA = matchesA.some(match => match.address === userB);
+      const hasMatchB = matchesB.some(match => match.address === userA);
+      
+      return hasMatchA && hasMatchB;
+    } catch (error) {
+      console.error("Failed to check if users are matched:", error);
+      return false;
     }
   }
 }

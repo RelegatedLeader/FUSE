@@ -27,6 +27,7 @@ import {
   EnhancedMatchingEngine,
   CompatibilityResult,
 } from "../utils/enhancedMatchingEngine";
+import { FirebaseService } from "../utils/firebaseService";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CryptoJS from "crypto-js";
 
@@ -170,7 +171,6 @@ export default function FuseScreen() {
   const loadUserPhotos = async (userAddress: string): Promise<string[]> => {
     try {
       // Initialize Firebase for the target user
-      const { FirebaseService } = await import("../utils/firebaseService");
       await FirebaseService.initializeUser(userAddress);
 
       // Get photo URLs from Firebase - images are now stored unencrypted
@@ -209,7 +209,6 @@ export default function FuseScreen() {
       const { initializeFirebaseAuth } = await import("../utils/firebase");
       await initializeFirebaseAuth();
 
-      const { FirebaseService } = await import("../utils/firebaseService");
       await FirebaseService.initializeUser(address);
       const userProfile = await FirebaseService.getUserProfile(address);
 
@@ -281,7 +280,7 @@ export default function FuseScreen() {
         const firebaseSentRequests = await FirebaseService.loadSentRequests(
           address
         );
-        localSentRequests = firebaseSentRequests;
+        localSentRequests = new Set(firebaseSentRequests);
         setSentRequests(localSentRequests);
         console.log(
           "📤 Loaded sent requests from Firebase:",
@@ -433,7 +432,6 @@ export default function FuseScreen() {
           );
           // Update the match with calculated compatibility
           match.compatibilityScore = compatibilityScore;
-          match.compatibilityResult = compatibilityResult;
         } catch (error) {
           console.warn(
             "Error calculating compatibility for",
@@ -499,8 +497,6 @@ export default function FuseScreen() {
 
     const filterAndFormatMatches = async () => {
       try {
-        const { FirebaseService } = await import("../utils/firebaseService");
-
         // Define calculateAge function
         const calculateAge = (birthdate: string): number | null => {
           if (!birthdate || birthdate.trim() === "") return null;
@@ -667,7 +663,6 @@ export default function FuseScreen() {
         await initializeFirebaseAuth();
 
         // Store request in Firebase
-        const { FirebaseService } = await import("../utils/firebaseService");
         await FirebaseService.initializeUser(address);
 
         // Get current user profile data
@@ -771,7 +766,7 @@ export default function FuseScreen() {
               address,
               userAddress
             );
-            await FirebaseService.storeSentRequest(address, userAddress);
+            await FirebaseService.storeSentRequest(address, userAddress, requestData);
             console.log("📤 Sent request stored in Firebase successfully");
           } catch (error) {
             console.warn("Error storing sent request in Firebase:", error);
@@ -1002,10 +997,7 @@ export default function FuseScreen() {
                   scrollEnabled={true}
                 >
                   {user.photos.map((photo, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      activeOpacity={1}
-                    >
+                    <TouchableOpacity key={index} activeOpacity={1}>
                       <Image
                         source={{ uri: photo }}
                         style={styles.photoImage}
