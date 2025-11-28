@@ -1,0 +1,765 @@
+[33mcommit d7743b931a183a133377542216c6b955125edb78[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 27 20:44:10 2025 -0600
+
+    Fix requestedUsers undefined error and handle conversation index gracefully
+
+[33mcommit 9ed2ad2dc241e56003c18d6165b13f97336f82b8[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 27 20:32:53 2025 -0600
+
+    Remove remaining merge conflict markers
+
+[33mcommit 37380a9ec374e16a0107d255b5e0f065076b0e9a[m
+Merge: e1be707 d292f8a
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 27 20:31:57 2025 -0600
+
+    Merge remote changes and fix firebase functions
+
+[33mcommit e1be707a65fd566e1d6b35f5ff2772eb9c80a4d2[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 27 20:29:46 2025 -0600
+
+    Starting to fix the firebase
+
+[33mcommit d292f8a892ed33d7f78ffb53cb9ab86b2ac82edf[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 27 19:26:29 2025 -0600
+
+    Add listenToMatches method and fix Firestore index for conversation_summaries
+
+[33mcommit bb428479cf0310b80407b028d989c3d4c0746772[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 27 19:23:18 2025 -0600
+
+    Add missing Firebase methods: getUserConversations and createConversationSummary
+
+[33mcommit 4b89b72044538b24a4c412f8f3a50240260723ef[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 27 19:18:58 2025 -0600
+
+    Add haveUsersUnfused and loadMatches methods to fix database matching error
+
+[33mcommit bd20bd3b50b5d7b711e6e60d4c03ebf4e62f9727[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 26 15:02:47 2025 -0600
+
+    Images are no longer clickable
+
+[33mcommit fd37f1af262fc324fc5c4657ce2c2a6dfab65e7b[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 26 13:52:09 2025 -0600
+
+    Fixed last firebase error regarding retrieval of messages where there were no messages in the database
+
+[33mcommit 6c997a5b92e86ca78b44524ccdaaa14061d002a7[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 26 13:46:11 2025 -0600
+
+    Optimized home page and Discover page a little bit
+
+[33mcommit c035d7f672aaeea2bc09b44d94526695146f7180[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 25 19:42:54 2025 -0600
+
+    LATEST STABLE RELEASE
+
+[33mcommit 238fe418031718dc95d9750c4b8ac22654496c02[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 25 19:20:41 2025 -0600
+
+    LATEST STABLE UPDATE --> Decent Showcasing of Compatibilities in the Fuse home menu
+
+[33mcommit d0116bd7f8df2ccd67e098936cbf017e5b21e53d[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 25 17:53:21 2025 -0600
+
+    Still working on compatibility display on fuse screen home menu
+
+[33mcommit b4a199e3e3ee3c1373f2d96791ce5b94479aa793[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 25 17:39:21 2025 -0600
+
+    Still working on compatibility
+
+[33mcommit 11f1fbf48ef0bdfa9094ff6a21ec45821ddf7e17[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 25 16:05:36 2025 -0600
+
+    Compatibility is shown outside user box in the discover page
+
+[33mcommit 9cf967ff9f0b9bfb19244c97fb84cd3b07e2403d[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 25 15:59:32 2025 -0600
+
+    Still working on compatibility
+
+[33mcommit 13969f160c82c636328868541a5f793b35ce46c4[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 25 15:07:55 2025 -0600
+
+    Working on algorithm, working on the compatibility showcasing
+
+[33mcommit e8fca93f6877d3a8d19cd42af7aa91e6787aca71[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Nov 24 22:07:23 2025 -0600
+
+    LATEST STABLE VERSION--> Beginning to import Algorithm
+
+[33mcommit 92596de56a2fbf2ffb573bb4a9fd14568f8499db[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Nov 24 21:23:59 2025 -0600
+
+    LATEST STABLE UPDATE
+
+[33mcommit e8aef337cc90120c59779143c7c9fd091f1b5351[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Nov 24 19:42:09 2025 -0600
+
+    LATEST STABLE RELEASE --> Home Fuse and Discover pages are working fluently partly in conjuction
+
+[33mcommit 4bd93ded165c0b1b3d682a9e74562c23a377901c[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Nov 24 19:30:48 2025 -0600
+
+    LATEST STABLE RELEASE --> Good Discover page (it's a start before the algorithm)
+
+[33mcommit 5df5d9b8b4da789c64a5964ca352c6fe74170499[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Nov 24 19:15:13 2025 -0600
+
+    Users are being shown in the discover page
+
+[33mcommit 5951c447d92a94d72d01fce659b4f8e73caf2f85[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Nov 24 18:50:17 2025 -0600
+
+    Testing Discover page
+
+[33mcommit 47553dc10f7fbae7d84d64a90dc38032a02642c3[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Nov 24 18:45:26 2025 -0600
+
+    Starting to work on the Discover page
+
+[33mcommit 52b27cf63a69244f9aba42dda68e2d68636e212f[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Nov 24 17:54:41 2025 -0600
+
+     Commented out White box that was on fusers page
+
+[33mcommit 9902d81afb66a1420ab838381a8294a26405a278[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 20 19:12:30 2025 -0600
+
+    LATEST STABLE UPDATE --> Updated the messaging UI better and the unfusing mechanism is in play, and evertyhing deletes if one user defuses the relationship
+
+[33mcommit a499a935d84f86a03bce44b0e0077436140f70f4[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 20 18:58:08 2025 -0600
+
+    LATEST UPDATE ---> Name is now visible on top for each user , chats show name of current user being messaged in par with their POL address, when opening chat, latest messages are shown, like normal chats
+
+[33mcommit e5ce0309aba773cc46310d42d9ee109b9bfcd64b[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 20 18:04:25 2025 -0600
+
+    LATEST STABLE BUILD -->Unfused Users (Probably will call it Defuse on the polish and Fusion instead of Fusers, still thinking about it) can now unfuse and the whole messaging done will be permanently deleted from the database and users will no longer be able to fuse together
+
+[33mcommit 230349c4022820e1e8968257ba8419a9b1becede[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 20 17:34:57 2025 -0600
+
+    Better (not perfect) fusing system, Ages are being displayed correctly on the fuse home screen
+
+[33mcommit 9bd9c35fa9adddac877e33f2f69d2c9d421f4a5b[m
+Merge: 366339b 09fe222
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 20 16:55:26 2025 -0600
+
+    LATEST STABLE UPDATE --> Better System, now attempting to display profile better
+
+[33mcommit 366339b217bf32b68baa249cb2546edebb6b913d[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 20 16:46:05 2025 -0600
+
+    Fix real-time filtering for sent requests - profiles now disappear immediately after sending fuse request
+
+[33mcommit 612f929169746e92e22f6ada4df87bd2b2618d03[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 20 16:44:41 2025 -0600
+
+    BETTER matching system --> Good foundations, will keep messing up as we go further but people are fusing
+
+[33mcommit 09fe222c993220982c1a9ce23ab5578f16f715eb[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 20 16:06:13 2025 -0600
+
+     Still working on removing users upon refresh from algorithm
+
+[33mcommit 73992ce9cd0586d4f9397a24bb1a15c7285e0b42[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 20 14:47:50 2025 -0600
+
+    LATEST STABLE BUILD --> Refresh button removed, slide down to refresh
+
+[33mcommit edcf59ce2b0ac9e076f89227344ead04d9465084[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 20 14:38:31 2025 -0600
+
+    LATEST STABLE BUILD --> Request Send functionality used for prior skipped accounts, other accoutns are not to be shown upon refresh
+
+[33mcommit 96317147f5093a718bbf92f8d96008eacf9590b7[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 20 13:33:39 2025 -0600
+
+    LATEST UPDATE --> Even better FUsing system -- > You have to keep in mind that if you skip a user to fuse with the one after it, then after the fuse, you wont see the past user, ill work on fixing this specific thing
+
+[33mcommit 76f39fed3d7304ba28cb141a4136fb1db13a843a[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 20 13:17:57 2025 -0600
+
+    Better fusing methods
+
+[33mcommit 76a3059667b1af0ef80d4f222d5e8f4878fdddde[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 20 12:14:26 2025 -0600
+
+    LATEST STABLE BUILD --> Working on Fusing
+
+[33mcommit f23c7166aba4b3d21a3a23127d30143050b882f2[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 19 15:36:28 2025 -0600
+
+    LATEST STABLE UPDATE --> Locked button is now unlocked by default -> resolved underlying issue of a false truthy
+
+[33mcommit fd9e80c96430ef2052e4b2e19be0db89fbf8662e[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 19 14:26:17 2025 -0600
+
+    Applied the profile showcase to the profile under fusers profile now
+
+[33mcommit 4bdf20c08031460b7040fb5c51d9c1864359cb8f[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 19 14:23:26 2025 -0600
+
+    LATEST STABLE VERSION--> Profile better showcased on bigger devices on the fuse screen(home screen)
+
+[33mcommit 69d05b8b17ef51d538bc65aa28fc53eb5ca56c47[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 19 14:17:16 2025 -0600
+
+    LATEST STABLE VERSION --> Removed < and > from image switching to make it more modern and fix issues with phone versions where carousel was unstable
+
+[33mcommit 62bcb630ef54c95c3004ddb296aa4055c44f4068[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 19 14:10:24 2025 -0600
+
+    LATEST STABLE VERSION --> Adapted to bigger devices on the Home screen
+
+[33mcommit 56bc984a1be18bbe123809e118a4aee5cbd46fbf[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 19 13:53:46 2025 -0600
+
+    LATEST STABLE RELEASE --> Images are being displayed better and allowed correct zooming when they are clicked upon along with the < and > buttons working when switching between images
+
+[33mcommit e0689236a1a208128d487e69d0ad343fea076d53[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 19 13:45:22 2025 -0600
+
+    LATEST STABLE VERSION --> working on modeling the Fuse screen, working on the image system and card displays
+
+[33mcommit 0ee198802450925b3fde384ed5cf2e67a6d456bf[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 18 23:13:07 2025 -0600
+
+    LATEST STABLE VERSION --> Edited the fuse button a bit, will be given another polish later on
+
+[33mcommit ac8efa8ade550615e5d583fe1e9993b45deba838[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 18 22:51:32 2025 -0600
+
+    LATEST STABLE VERSION --> Acceptable profile showings from both Home and Fusers page
+
+[33mcommit 3439f2c699729704395dd21b4de23fabe3ee58dc[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 18 22:30:01 2025 -0600
+
+    LATEST STABLE BUILD --> Gave the profile spacing from the top
+
+[33mcommit 640f52ce9a798d97976903b60c9abb3f76a7ced6[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 18 22:27:16 2025 -0600
+
+    LATEST STABLE VERSION --> Profile on main screen can now be scrolled down to be dismissed
+
+[33mcommit 257d6154083866fafc7ad8af48d0052f3347a8c5[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 18 22:07:28 2025 -0600
+
+    LATEST STABLE VERSION--> Better formatting for the home screen
+
+[33mcommit 0c8e0e23901ed59b175dc60bba29de798b423cf7[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 18 22:02:34 2025 -0600
+
+    LATEST STABLE VERSION --> Getting close to a good acceptable Fuse home screen
+
+[33mcommit b9c231662819a778b852cc2f27206e39cfac7715[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 18 21:07:09 2025 -0600
+
+    LATEST UPDATE--> working on making the Find your Fuse scrollable based on Profiles
+
+[33mcommit a56ed1fa2ca6cdc3aaeda360d55adc006ec5bd4d[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 18 20:58:11 2025 -0600
+
+    LATEST STABLE RELEASE --> better profile showcase via the Fusers page
+
+[33mcommit 9c115a214a68f1dae9f2e2b33493529bc1f8a399[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 18 20:19:44 2025 -0600
+
+    Fixing the Fusers name Profile
+
+[33mcommit e59722cccdd22b6e4ee18ebe2fe20a0104602abd[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 18 20:13:10 2025 -0600
+
+    Attempting to fix the option to show Users Profile by clicking name within the Fusers page
+
+[33mcommit a3576cf54417f0d5a09296cdd98582c5524d0e86[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 18 19:05:13 2025 -0600
+
+    LATEST STABLE VERSION ----> MESSAGING is starting to work! Needs more tweaking
+
+[33mcommit 065d5fedf8dab656a6946a4b09147be816d9fdf3[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 18 18:25:55 2025 -0600
+
+    Getting somewhere with the messaging system
+
+[33mcommit 740aaf304011bb3980184e76c93a22de410ec80c[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 18 15:17:52 2025 -0600
+
+    LATEST STABLE VERSION--> working on displaying messages
+
+[33mcommit ceb45af17d8eed1ac8712e78c5bbdfc583ef2089[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 18 14:23:27 2025 -0600
+
+    LATEST STABLE BUILD --> Fuse system now works better, old profiles arent being loaded anymore
+
+[33mcommit ee87b40e1afc5f95adc40601586bc2de94304804[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 18 12:30:09 2025 -0600
+
+    Still working on updating the fuse method
+
+[33mcommit faaf1bd06e51d4061fb9c72096f0e02e93ebd7ad[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Nov 17 20:32:07 2025 -0600
+
+    LATEST BUILD -> Removed Want to Fuse section, still working on the Fusing and messaging systems
+
+[33mcommit 8063eeace390059d2784e639b3fcde4464d4b596[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Nov 17 11:19:52 2025 -0600
+
+    LATEST STABLE VERSION -> working on fusing and on messages
+
+[33mcommit 6ac29fa133ce8b7c71f3806b423ca3e239c65181[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Nov 17 07:40:53 2025 -0600
+
+    Implementing the messaging system
+
+[33mcommit f4485901bfab35e30b3d5fa82337aaa3fee13c26[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Fri Nov 14 17:18:56 2025 -0600
+
+    LATEST BUILD --> made the Fuse functionality a bit faster and added a loading rocket animation as it loads user
+
+[33mcommit ac13b0209477cbd4bd3f86d15e9dacb63a35c208[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Fri Nov 14 17:08:34 2025 -0600
+
+    LATEST WORKING BUILD --> Images are being stored and retrieved correctly on firebase and changes in displaying them is in play
+
+[33mcommit be85f37e9ec5172ea9d2a9639defe723bea8fab4[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Fri Nov 14 16:10:53 2025 -0600
+
+    LATEST STABLE BUILD -> working on being able to add more than one image and allow it to be displayed to other users
+
+[33mcommit caf8d36055e41dca92ae424293a766e259ce579f[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Fri Nov 14 15:51:47 2025 -0600
+
+     LATEST STABLE BUILD --> Firebase image uploading is now functional
+
+[33mcommit 1da203b65dfbb72f3195bff6ace969b549238a32[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 13 16:46:48 2025 -0600
+
+    LATEST STABLE BUILD -> removing complex Arweave for images FOR NOW ,since it needs funding and this is alpha version, a similar structure will be looked for upon the finished version, the idea as of now is to make it all work as user-friendly and low cost as possible
+
+[33mcommit 8f1d46be6163f3277686ef4b169f38b1a62cfee5[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 13 15:47:44 2025 -0600
+
+    latest stable build - > still working on images storage
+
+[33mcommit 780a320dc4e4d9d7fa2cf2a3e5bb7e2f7ab0c197[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Nov 13 15:40:34 2025 -0600
+
+    LATEST STABLE VERSION -> working on having images uploaded to arweave
+
+[33mcommit f4208d38954615498a544e8b98ec7be245ccb918[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 12 17:24:00 2025 -0600
+
+    LATEST STABLE BUILD -> replaced some alert for some popups in the design of the site
+
+[33mcommit 6139a2fc7bd56974c335c9256a3c10d53bfc0970[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 12 16:02:46 2025 -0600
+
+    LATEST STABLE VERSION - added a padlock to lock in specific app feature from fuse to alliances and cyberspace
+
+[33mcommit 0de2d8ffd943210cbcf45c286924958161879a5e[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 12 15:11:47 2025 -0600
+
+    LATEST STABLE BUILD - new signed up users data is now being placed on both the polygon blockchain and firebase
+
+[33mcommit de69c561a30e423508d1640a214b3547ecddaea4[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 12 14:44:57 2025 -0600
+
+    latest stable build - working with the sign up version to collect more data to store on the blockchain, basically making it better and working on getting that started up onto the firebase database
+
+[33mcommit 47bdeabf0241c893e3328b2c277d7ae139a46b29[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 12 13:19:37 2025 -0600
+
+    Latest stable version -> working on fusers subtab and chats subtab
+
+[33mcommit 1a247d057a2cc03a3ffadba060762f9448826502[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 12 12:32:49 2025 -0600
+
+    LATEST STABLE VERSION -> Usercard positioning and information is settled, may need work later on but Alpha version displaying of the user is in play
+
+[33mcommit e61b34fad3665448bb4c32a1d87c6f75fdc2ef4e[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 12 12:07:37 2025 -0600
+
+    latest stable release
+
+[33mcommit 84b914fc35723be3fab2dfeef9481dc710c64897[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 12 11:30:15 2025 -0600
+
+    LATEST STABLE RELEASE - bios are obtained from local storage and shown on the user profile, the issues were that decryption couldnt be made from polygon which makes that said encryption safe, but still have to figure out matching data phenomena
+
+[33mcommit 90f7450621b1d5f2f9063cdbd072a44bead5b983[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Nov 12 11:00:18 2025 -0600
+
+    LATEST STABLE BUILD -- text string error sort of fixed, attempting to add a way that polygon data and firebase data will always be the same so that immutable data checks will always ensure users havent been hacked, will apply something similar to the messaging or make it super secure
+
+[33mcommit f72975f9e5f8fdc421d53b6e525aa6f7083bcf78[m[33m ([m[1;31morigin/feature/real-user-matching[m[33m, [m[1;32mfeature/real-user-matching[m[33m)[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 11 20:50:36 2025 -0600
+
+    LATEST STABLE RELEASE-> Migrating old hosts functionality applied for testing or a good fallback to use firebase as a matching database and not to be relied with user data
+
+[33mcommit ff4c5f55e8302fd5bce9a796084a06522432bf75[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 11 18:32:40 2025 -0600
+
+    LATEST STABLE BUILD - set up firebase, and now attempting to have people FUSE
+
+[33mcommit 4d8e34e0e9d89444b466b7320b7822f43272f89f[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Nov 11 00:24:31 2025 -0600
+
+    LATEST STABLE BUILD -> fixed gas issue at signing up, tested with adding a new person, worked on adding firebase integration and have a foundation of how the messaging will work (E2E) and now working on making users visible
+
+[33mcommit e4856eaa5cd633423dbeec0fe4fdcb0e09127934[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Nov 10 23:51:35 2025 -0600
+
+    latest stable release - fixing signing up polygon fee issue, messing with contract.js
+
+[33mcommit 7a82e58e995c89ee0ac7a07cc5bf33ba43707798[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Nov 10 20:35:16 2025 -0600
+
+    latest stable release - implementing encryption and addingo onto the messaging portion of the app
+
+[33mcommit 3c437d38d013145ddf454bb85a94d1fc53a7f427[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Oct 30 15:25:31 2025 -0700
+
+    LATEST STABLE VERSION
+
+[33mcommit 4b264fa975f7d415d8684ae2d00c9b62fc3f2ac2[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Oct 30 15:13:17 2025 -0700
+
+    LATEST stable version -added the logo in the middle top of each page and it redirects the user to the main menu of the main functionality --> FUSE
+
+[33mcommit c67595d17327a9440831da40347aa44de435bc55[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Oct 30 14:40:47 2025 -0700
+
+    LATEST STABLE BUILD --> Bottom Nav Bar added for each version
+
+[33mcommit 23127b106d4f4d5c0e886c6234c0bdd9fc33cfec[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Oct 30 13:08:55 2025 -0700
+
+    LATEST STABLE version! THeme has been correctly applied and the functionality of the wallet dropdown menu has been moved to the right and its quite fixed
+
+[33mcommit d586275cff95a96fd538fd898850bfde9e60ec1d[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Oct 30 13:00:48 2025 -0700
+
+    LATEST STABLE VERSION -- OVERALL THEME OF THE APP has been applied, will upgrade over time
+
+[33mcommit ea30f3c880afd166d05fb328354669441fd2108e[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Oct 30 12:32:22 2025 -0700
+
+    Fixed Theme Wideapp
+
+[33mcommit f5a874b012e62272eecc380fb32e75709641bfad[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Oct 30 12:20:34 2025 -0700
+
+    LATEST stable version, added themes and fixed logout button within the settings
+
+[33mcommit 3bc01513b916a9efc3185f93b27eaca0b4e87ce6[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Oct 30 12:08:09 2025 -0700
+
+    LATEST stable version - fixed logout button
+
+[33mcommit b5f02df1e5cd1aeffde15ae38372c058943cecc4[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Oct 30 11:57:40 2025 -0700
+
+    GREAT stable version -retrieved data from Polygon is showon on the Profileand images can now be stored locally
+
+[33mcommit 755422687b710690a51c200cdfecf0d0353cb04a[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Oct 29 21:22:20 2025 -0700
+
+    latest stable release, working on the design of the FUSE main functionality
+
+[33mcommit d80f61acb9dcda76b93f2e783be254ee1245dcf7[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Oct 29 20:55:02 2025 -0700
+
+    latest stable release, will use arweave to store user data
+
+[33mcommit 24af4b6740b42da4cb066adef7f6ba69bdb9f183[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Oct 29 15:45:09 2025 -0700
+
+    A WORKING VERSION WITH GOOD SIGN UP
+
+[33mcommit d859965316739e6c2110886d0643098fd69d6d01[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Oct 29 15:39:14 2025 -0700
+
+    latest stable version, attempting to fix gas issue on Polygon
+
+[33mcommit c158a6b606138d77a4c1a470556bb13a049d623b[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Oct 29 13:59:31 2025 -0700
+
+     now metamask is opening up - latest stable release,page doesnt exist error but we got it to open
+
+[33mcommit 82f814b01dc04e01e9220dc5341cbebdad5dc7ac[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Oct 29 11:05:51 2025 -0700
+
+    latest stable version, fixed oval in face scanning-> still needs to take pictures on its own, but its a good version, also Polygon can't store soo much data so data like face scans are left locally until further notice, only profile information is given to the Polygon Blockchain. Still trying to get the create account button to work but Metamask is not functioning
+
+[33mcommit 3da8d85342ce830e9568fe9d1c7ba124612cf786[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Oct 29 08:31:14 2025 -0700
+
+    latest stable release, removed text string error
+
+[33mcommit d6996296ffb9083e0d213de3d382d086191e841d[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Wed Oct 29 08:16:38 2025 -0700
+
+    current tests work flalwessly on ipad, and fast... there are still errors to look out for...
+
+[33mcommit f5190fe855e60ad7e7ef6321c4722ecea2ac83bd[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Oct 28 18:11:16 2025 -0700
+
+    removed mock wallet from signing in
+
+[33mcommit 2cbfd4b4b1f03c458d44ebd2afb7b81d42697572[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Oct 28 16:47:56 2025 -0700
+
+    added more debugging comments in attempt to publish sign up info to the Polygon Blockchain
+
+[33mcommit c6469ff8e68fde3f58c4619b4566721b16ba6000[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Oct 27 16:40:10 2025 -0700
+
+    wallet shows on top --> working version
+
+[33mcommit 33f3315b291a1759edac86b79fc846deee17bd90[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Oct 27 16:10:17 2025 -0700
+
+    latest stable version--> still trying to solve the connection of Polygon to sign up, resolved some of the issues that had to do with the drop downs with certain datat within the sign up page
+
+[33mcommit 72986accc5bd26d5212b7beee35c985355d1f619[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Oct 27 15:33:49 2025 -0700
+
+    still working on storing the info on the Polygon Blockchain
+
+[33mcommit d958f65a7ecc891f5973a95818ecd15ef9996980[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Oct 27 15:06:52 2025 -0700
+
+    good working version, need to activate gas pop up via polygon upon signing in
+
+[33mcommit 52437896f71862798aaf267032fbba481dc30b3c[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Oct 27 14:48:52 2025 -0700
+
+    better connection of metamask and the fuse app
+
+[33mcommit 99c1ab9abaf47b16da48dde5df2dd6cb2faa20c4[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Oct 27 14:41:21 2025 -0700
+
+    taken inside metamask to ask for signature--> resolving an issue while keeping things in track
+
+[33mcommit 9ca7d2c78c09e257bec0937e07d6b421b9caa89a[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Oct 27 13:52:53 2025 -0700
+
+    working on fixing the wallet connection - sign up page got a bit of an update
+
+[33mcommit 35efa0e55b35bad36bd175f4942e3ae257648d1f[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Oct 27 13:30:49 2025 -0700
+
+    better build - little to no errors
+
+[33mcommit 58611345ef70fa71d53095e510ef11cd2c291ab1[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Oct 27 13:07:09 2025 -0700
+
+    added a loading circle + faster login , still errors persist regarding contract
+
+[33mcommit 40519827c74c0592ad5ad839ef7231cf5fa26d04[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Oct 27 13:00:32 2025 -0700
+
+    changed contract
+
+[33mcommit 113f346bf3ecdc6d098e08da50b4433dee7a1451[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Mon Oct 27 11:52:32 2025 -0700
+
+    better login but errors persist
+
+[33mcommit 0eeb4d0d594a6603a75fd0f03bc8a841b217812e[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Fri Oct 24 15:24:00 2025 -0700
+
+    still trying to push onto polygon and fixing up the login
+
+[33mcommit c95f50cb5ef9702e2168e60a6bddf6f8067d7691[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Fri Oct 24 14:43:19 2025 -0700
+
+    made connection with polygon on metamask
+
+[33mcommit 2643c5aa63a1d73dc6c2e243f89714c49296bee0[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Fri Oct 24 14:37:43 2025 -0700
+
+    added the polygon solidify contract
+
+[33mcommit 41283418ef9bcfa7dd61792aa38550103c8865ac[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Oct 23 15:44:24 2025 -0700
+
+    Switching to Polygon for this mobile version
+
+[33mcommit 5c102a90bbd9969215da2f0e2741c33814a7e784[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Oct 23 15:14:25 2025 -0700
+
+    galactica mainnet in show
+
+[33mcommit 5c6d0af77062146b27cd16632c88f11ea5eaedff[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Oct 23 15:09:00 2025 -0700
+
+    latest stable release
+
+[33mcommit 3096a6ff93d53acf9afe56e38d75e1a099c053d2[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Oct 23 13:34:38 2025 -0700
+
+    working on removing qr mode for signing in
+
+[33mcommit 28a4c2a4875340094e20d48259223c95c6918314[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Thu Oct 23 12:26:23 2025 -0700
+
+    latest stable version with qr code functionality I may have to replace
+
+[33mcommit 78262ae6cdfd984a1fe516730d0236127db31a1e[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Oct 21 18:27:33 2025 -0700
+
+    Simplify wallet screen to MetaMask only, add iOS support
+
+[33mcommit 78cecfaa6d05770f6aa98dda08b677041b5fc76f[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Oct 21 18:23:28 2025 -0700
+
+    Update wallet screen with MetaMask check, download modal, and connect flow
+
+[33mcommit 1af5b9045cf110dec40721a3208658c367f9cb47[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Oct 21 18:12:36 2025 -0700
+
+    Add wallet connection screen, fix swipe order, install Galactica SDK
+
+[33mcommit 37e8b7f5e25198861cb7eb597881200d362d372d[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Oct 21 18:09:05 2025 -0700
+
+    Initial Fuse app with onboarding, swipe navigation, and basic screens
+
+[33mcommit 330b780eb30d1fccdc19f3ce366a2f6e19a7823e[m
+Author: Francisco Alfaro <Francisco Alfaro>
+Date:   Tue Oct 21 17:18:09 2025 -0700
+
+    Initial commit
+    
+    Generated by create-expo-app 3.5.3.

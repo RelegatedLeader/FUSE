@@ -14,6 +14,8 @@ import {
   Easing,
   RefreshControl,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import CryptoJS from "crypto-js";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import { MatchingEngine } from "../utils/matchingEngine";
@@ -159,8 +161,19 @@ const DiscoverScreen: React.FC = () => {
       if (!address) return;
 
       try {
-        const matches = await FirebaseService.loadMatches(address);
-        setIsUnlocked(matches.length >= 4);
+        // Load matches from AsyncStorage to check unlock status
+        const matchesData = await AsyncStorage.getItem(
+          `matched_users_${address}`
+        );
+        if (matchesData) {
+          const decrypted = CryptoJS.AES.decrypt(matchesData, address).toString(
+            CryptoJS.enc.Utf8
+          );
+          const matches = JSON.parse(decrypted);
+          setIsUnlocked(matches.length >= 4);
+        } else {
+          setIsUnlocked(false);
+        }
       } catch (error) {
         console.error("Error checking unlock status:", error);
         setIsUnlocked(false);
@@ -185,16 +198,35 @@ const DiscoverScreen: React.FC = () => {
           ...firebaseProfile,
         });
 
-        // Load sent requests to filter out users already requested
-        const sentRequests = await FirebaseService.loadSentRequests(address);
-        setRequestedUsers(sentRequests);
-
-        // Load matches to filter out users already fused
-        const matches = await FirebaseService.loadMatches(address);
-        const matchedAddresses = new Set(
-          matches.map((match: any) => match.address)
+        // Load sent requests from AsyncStorage to filter out users already requested
+        const sentRequestsData = await AsyncStorage.getItem(
+          `sent_requests_${address}`
         );
-        setMatchedUsers(matchedAddresses);
+        if (sentRequestsData) {
+          const decrypted = CryptoJS.AES.decrypt(
+            sentRequestsData,
+            address
+          ).toString(CryptoJS.enc.Utf8);
+          const sentRequests = new Set(JSON.parse(decrypted) as string[]);
+          setRequestedUsers(sentRequests);
+        } else {
+          setRequestedUsers(new Set());
+        }
+
+        // Load matches from AsyncStorage to filter out users already fused
+        const matchesData = await AsyncStorage.getItem(
+          `matched_users_${address}`
+        );
+        if (matchesData) {
+          const decrypted = CryptoJS.AES.decrypt(matchesData, address).toString(
+            CryptoJS.enc.Utf8
+          );
+          const matches = JSON.parse(decrypted);
+          const matchedAddresses = new Set(matches as string[]);
+          setMatchedUsers(matchedAddresses);
+        } else {
+          setMatchedUsers(new Set());
+        }
 
         // Load all potential matches using the same logic as FuseScreen
         const allMatches = await MatchingEngine.findMatchesForUser(address);
@@ -233,8 +265,10 @@ const DiscoverScreen: React.FC = () => {
         );
 
         // Calculate compatibility for all users
-        const usersWithCompatibility = await calculateCompatibilityForUsers(discoverUsers);
-        
+        const usersWithCompatibility = await calculateCompatibilityForUsers(
+          discoverUsers
+        );
+
         setAllUsers(usersWithCompatibility);
       } catch (error) {
         console.error("Error loading discover data:", error);
@@ -246,31 +280,49 @@ const DiscoverScreen: React.FC = () => {
     loadData();
   }, [address, isUnlocked]);
 
-  const calculateCompatibilityForUsers = async (users: DiscoverUser[]): Promise<DiscoverUser[]> => {
-    console.log("🔄 Starting compatibility calculation for", users.length, "users");
+  const calculateCompatibilityForUsers = async (
+    users: DiscoverUser[]
+  ): Promise<DiscoverUser[]> => {
+    console.log(
+      "🔄 Starting compatibility calculation for",
+      users.length,
+      "users"
+    );
     if (!address) {
       console.log("❌ No address available for compatibility calculation");
       return users;
     }
 
-    console.log("🔄 Calculating compatibility for discover users:", users.length);
+    console.log(
+      "🔄 Calculating compatibility for discover users:",
+      users.length
+    );
     const updatedUsers = await Promise.all(
       users.map(async (user) => {
         try {
           console.log(`🔄 Calculating for ${user.name} (${user.address})`);
-          const compatibility = await EnhancedMatchingEngine.calculateCompatibility(
-            address,
-            user.address
+          const compatibility =
+            await EnhancedMatchingEngine.calculateCompatibility(
+              address,
+              user.address
+            );
+          console.log(
+            `✅ Discover compatibility for ${user.name}: ${compatibility.overallScore}%`
           );
-          console.log(`✅ Discover compatibility for ${user.name}: ${compatibility.overallScore}%`);
           const updatedUser = {
             ...user,
             compatibilityScore: compatibility.overallScore || 42, // Use calculated or fallback
           };
-          console.log(`📊 Updated user ${user.name} with score:`, updatedUser.compatibilityScore);
+          console.log(
+            `📊 Updated user ${user.name} with score:`,
+            updatedUser.compatibilityScore
+          );
           return updatedUser;
         } catch (error) {
-          console.error(`❌ Failed to calculate compatibility for ${user.name}:`, error);
+          console.error(
+            `❌ Failed to calculate compatibility for ${user.name}:`,
+            error
+          );
           return {
             ...user,
             compatibilityScore: 42, // Default score
@@ -279,7 +331,10 @@ const DiscoverScreen: React.FC = () => {
       })
     );
 
-    console.log("🔄 Final updated users:", updatedUsers.map(u => `${u.name}: ${u.compatibilityScore}%`));
+    console.log(
+      "🔄 Final updated users:",
+      updatedUsers.map((u) => `${u.name}: ${u.compatibilityScore}%`)
+    );
     return updatedUsers;
   };
 
@@ -291,7 +346,7 @@ const DiscoverScreen: React.FC = () => {
       // Filter out requested users
       const availableUsers = allUsers.filter(
         (user) =>
-          !requestedUsers.has(user.address) && !matchedUsers.has(user.address)
+          !requestedUsers?.has(user.address) && !matchedUsers?.has(user.address)
       );
 
       // Basic category logic (will be enhanced with real algorithm later)
@@ -449,16 +504,35 @@ const DiscoverScreen: React.FC = () => {
         ...firebaseProfile,
       });
 
-      // Load sent requests to filter out users already requested
-      const sentRequests = await FirebaseService.loadSentRequests(address);
-      setRequestedUsers(sentRequests);
-
-      // Load matches to filter out users already fused
-      const matches = await FirebaseService.loadMatches(address);
-      const matchedAddresses = new Set(
-        matches.map((match: any) => match.address)
+      // Load sent requests from AsyncStorage to filter out users already requested
+      const sentRequestsData = await AsyncStorage.getItem(
+        `sent_requests_${address}`
       );
-      setMatchedUsers(matchedAddresses);
+      if (sentRequestsData) {
+        const decrypted = CryptoJS.AES.decrypt(
+          sentRequestsData,
+          address
+        ).toString(CryptoJS.enc.Utf8);
+        const sentRequests = new Set(JSON.parse(decrypted) as string[]);
+        setRequestedUsers(sentRequests);
+      } else {
+        setRequestedUsers(new Set());
+      }
+
+      // Load matches from AsyncStorage to filter out users already fused
+      const matchesData = await AsyncStorage.getItem(
+        `matched_users_${address}`
+      );
+      if (matchesData) {
+        const decrypted = CryptoJS.AES.decrypt(matchesData, address).toString(
+          CryptoJS.enc.Utf8
+        );
+        const matches = JSON.parse(decrypted);
+        const matchedAddresses = new Set(matches as string[]);
+        setMatchedUsers(matchedAddresses);
+      } else {
+        setMatchedUsers(new Set());
+      }
 
       // Load all users for discovery
       const allUsersData = await FirebaseService.getAllUsersForDiscovery(
@@ -490,7 +564,9 @@ const DiscoverScreen: React.FC = () => {
       );
 
       // Calculate compatibility for refreshed users
-      const usersWithCompatibility = await calculateCompatibilityForUsers(discoverUsers);
+      const usersWithCompatibility = await calculateCompatibilityForUsers(
+        discoverUsers
+      );
 
       setAllUsers(usersWithCompatibility);
     } catch (error) {
@@ -501,28 +577,31 @@ const DiscoverScreen: React.FC = () => {
     }
   };
 
-  const handleUserPress = useCallback(async (user: DiscoverUser) => {
-    console.log("Opening profile modal for user:", user.name);
-    console.log("User photos:", user.photos);
-    setSelectedUser(user);
-    setShowProfileModal(true);
+  const handleUserPress = useCallback(
+    async (user: DiscoverUser) => {
+      console.log("Opening profile modal for user:", user.name);
+      console.log("User photos:", user.photos);
+      setSelectedUser(user);
+      setShowProfileModal(true);
 
-    // Calculate compatibility in background
-    if (address && user.address) {
-      try {
-        const compatibility =
-          await EnhancedMatchingEngine.calculateCompatibility(
-            address,
-            user.address
-          );
-        setCompatibilityResult(compatibility);
-        console.log("Compatibility calculated:", compatibility.overallScore);
-      } catch (error) {
-        console.error("Failed to calculate compatibility:", error);
-        setCompatibilityResult(null);
+      // Calculate compatibility in background
+      if (address && user.address) {
+        try {
+          const compatibility =
+            await EnhancedMatchingEngine.calculateCompatibility(
+              address,
+              user.address
+            );
+          setCompatibilityResult(compatibility);
+          console.log("Compatibility calculated:", compatibility.overallScore);
+        } catch (error) {
+          console.error("Failed to calculate compatibility:", error);
+          setCompatibilityResult(null);
+        }
       }
-    }
-  }, [address, setSelectedUser, setShowProfileModal, setCompatibilityResult]);
+    },
+    [address, setSelectedUser, setShowProfileModal, setCompatibilityResult]
+  );
 
   const handleFuse = async (targetAddress: string) => {
     if (!address || !selectedUser) return;
@@ -530,13 +609,13 @@ const DiscoverScreen: React.FC = () => {
     try {
       // Get current user's profile data
       const currentUserProfile = await FirebaseService.getUserProfile(address);
-      const currentUserPhotos = await FirebaseService.loadUserPhotos(address);
+      const currentUserPhotos = await FirebaseService.getUserPhotoUrls(address);
 
       // Get target user's profile data
       const targetUserProfile = await FirebaseService.getUserProfile(
         targetAddress
       );
-      const targetUserPhotos = await FirebaseService.loadUserPhotos(
+      const targetUserPhotos = await FirebaseService.getUserPhotoUrls(
         targetAddress
       );
 
@@ -728,37 +807,42 @@ const DiscoverScreen: React.FC = () => {
     );
   }
 
-  const UserCard: React.FC<{ user: DiscoverUser; onPress: () => void }> = React.memo(({ user, onPress }) => (
-    <TouchableOpacity
-      style={[
-        styles.userCard,
-        { backgroundColor: theme.card.backgroundColor },
-      ]}
-      onPress={onPress}
-      activeOpacity={0.8}
-    >
-      <View style={styles.userCardContent}>
-        <View style={styles.userCardHeader}>
-          <Text style={[styles.userName, { color: theme.textColor }]}>
-            {user.name}, {user.age}
-          </Text>
-          <View style={styles.compatibilityBadge}>
-            <Text style={styles.compatibilityBadgeText}>
-              🚀 {user.compatibilityScore !== undefined ? user.compatibilityScore : '??'}%
+  const UserCard: React.FC<{ user: DiscoverUser; onPress: () => void }> =
+    React.memo(({ user, onPress }) => (
+      <TouchableOpacity
+        style={[
+          styles.userCard,
+          { backgroundColor: theme.card.backgroundColor },
+        ]}
+        onPress={onPress}
+        activeOpacity={0.8}
+      >
+        <View style={styles.userCardContent}>
+          <View style={styles.userCardHeader}>
+            <Text style={[styles.userName, { color: theme.textColor }]}>
+              {user.name}, {user.age}
             </Text>
+            <View style={styles.compatibilityBadge}>
+              <Text style={styles.compatibilityBadgeText}>
+                🚀{" "}
+                {user.compatibilityScore !== undefined
+                  ? user.compatibilityScore
+                  : "??"}
+                %
+              </Text>
+            </View>
           </View>
+          <Text style={[styles.userCity, { color: theme.textColor }]}>
+            📍 {user.city}
+          </Text>
+          <Text style={[styles.userBio, { color: theme.textColor }]}>
+            {user.bio.length > 60
+              ? user.bio.substring(0, 60) + "..."
+              : user.bio}
+          </Text>
         </View>
-        <Text style={[styles.userCity, { color: theme.textColor }]}>
-          📍 {user.city}
-        </Text>
-        <Text style={[styles.userBio, { color: theme.textColor }]}>
-          {user.bio.length > 60
-            ? user.bio.substring(0, 60) + "..."
-            : user.bio}
-        </Text>
-      </View>
-    </TouchableOpacity>
-  ));
+      </TouchableOpacity>
+    ));
 
   return (
     <View
@@ -776,7 +860,7 @@ const DiscoverScreen: React.FC = () => {
         <TextInput
           style={[styles.searchInput, { color: theme.textColor }]}
           placeholder={searchPlaceholder}
-          placeholderTextColor={theme.textColor + "80"}
+          placeholderTextColor={`${theme.textColor}80`}
           value={searchQuery}
           onChangeText={handleSearch}
         />
@@ -872,25 +956,25 @@ const DiscoverScreen: React.FC = () => {
                   style={[
                     styles.fuseButton,
                     {
-                      backgroundColor: requestedUsers.has(selectedUser.address)
+                      backgroundColor: requestedUsers?.has(selectedUser.address)
                         ? "#ccc"
                         : theme.buttonBackground,
                     },
                   ]}
                   onPress={() => handleFuse(selectedUser.address)}
-                  disabled={requestedUsers.has(selectedUser.address)}
+                  disabled={requestedUsers?.has(selectedUser.address)}
                 >
                   <Text
                     style={[
                       styles.fuseButtonText,
                       {
-                        color: requestedUsers.has(selectedUser.address)
+                        color: requestedUsers?.has(selectedUser.address)
                           ? "#666"
                           : theme.buttonText,
                       },
                     ]}
                   >
-                    {requestedUsers.has(selectedUser.address)
+                    {requestedUsers?.has(selectedUser.address)
                       ? "Request sent"
                       : "🚀 Fuse"}
                   </Text>
@@ -922,148 +1006,135 @@ const DiscoverScreen: React.FC = () => {
                 )}
 
                 {/* Compatibility Score */}
-                  {compatibilityResult && (
-                    <View style={styles.compatibilityContainer}>
-                      <TouchableOpacity
-                        style={styles.compatibilityScore}
-                        onPress={() =>
-                          setShowCompatibilityDetails(!showCompatibilityDetails)
-                        }
+                {compatibilityResult && (
+                  <View style={styles.compatibilityContainer}>
+                    <TouchableOpacity
+                      style={styles.compatibilityScore}
+                      onPress={() =>
+                        setShowCompatibilityDetails(!showCompatibilityDetails)
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.compatibilityLabel,
+                          { color: theme.textColor },
+                        ]}
                       >
+                        Compatibility
+                      </Text>
+                      <View style={styles.compatibilityRow}>
                         <Text
                           style={[
-                            styles.compatibilityLabel,
+                            styles.compatibilityPercent,
                             { color: theme.textColor },
                           ]}
                         >
-                          Compatibility
+                          {compatibilityResult.overallScore}%
                         </Text>
-                        <View style={styles.compatibilityRow}>
-                          <Text
-                            style={[
-                              styles.compatibilityPercent,
-                              { color: theme.textColor },
-                            ]}
-                          >
-                            {compatibilityResult.overallScore}%
-                          </Text>
-                          <Text
-                            style={[
-                              styles.compatibilityTapHint,
-                              { color: theme.textColor + "80" },
-                            ]}
-                          >
-                            Tap for details
-                          </Text>
-                        </View>
-                        <View style={styles.compatibilityBar}>
-                          <View
-                            style={[
-                              styles.compatibilityFill,
-                              {
-                                width: `${compatibilityResult.overallScore}%`,
-                                backgroundColor:
-                                  compatibilityResult.overallScore >= 80
-                                    ? "#4CAF50"
-                                    : compatibilityResult.overallScore >= 60
-                                    ? "#FFC107"
-                                    : "#F44336",
-                              },
-                            ]}
-                          />
-                        </View>
-                      </TouchableOpacity>
-
-                      {showCompatibilityDetails && (
-                        <ScrollView
-                          style={styles.compatibilityDetails}
-                          showsVerticalScrollIndicator={true}
-                          nestedScrollEnabled={true}
+                        <Text
+                          style={[
+                            styles.compatibilityTapHint,
+                            { color: `${theme.textColor}80` },
+                          ]}
                         >
-                          {compatibilityResult.breakdown.map(
-                            (item: any, index: number) => (
-                              <View key={index} style={styles.compatibilityItem}>
-                                <View style={styles.compatibilityItemHeader}>
-                                  <Text
-                                    style={[
-                                      styles.compatibilityCategory,
-                                      { color: theme.textColor },
-                                    ]}
-                                  >
-                                    {item.category}
-                                  </Text>
-                                  <Text
-                                    style={[
-                                      styles.compatibilityScore,
-                                      { color: theme.textColor },
-                                    ]}
-                                  >
-                                    {item.score}%
-                                  </Text>
-                                </View>
+                          Tap for details
+                        </Text>
+                      </View>
+                      <View style={styles.compatibilityBar}>
+                        <View
+                          style={[
+                            styles.compatibilityFill,
+                            {
+                              width: `${compatibilityResult.overallScore}%`,
+                              backgroundColor:
+                                compatibilityResult.overallScore >= 80
+                                  ? "#4CAF50"
+                                  : compatibilityResult.overallScore >= 60
+                                  ? "#FFC107"
+                                  : "#F44336",
+                            },
+                          ]}
+                        />
+                      </View>
+                    </TouchableOpacity>
+
+                    {showCompatibilityDetails && (
+                      <ScrollView
+                        style={styles.compatibilityDetails}
+                        showsVerticalScrollIndicator={true}
+                        nestedScrollEnabled={true}
+                      >
+                        {compatibilityResult.breakdown.map(
+                          (item: any, index: number) => (
+                            <View key={index} style={styles.compatibilityItem}>
+                              <View style={styles.compatibilityItemHeader}>
                                 <Text
                                   style={[
-                                    styles.compatibilityDescription,
-                                    { color: theme.textColor + "CC" },
+                                    styles.compatibilityCategory,
+                                    { color: theme.textColor },
                                   ]}
                                 >
-                                  {item.description}
+                                  {item.category}
                                 </Text>
-                                <View style={styles.compatibilityFactors}>
-                                  {item.factors.map((factor: string, idx: number) => (
-                                    <Text
-                                      key={idx}
-                                      style={[
-                                        styles.compatibilityFactor,
-                                        { color: theme.textColor + "99" },
-                                      ]}
-                                    >
-                                      • {factor}
-                                    </Text>
-                                  ))}
-                                </View>
+                                <Text
+                                  style={[
+                                    styles.compatibilityScore,
+                                    { color: theme.textColor },
+                                  ]}
+                                >
+                                  {item.score}%
+                                </Text>
                               </View>
-                            )
-                          )}
-
-                          {compatibilityResult.insights.length > 0 && (
-                            <View style={styles.compatibilityInsights}>
                               <Text
                                 style={[
-                                  styles.insightsTitle,
-                                  { color: theme.textColor },
+                                  styles.compatibilityDescription,
+                                  { color: `${theme.textColor}CC` },
                                 ]}
                               >
-                                💡 Match Insights
+                                {item.description}
                               </Text>
-                              {compatibilityResult.insights.map(
-                                (insight: any, index: number) => (
-                                  <View key={index} style={styles.insightItem}>
-                                    <Text
-                                      style={[
-                                        styles.insightTitle,
-                                        { color: theme.textColor },
-                                      ]}
-                                    >
-                                      {insight.title}
-                                    </Text>
-                                    <Text
-                                      style={[
-                                        styles.insightDescription,
-                                        { color: theme.textColor + "CC" },
-                                      ]}
-                                    >
-                                      {insight.description}
-                                    </Text>
-                                  </View>
-                                )
-                              )}
+                              <View style={styles.compatibilityFactors}></View>
                             </View>
-                          )}
-                        </ScrollView>
-                      )}
-                    </View>
-                  )}
+                          )
+                        )}
+
+                        {compatibilityResult.insights.length > 0 && (
+                          <View style={styles.compatibilityInsights}>
+                            <Text
+                              style={[
+                                styles.insightsTitle,
+                                { color: theme.textColor },
+                              ]}
+                            >
+                              💡 Match Insights
+                            </Text>
+                            {compatibilityResult.insights.map(
+                              (insight: any, index: number) => (
+                                <View key={index} style={styles.insightItem}>
+                                  <Text
+                                    style={[
+                                      styles.insightTitle,
+                                      { color: theme.textColor },
+                                    ]}
+                                  >
+                                    {insight.title}
+                                  </Text>
+                                  <Text
+                                    style={[
+                                      styles.insightDescription,
+                                      { color: `${theme.textColor}CC` },
+                                    ]}
+                                  >
+                                    {insight.description}
+                                  </Text>
+                                </View>
+                              )
+                            )}
+                          </View>
+                        )}
+                      </ScrollView>
+                    )}
+                  </View>
                 )}
 
                 {/* Basic Info */}

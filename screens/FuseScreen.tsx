@@ -766,7 +766,11 @@ export default function FuseScreen() {
               address,
               userAddress
             );
-            await FirebaseService.storeSentRequest(address, userAddress, requestData);
+            await FirebaseService.storeSentRequest(
+              address,
+              userAddress,
+              requestData
+            );
             console.log("📤 Sent request stored in Firebase successfully");
           } catch (error) {
             console.warn("Error storing sent request in Firebase:", error);
@@ -1026,21 +1030,21 @@ export default function FuseScreen() {
                 <View style={styles.fuseButtonOverlay}>
                   <AnimatedTouchableOpacity
                     onPress={
-                      requestedUsers.has(user.address)
+                      requestedUsers?.has(user.address)
                         ? undefined
                         : () => onFuse(user.address)
                     }
-                    disabled={requestedUsers.has(user.address)}
+                    disabled={requestedUsers?.has(user.address)}
                     style={[
                       styles.overlayFuseButton,
                       {
-                        backgroundColor: requestedUsers.has(user.address)
+                        backgroundColor: requestedUsers?.has(user.address)
                           ? "#ccc"
                           : fuseAnim.interpolate({
                               inputRange: [0, 1],
                               outputRange: ["#ff6347", "#00bfff"],
                             }),
-                        borderColor: requestedUsers.has(user.address)
+                        borderColor: requestedUsers?.has(user.address)
                           ? "transparent"
                           : fuseAnim.interpolate({
                               inputRange: [0, 1],
@@ -1056,7 +1060,7 @@ export default function FuseScreen() {
                       style={[
                         styles.overlayButtonText,
                         {
-                          color: requestedUsers.has(user.address)
+                          color: requestedUsers?.has(user.address)
                             ? "#666"
                             : fuseAnim.interpolate({
                                 inputRange: [0, 1],
@@ -1065,7 +1069,9 @@ export default function FuseScreen() {
                         },
                       ]}
                     >
-                      {requestedUsers.has(user.address) ? "Request sent" : "🚀"}
+                      {requestedUsers?.has(user.address)
+                        ? "Request sent"
+                        : "🚀"}
                     </Animated.Text>
                   </AnimatedTouchableOpacity>
                 </View>
@@ -1089,15 +1095,15 @@ export default function FuseScreen() {
                 <View style={styles.fuseButtonOverlay}>
                   <AnimatedTouchableOpacity
                     onPress={
-                      requestedUsers.has(user.address)
+                      requestedUsers?.has(user.address)
                         ? undefined
                         : () => onFuse(user.address)
                     }
-                    disabled={requestedUsers.has(user.address)}
+                    disabled={requestedUsers?.has(user.address)}
                     style={[
                       styles.overlayFuseButton,
                       {
-                        backgroundColor: requestedUsers.has(user.address)
+                        backgroundColor: requestedUsers?.has(user.address)
                           ? "#ccc"
                           : fuseAnim.interpolate({
                               inputRange: [0, 1],
@@ -1110,7 +1116,7 @@ export default function FuseScreen() {
                       style={[
                         styles.overlayButtonText,
                         {
-                          color: requestedUsers.has(user.address)
+                          color: requestedUsers?.has(user.address)
                             ? "#666"
                             : fuseAnim.interpolate({
                                 inputRange: [0, 1],
@@ -1119,7 +1125,9 @@ export default function FuseScreen() {
                         },
                       ]}
                     >
-                      {requestedUsers.has(user.address) ? "Request sent" : "🚀"}
+                      {requestedUsers?.has(user.address)
+                        ? "Request sent"
+                        : "🚀"}
                     </Animated.Text>
                   </AnimatedTouchableOpacity>
                 </View>

@@ -498,13 +498,20 @@ export class FirebaseService {
 
   // Store a match for a user
   static async storeMatch(userAddress: string, matchData: any): Promise<void> {
-    console.log("💕 storeMatch called for:", userAddress, "with data:", matchData);
+    console.log(
+      "💕 storeMatch called for:",
+      userAddress,
+      "with data:",
+      matchData
+    );
     try {
       const matchesRef = doc(db, "user_matches", userAddress);
       const currentMatches = await this.loadMatches(userAddress);
-      
+
       // Check if match already exists
-      const existingIndex = currentMatches.findIndex((m: any) => m.address === matchData.address);
+      const existingIndex = currentMatches.findIndex(
+        (m: any) => m.address === matchData.address
+      );
       if (existingIndex >= 0) {
         // Update existing match
         currentMatches[existingIndex] = matchData;
@@ -512,12 +519,12 @@ export class FirebaseService {
         // Add new match
         currentMatches.push(matchData);
       }
-      
+
       await setDoc(matchesRef, {
         matches: currentMatches,
         lastUpdated: Timestamp.now(),
       });
-      
+
       console.log("💕 Match stored for user:", userAddress);
     } catch (error) {
       console.error("Failed to store match:", error);
@@ -1422,7 +1429,10 @@ export class FirebaseService {
 
           return conversations;
         } catch (fallbackError) {
-          console.error("Failed to load conversations even without ordering:", fallbackError);
+          console.error(
+            "Failed to load conversations even without ordering:",
+            fallbackError
+          );
           return [];
         }
       }
@@ -1467,7 +1477,10 @@ export class FirebaseService {
   }
 
   // Check if two users have unfused before
-  static async haveUsersUnfused(userA: string, userB: string): Promise<boolean> {
+  static async haveUsersUnfused(
+    userA: string,
+    userB: string
+  ): Promise<boolean> {
     try {
       // Create a consistent pair ID by sorting the addresses
       const pairId = userA < userB ? `${userA}_${userB}` : `${userB}_${userA}`;
@@ -1485,10 +1498,10 @@ export class FirebaseService {
     try {
       const matchesA = await this.loadMatches(userA);
       const matchesB = await this.loadMatches(userB);
-      
-      const hasMatchA = matchesA.some(match => match.address === userB);
-      const hasMatchB = matchesB.some(match => match.address === userA);
-      
+
+      const hasMatchA = matchesA.some((match) => match.address === userB);
+      const hasMatchB = matchesB.some((match) => match.address === userA);
+
       return hasMatchA && hasMatchB;
     } catch (error) {
       console.error("Failed to check if users are matched:", error);
