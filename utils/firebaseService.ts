@@ -1400,6 +1400,32 @@ export class FirebaseService {
 
       return conversations;
     } catch (error) {
+      // If index is not ready, try without ordering
+      if (error instanceof Error && error.message.includes("index")) {
+        console.warn("Conversation index not ready, loading without ordering");
+        try {
+          const conversationsRef = collection(db, "conversation_summaries");
+          const q = query(
+            conversationsRef,
+            where("participants", "array-contains", userAddress)
+          );
+
+          const querySnapshot = await getDocs(q);
+          const conversations: any[] = [];
+
+          querySnapshot.forEach((doc) => {
+            conversations.push({
+              id: doc.id,
+              ...doc.data(),
+            });
+          });
+
+          return conversations;
+        } catch (fallbackError) {
+          console.error("Failed to load conversations even without ordering:", fallbackError);
+          return [];
+        }
+      }
       console.error("Failed to get user conversations:", error);
       return [];
     }

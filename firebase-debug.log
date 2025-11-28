@@ -1,0 +1,28 @@
+[debug] [2025-11-28T02:41:38.789Z] ----------------------------------------------------------------------
+[debug] [2025-11-28T02:41:38.793Z] Command:       C:\nvm4w\nodejs\node.exe C:\nvm4w\nodejs\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore:indexes --debug
+[debug] [2025-11-28T02:41:38.793Z] CLI Version:   13.35.1
+[debug] [2025-11-28T02:41:38.793Z] Platform:      win32
+[debug] [2025-11-28T02:41:38.794Z] Node Version:  v18.20.8
+[debug] [2025-11-28T02:41:38.794Z] Time:          Thu Nov 27 2025 20:41:38 GMT-0600 (Central Standard Time)
+[debug] [2025-11-28T02:41:38.794Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-11-28T02:41:39.112Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-11-28T02:41:39.114Z] > authorizing via signed-in user (frankalfaro105@gmail.com)
+[debug] [2025-11-28T02:41:39.115Z] [iam] checking project fuse-ede12 for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2025-11-28T02:41:39.116Z] Checked if tokens are valid: true, expires at: 1764301134965
+[debug] [2025-11-28T02:41:39.117Z] Checked if tokens are valid: true, expires at: 1764301134965
+[debug] [2025-11-28T02:41:39.120Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/fuse-ede12:testIamPermissions [none]
+[debug] [2025-11-28T02:41:39.121Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/fuse-ede12:testIamPermissions x-goog-quota-user=projects/fuse-ede12
+[debug] [2025-11-28T02:41:39.121Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/fuse-ede12:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2025-11-28T02:41:39.423Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/fuse-ede12:testIamPermissions 200
+[debug] [2025-11-28T02:41:39.424Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/fuse-ede12:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'fuse-ede12'...
+[info] 
+[info] i  deploying firestore 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2025-11-28T02:41:39.449Z] Checked if tokens are valid: true, expires at: 1764301134965
+[debug] [2025-11-28T02:41:39.450Z] Checked if tokens are valid: true, expires at: 1764301134965
+[debug] [2025-11-28T02:41:39.450Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/fuse-ede12:test [none]
+[debug] [2025-11-28T02:41:39.450Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/fuse-ede12:test [omitted]
+[debug] [2025-11-28T02:41:39.710Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/fuse-ede12:test 200
