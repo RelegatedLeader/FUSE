@@ -417,6 +417,37 @@ export class FirebaseService {
     }
   }
 
+  // Check if users have unfused before
+  static async haveUsersUnfused(
+    userAddress1: string,
+    userAddress2: string
+  ): Promise<boolean> {
+    try {
+      console.log(
+        "🔍 Checking if users have unfused:",
+        userAddress1,
+        userAddress2
+      );
+
+      const unfusedRef = collection(db, "unfused_pairs");
+      const q = query(
+        unfusedRef,
+        where("user1", "in", [userAddress1, userAddress2]),
+        where("user2", "in", [userAddress1, userAddress2])
+      );
+
+      const querySnapshot = await getDocs(q);
+
+      const hasUnfused = !querySnapshot.empty;
+      console.log("🔍 Users have unfused before:", hasUnfused);
+
+      return hasUnfused;
+    } catch (error) {
+      console.error("Failed to check unfused status:", error);
+      return false;
+    }
+  }
+
   // Get potential matches (encrypted compatibility scores)
   static async findMatches(userAddress: string, criteria: any): Promise<any[]> {
     if (!this.userKeys) {
@@ -454,6 +485,28 @@ export class FirebaseService {
       );
     } catch (error) {
       throw new Error("Failed to find matches: " + error);
+    }
+  }
+
+  // Load matches from Firebase for a user
+  static async loadMatches(userAddress: string): Promise<any[]> {
+    console.log("💕 loadMatches called for:", userAddress);
+    try {
+      const loadMatchesRef = doc(db, "user_matches", userAddress);
+      console.log("💕 loadMatches ref path:", loadMatchesRef.path);
+      const matchSnap = await getDoc(loadMatchesRef);
+      console.log("💕 loadMatches doc exists:", matchSnap.exists());
+
+      if (matchSnap.exists()) {
+        const data = matchSnap.data();
+        console.log("💕 loadMatches data:", data);
+        return data.matches || [];
+      }
+      console.log("💕 loadMatches: no document found");
+      return [];
+    } catch (error) {
+      console.error("Failed to load matches:", error);
+      return [];
     }
   }
 
