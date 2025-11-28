@@ -293,6 +293,23 @@ export class FirebaseService {
     }
   }
 
+  // Create conversation summary
+  static async createConversationSummary(summary: any): Promise<void> {
+    try {
+      const summaryRef = doc(db, "conversation_summaries", summary.id);
+      await setDoc(summaryRef, {
+        ...summary,
+        createdAt: Timestamp.now(),
+        lastUpdated: Timestamp.now(),
+      });
+
+      console.log("📊 Conversation summary created:", summary.id);
+    } catch (error) {
+      console.error("❌ Failed to create conversation summary:", error);
+      throw error;
+    }
+  }
+
   // Update conversation summary
   static async updateConversationSummary(conversationId: string, updates: any): Promise<void> {
     try {
@@ -1256,6 +1273,33 @@ export class FirebaseService {
     } catch (error) {
       console.error("Failed to remove fuse request:", error);
       throw error;
+    }
+  }
+
+  // Get user conversations
+  static async getUserConversations(userAddress: string): Promise<any[]> {
+    try {
+      const conversationsRef = collection(db, "conversation_summaries");
+      const q = query(
+        conversationsRef,
+        where("participants", "array-contains", userAddress),
+        orderBy("lastMessageTime", "desc")
+      );
+
+      const querySnapshot = await getDocs(q);
+      const conversations = [];
+
+      querySnapshot.forEach((doc) => {
+        conversations.push({
+          id: doc.id,
+          ...doc.data(),
+        });
+      });
+
+      return conversations;
+    } catch (error) {
+      console.error("Failed to get user conversations:", error);
+      return [];
     }
   }
 }
