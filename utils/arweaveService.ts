@@ -45,26 +45,7 @@ export class ArweaveService {
   static async getUploadCost(
     dataSize: number
   ): Promise<{ costMatic: number; costUsd: number }> {
-    if (!this.bundlr) {
-      throw new Error("Bundlr not initialized");
-    }
-
-    try {
-      const cost = await this.bundlr.getPrice(dataSize);
-      const costMatic = this.bundlr.utils.unitConverter(cost);
-      const costUsd = costMatic.toNumber() * 0.8; // Rough MATIC to USD conversion
-
-      return {
-        costMatic: costMatic.toNumber(),
-        costUsd: Number(costUsd.toFixed(4)),
-      };
-    } catch (error) {
-      console.error("Failed to get upload cost:", error);
-      return {
-        costMatic: 0.001,
-        costUsd: 0.0008,
-      };
-    }
+    throw new Error("Bundlr not implemented yet");
   }
 
   /**
@@ -75,49 +56,7 @@ export class ArweaveService {
     walletAddress: string,
     imageIndex: number
   ): Promise<string> {
-    if (!this.bundlr) {
-      throw new Error("Bundlr not initialized");
-    }
-
-    try {
-      console.log(" Uploading encrypted image to Arweave...");
-
-      // Create transaction with tags
-      const tags = [
-        { name: "Content-Type", value: "application/json" },
-        { name: "App-Name", value: "FUSE-Social" },
-        { name: "Data-Type", value: "encrypted-image" },
-        { name: "User-ID", value: walletAddress },
-        { name: "Image-Index", value: imageIndex.toString() },
-        { name: "Timestamp", value: Date.now().toString() },
-        { name: "Version", value: "1.0" },
-      ];
-
-      // Prepare data as JSON
-      const imageData = {
-        encryptedImage: btoa(String.fromCharCode(...encryptedData)),
-        timestamp: Date.now(),
-        version: "1.0",
-      };
-
-      const dataString = JSON.stringify(imageData);
-
-      // Create and sign transaction
-      const transaction = this.bundlr.createTransaction(dataString, { tags });
-      await transaction.sign();
-
-      // Upload
-      const result = await transaction.upload();
-
-      const arweaveUrl = `https://arweave.net/${result.data.id}`;
-
-      console.log(`Image uploaded to Arweave: ${arweaveUrl}`);
-
-      return arweaveUrl;
-    } catch (error) {
-      console.error(" Failed to upload image to Arweave:", error);
-      throw error;
-    }
+    throw new Error("Bundlr not implemented yet");
   }
 
   /**

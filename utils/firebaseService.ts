@@ -4,6 +4,7 @@ import {
   setDoc,
   getDoc,
   updateDoc,
+  deleteDoc,
   query,
   where,
   getDocs,
@@ -12,6 +13,7 @@ import {
   limit,
   Timestamp,
   writeBatch,
+  runTransaction,
 } from "firebase/firestore";
 import {
   ref,
@@ -212,7 +214,6 @@ export class FirebaseService {
         .substr(2, 9)}`;
       const encryptedMessage = EncryptionService.encryptMessage(
         message,
-        this.userKeys.messagingKey,
         this.userKeys.messagingKey
       );
 
@@ -342,7 +343,7 @@ export class FirebaseService {
         try {
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
-            this.userKeys.messagingKey
+            this.userKeys!.messagingKey
           );
           messages.push({
             id: doc.id,
@@ -478,7 +479,7 @@ export class FirebaseService {
   static async loadMatches(userAddress: string): Promise<any[]> {
     console.log("💕 loadMatches called for:", userAddress);
     try {
-      const loadMatchesRef = doc(db, "user_matches", userAddress);
+      const loadMatchesRef = doc(db, "fused_users", userAddress);
       console.log("💕 loadMatches ref path:", loadMatchesRef.path);
       const matchSnap = await getDoc(loadMatchesRef);
       console.log("💕 loadMatches doc exists:", matchSnap.exists());
@@ -505,7 +506,7 @@ export class FirebaseService {
       matchData
     );
     try {
-      const matchesRef = doc(db, "user_matches", userAddress);
+      const matchesRef = doc(db, "fused_users", userAddress);
       const currentMatches = await this.loadMatches(userAddress);
 
       // Check if match already exists
@@ -538,7 +539,7 @@ export class FirebaseService {
     callback: (matches: any[]) => void
   ): () => void {
     console.log("💕 listenToMatches called for:", userAddress);
-    const matchesRef = doc(db, "user_matches", userAddress);
+    const matchesRef = doc(db, "fused_users", userAddress);
     console.log("💕 listenToMatches ref path:", matchesRef.path);
 
     return onSnapshot(matchesRef, (doc) => {
@@ -549,6 +550,7 @@ export class FirebaseService {
       if (doc.exists()) {
         const data = doc.data();
         console.log("💕 listenToMatches data:", data);
+        console.log("💕 listenToMatches matches array:", data.matches);
         callback(data.matches || []);
       } else {
         console.log("💕 listenToMatches: no document");
@@ -1166,6 +1168,7 @@ export class FirebaseService {
     requestData: any
   ): Promise<boolean> {
     try {
+      // First, store the request
       const requestsRef = doc(db, "fuse_requests", targetAddress);
       const requestSnap = await getDoc(requestsRef);
 
@@ -1174,47 +1177,22 @@ export class FirebaseService {
         requests = requestSnap.data().requests || [];
       }
 
-      // Check for mutual request before adding new request
-      const requesterAddress = requestData.requesterAddress;
-      const mutualRequest = requests.find(
-        (req: any) =>
-          req.requesterAddress === targetAddress &&
-          req.targetAddress === requesterAddress
-      );
-
-      if (mutualRequest) {
-        // Mutual match found! Remove both requests since they're now matched
-        console.log("🔥 Mutual fuse request detected! Creating match...");
-
-        // Remove the mutual requests
-        await this.removeFuseRequest(targetAddress, requesterAddress);
-        // Don't add the new request since it's mutual
-
-        console.log(
-          "✅ Mutual match detected for:",
-          requesterAddress,
-          "and",
-          targetAddress
-        );
-        return true; // Indicate mutual match
-      }
-
       // Check for existing request from same user
       const existingRequest = requests.find(
-        (req: any) => req.requesterAddress === requesterAddress
+        (req: any) => req.requesterAddress === requestData.requesterAddress
       );
 
       if (existingRequest) {
         // Update existing request instead of adding duplicate
         console.log(
           "🔄 Updating existing fuse request from:",
-          requesterAddress
+          requestData.requesterAddress
         );
         Object.assign(existingRequest, requestData, {
           timestamp: Timestamp.now(),
         });
       } else {
-        // Add new request (no mutual match found)
+        // Add new request
         requests.push({
           ...requestData,
           timestamp: Timestamp.now(),
@@ -1227,7 +1205,66 @@ export class FirebaseService {
       });
 
       console.log("🔥 Fuse request stored in Firebase for:", targetAddress);
-      return false; // Not mutual
+
+      // Check for mutual request: see if target has sent request to requester
+      const mutualRequestsRef = doc(
+        db,
+        "fuse_requests",
+        requestData.requesterAddress
+      );
+      const mutualSnap = await getDoc(mutualRequestsRef);
+      let isMutual = false;
+      if (mutualSnap.exists()) {
+        const mutualRequests = mutualSnap.data().requests || [];
+        console.log("🔍 Checking mutual requests in", requestData.requesterAddress, ":", mutualRequests.map((r: any) => r.requesterAddress));
+        isMutual = mutualRequests.some(
+          (req: any) => req.requesterAddress === targetAddress
+        );
+        console.log("🔍 Mutual check result:", isMutual, "looking for requester:", targetAddress);
+      } else {
+        console.log("🔍 No mutual requests document found for:", requestData.requesterAddress);
+      }
+
+      if (isMutual) {
+        console.log(
+          "🎯 MUTUAL FUSE DETECTED between",
+          requestData.requesterAddress,
+          "and",
+          targetAddress
+        );
+        // Remove the requests since match is created
+        await runTransaction(db, async (transaction) => {
+          // First, read both documents
+          const targetRef = doc(db, "fuse_requests", targetAddress);
+          const requesterRef = doc(db, "fuse_requests", requestData.requesterAddress);
+          
+          const targetSnap = await transaction.get(targetRef);
+          const requesterSnap = await transaction.get(requesterRef);
+
+          // Then, write both updates
+          if (targetSnap.exists()) {
+            const targetRequests = targetSnap.data().requests || [];
+            transaction.set(targetRef, {
+              requests: targetRequests.filter(
+                (req: any) => req.requesterAddress !== requestData.requesterAddress
+              ),
+              lastUpdated: Timestamp.now(),
+            });
+          }
+
+          if (requesterSnap.exists()) {
+            const requesterRequests = requesterSnap.data().requests || [];
+            transaction.set(requesterRef, {
+              requests: requesterRequests.filter(
+                (req: any) => req.requesterAddress !== targetAddress
+              ),
+              lastUpdated: Timestamp.now(),
+            });
+          }
+        });
+      }
+
+      return isMutual;
     } catch (error) {
       console.error("Failed to store fuse request:", error);
       throw error;
@@ -1506,6 +1543,190 @@ export class FirebaseService {
     } catch (error) {
       console.error("Failed to check if users are matched:", error);
       return false;
+    }
+  }
+
+  static async updateUserBio(
+    walletAddress: string,
+    bio: string
+  ): Promise<void> {
+    try {
+      if (!this.userKeys) {
+        throw new Error("User keys not initialized");
+      }
+
+      const userRef = doc(db, "users", walletAddress);
+      const encryptedBio = EncryptionService.encrypt(
+        bio,
+        this.userKeys.dataKey
+      );
+
+      await updateDoc(userRef, {
+        bio: encryptedBio,
+        updatedAt: Timestamp.now(),
+      });
+
+      console.log("✅ User bio updated successfully");
+    } catch (error) {
+      console.error("Failed to update user bio:", error);
+      throw error;
+    }
+  }
+
+  static async removeMatch(
+    userAddress: string,
+    matchAddress: string
+  ): Promise<void> {
+    try {
+      if (!this.userKeys) {
+        throw new Error("User keys not initialized");
+      }
+
+      // First, delete all messages between the two users
+      console.log(
+        "🗑️ Deleting messages between:",
+        userAddress,
+        "and",
+        matchAddress
+      );
+
+      const messagesRef = collection(db, "messages");
+
+      // Delete messages where user is sender and match is recipient
+      const sentMessagesQuery = query(
+        messagesRef,
+        where("senderAddress", "==", userAddress),
+        where("recipientAddress", "==", matchAddress)
+      );
+
+      // Delete messages where match is sender and user is recipient
+      const receivedMessagesQuery = query(
+        messagesRef,
+        where("senderAddress", "==", matchAddress),
+        where("recipientAddress", "==", userAddress)
+      );
+
+      const [sentSnapshot, receivedSnapshot] = await Promise.all([
+        getDocs(sentMessagesQuery),
+        getDocs(receivedMessagesQuery),
+      ]);
+
+      const deletePromises: Promise<void>[] = [];
+
+      sentSnapshot.forEach((doc) => {
+        deletePromises.push(deleteDoc(doc.ref));
+      });
+
+      receivedSnapshot.forEach((doc) => {
+        deletePromises.push(deleteDoc(doc.ref));
+      });
+
+      await Promise.all(deletePromises);
+      console.log(`🗑️ Deleted ${deletePromises.length} messages between users`);
+
+      // Then remove the match from user's matches array
+      const matchesRef = doc(db, "fused_users", userAddress);
+      const currentMatches = await this.loadMatches(userAddress);
+      const updatedMatches = currentMatches.filter(
+        (match: any) => match.address !== matchAddress
+      );
+
+      await setDoc(matchesRef, {
+        matches: updatedMatches,
+        lastUpdated: Timestamp.now(),
+      });
+
+      // Add to unfused pairs to prevent future matching
+      const pairId =
+        userAddress < matchAddress
+          ? `${userAddress}_${matchAddress}`
+          : `${matchAddress}_${userAddress}`;
+      const unfusedRef = doc(db, "unfused_pairs", pairId);
+      await setDoc(unfusedRef, {
+        userA: userAddress,
+        userB: matchAddress,
+        unfusedAt: Timestamp.now(),
+      });
+
+      console.log("✅ Match removed and messages deleted successfully");
+    } catch (error) {
+      console.error("Failed to remove match:", error);
+      throw error;
+    }
+  }
+
+  static getMessagingKey(): string {
+    if (!this.userKeys) {
+      throw new Error("User keys not initialized");
+    }
+    return this.userKeys.messagingKey;
+  }
+
+  static async storeConversationMessage(messageRecord: any): Promise<void> {
+    try {
+      if (!this.userKeys) {
+        throw new Error("User keys not initialized");
+      }
+
+      const conversationId = messageRecord.conversationId;
+      const messageRef = doc(
+        collection(db, "conversations", conversationId, "messages")
+      );
+
+      const encryptedMessage = {
+        ...messageRecord,
+        content: EncryptionService.encrypt(
+          messageRecord.content,
+          this.userKeys.messagingKey
+        ),
+        timestamp: Timestamp.now(),
+      };
+
+      await setDoc(messageRef, encryptedMessage);
+      console.log("✅ Conversation message stored successfully");
+    } catch (error) {
+      console.error("Failed to store conversation message:", error);
+      throw error;
+    }
+  }
+
+  static async getAllUserMessages(walletAddress: string): Promise<any[]> {
+    try {
+      if (!this.userKeys) {
+        throw new Error("User keys not initialized");
+      }
+
+      // Query messages where recipientAddress matches the user's address
+      const messagesQuery = query(
+        collection(db, "messages"),
+        where("recipientAddress", "==", walletAddress),
+        orderBy("timestamp", "desc")
+      );
+
+      const querySnapshot = await getDocs(messagesQuery);
+      const messages: any[] = [];
+
+      querySnapshot.forEach((doc) => {
+        const messageData = doc.data();
+        try {
+          const decryptedContent = EncryptionService.decryptMessage(
+            messageData.content,
+            this.userKeys!.messagingKey
+          );
+          messages.push({
+            id: doc.id,
+            ...messageData,
+            content: decryptedContent,
+          });
+        } catch (decryptError) {
+          console.error("Failed to decrypt message:", decryptError);
+        }
+      });
+
+      return messages;
+    } catch (error) {
+      console.error("Failed to get all user messages:", error);
+      throw error;
     }
   }
 }

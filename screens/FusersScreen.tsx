@@ -18,6 +18,7 @@ import { FirebaseService } from "../utils/firebaseService";
 import { getUserData } from "../utils/contract";
 import NavigationService from "../utils/navigationService";
 import { Picker } from "@react-native-picker/picker";
+import { Timestamp } from "firebase/firestore";
 import { EnhancedMatchingEngine } from "../utils/enhancedMatchingEngine";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
@@ -84,9 +85,11 @@ export default function FusersScreen() {
     // Load matched users from Firebase and listen for updates
     if (address) {
       loadMatchedUsers();
+      // Real-time updates for matches
       const unsubscribeMatches = FirebaseService.listenToMatches(
         address,
         (matches) => {
+          console.log("🔄 Real-time matches update received:", matches);
           const matchesWithDates = matches.map((match: any) => ({
             ...match,
             matchedDate: match.matchedDate
@@ -94,6 +97,7 @@ export default function FusersScreen() {
               : new Date(),
           }));
           const deduplicatedMatches = deduplicateByAddress(matchesWithDates);
+          console.log("🔄 Setting matched users:", deduplicatedMatches);
           setMatchedUsers(deduplicatedMatches);
           // Calculate compatibility for all matched users
           calculateCompatibilityForUsers(deduplicatedMatches);
@@ -124,176 +128,31 @@ export default function FusersScreen() {
     if (!address) return;
 
     try {
+      // Load matched users from Firebase
       const matches = await FirebaseService.loadMatches(address);
-      console.log("🔍 Raw matches from Firebase:", matches);
-
-      // Fetch complete profile data from blockchain for each match
-      const matchesWithFullData = await Promise.all(
-        matches.map(async (match: any) => {
-          console.log(
-            "🔍 Processing match:",
-            match.address,
-            "with data:",
-            match
-          );
-          try {
-            console.log("🌐 Fetching blockchain data for:", match.address);
-            const blockchainData = await getUserData(match.address);
-            console.log(
-              "🌐 Blockchain data for",
-              match.address,
-              ":",
-              blockchainData
-            );
-
-            // Parse personality traits if it's a string
-            let personalityTraits: string[] = [];
-            if (blockchainData.traits) {
-              try {
-                // Try to parse as JSON first
-                personalityTraits = JSON.parse(blockchainData.traits);
-              } catch {
-                // If not JSON, split by comma
-                personalityTraits = blockchainData.traits
-                  .split(",")
-                  .map((t: string) => t.trim());
-              }
-            }
-
-            // Extract bio properly - blockchain stores traits as bio
-            let bio = blockchainData.bio;
-            if (typeof bio === "object") {
-              bio = JSON.stringify(bio);
-            }
-            if (
-              typeof bio === "string" &&
-              bio.startsWith("{") &&
-              bio.endsWith("}")
-            ) {
-              try {
-                const parsed = JSON.parse(bio);
-                bio = parsed.bio || parsed.traits || bio;
-              } catch {
-                // Keep as string if parsing fails
-              }
-            }
-
-            const enrichedMatch = {
-              ...match,
-              name: blockchainData.name || match.name,
-              age: blockchainData.age || match.age,
-              city: blockchainData.city || match.city,
-              bio: bio || match.bio,
-              mbti: blockchainData.mbti,
-              gender: blockchainData.gender,
-              sexuality: blockchainData.id || match.sexuality, // Check blockchain ID field first
-              personalityTraits: personalityTraits,
-              matchedDate: match.matchedDate
+      // Convert matchedDate timestamps to Date objects
+      const matchesWithDates = matches.map((match: any) => ({
+        ...match,
+        matchedDate: match.matchedDate
+          ? new Date(
+              match.matchedDate.toDate
                 ? match.matchedDate.toDate()
-                : new Date(),
-            };
+                : match.matchedDate
+            )
+          : new Date(),
+      }));
 
-            console.log("✅ Enriched match data:", enrichedMatch);
-            return enrichedMatch;
-          } catch (error) {
-            console.error(
-              "❌ Error fetching blockchain data for",
-              match.address,
-              ":",
-              error
-            );
-            // Try to fetch from Firebase user profile
-            try {
-              console.log(
-                "🔄 Falling back to Firebase profile for:",
-                match.address
-              );
-              const firebaseProfile = await FirebaseService.getUserProfile(
-                match.address
-              );
-              console.log("🔄 Firebase profile data:", firebaseProfile);
-
-              if (firebaseProfile) {
-                // Calculate age from DOB if available
-                let age = match.age;
-                if (firebaseProfile.dob) {
-                  try {
-                    const birthDate = new Date(firebaseProfile.dob);
-                    if (!isNaN(birthDate.getTime())) {
-                      const currentYear = new Date().getFullYear();
-                      age = currentYear - birthDate.getFullYear();
-                    }
-                  } catch (e) {
-                    console.error("Error calculating age from DOB:", e);
-                  }
-                }
-
-                // Extract bio properly from Firebase profile
-                let bio = firebaseProfile.bio;
-                if (typeof bio === "object") {
-                  bio = JSON.stringify(bio);
-                }
-                if (
-                  typeof bio === "string" &&
-                  bio.startsWith("{") &&
-                  bio.endsWith("}")
-                ) {
-                  try {
-                    const parsed = JSON.parse(bio);
-                    bio = parsed.bio || parsed.traits || bio;
-                  } catch {
-                    // Keep as string if parsing fails
-                  }
-                }
-
-                return {
-                  ...match,
-                  name:
-                    firebaseProfile.firstName && firebaseProfile.lastName
-                      ? `${firebaseProfile.firstName} ${firebaseProfile.lastName}`
-                      : match.name,
-                  age: age,
-                  city: firebaseProfile.location || match.city,
-                  bio: bio || match.bio,
-                  mbti: firebaseProfile.mbti,
-                  gender: firebaseProfile.gender,
-                  sexuality: firebaseProfile.sexuality,
-                  personalityTraits: firebaseProfile.personalityTraits || [],
-                  matchedDate: match.matchedDate
-                    ? match.matchedDate.toDate()
-                    : new Date(),
-                };
-              }
-            } catch (firebaseError) {
-              console.error(
-                "❌ Firebase profile fetch also failed for",
-                match.address,
-                ":",
-                firebaseError
-              );
-            }
-
-            // Final fallback to basic match data
-            return {
-              ...match,
-              matchedDate: match.matchedDate
-                ? match.matchedDate.toDate()
-                : new Date(),
-            };
-          }
-        })
-      );
-
-      const deduplicatedMatches = deduplicateByAddress(matchesWithFullData);
+      const deduplicatedMatches = deduplicateByAddress(matchesWithDates);
       console.log(
-        "🎯 Final matched users with full data:",
+        "🔍 Loaded matched users from Firebase:",
         deduplicatedMatches
       );
       setMatchedUsers(deduplicatedMatches);
-      // Calculate compatibility for loaded users
+      // Calculate compatibility for all matched users
       calculateCompatibilityForUsers(deduplicatedMatches);
     } catch (error) {
       console.error("💥 Error loading matched users:", error);
+      setMatchedUsers([]);
     }
   };
 
@@ -416,12 +275,34 @@ export default function FusersScreen() {
     requesterAddress: string,
     requesterName: string
   ) => {
+    console.log(
+      "🎯 handleFuseIncoming STARTED for:",
+      requesterAddress,
+      requesterName
+    );
+    console.log(
+      "🔥 handleFuseIncoming called with:",
+      requesterAddress,
+      requesterName
+    );
     try {
+      // Check if there's a pending request from this user
+      const requests = await FirebaseService.getFuseRequests(address);
+      console.log("🔥 Got requests:", requests);
+      const existingRequest = requests.find(
+        (req: any) => req.requesterAddress === requesterAddress
+      );
+
+      if (!existingRequest) {
+        console.log("❌ No pending request found from:", requesterAddress);
+        Alert.alert("Error", "No pending request found from this user.");
+        return;
+      }
+
+      console.log("✅ Found existing request:", existingRequest);
+
       // Get requester's profile data
       const requesterProfile = await FirebaseService.getUserProfile(
-        requesterAddress
-      );
-      const requesterPhotos = await FirebaseService.getUserPhotoUrls(
         requesterAddress
       );
 
@@ -429,7 +310,22 @@ export default function FusersScreen() {
       const currentUserProfile = await FirebaseService.getUserProfile(address);
       const currentUserPhotos = await FirebaseService.getUserPhotoUrls(address);
 
-      const requestData = {
+      // Create match data for both users
+      const matchDataForCurrent = {
+        address: requesterAddress,
+        name: requesterName,
+        age: existingRequest.age || 25,
+        city: existingRequest.city || "Unknown",
+        bio: existingRequest.bio || "",
+        photos: [], // Will be loaded when viewing profile
+        mbti: requesterProfile?.mbti,
+        gender: requesterProfile?.gender,
+        sexuality: requesterProfile?.sexuality,
+        personalityTraits: requesterProfile?.personalityTraits || [],
+        matchedDate: Timestamp.now(),
+      };
+
+      const matchDataForOther = {
         address: address,
         name: `${currentUserProfile?.firstName || "Unknown"} ${
           currentUserProfile?.lastName || ""
@@ -441,75 +337,49 @@ export default function FusersScreen() {
         city: currentUserProfile?.location || "Unknown",
         bio: currentUserProfile?.bio || "",
         photos: currentUserPhotos,
-        mbti: currentUserProfile?.mbti,
-        gender: currentUserProfile?.gender,
-        sexuality: currentUserProfile?.sexuality,
+        mbti: currentUserProfile?.mbti || null,
+        gender: currentUserProfile?.gender || null,
+        sexuality: currentUserProfile?.sexuality || null,
         personalityTraits: currentUserProfile?.personalityTraits || [],
-        requesterAddress: address,
-        targetAddress: requesterAddress,
+        matchedDate: Timestamp.now(),
       };
 
-      // This will detect mutual match and store for both users
-      const isMutual = await FirebaseService.storeFuseRequest(
-        requesterAddress,
-        requestData
+      // Store matches for both users
+      console.log("💕 Storing match for current user:", address);
+      try {
+        await FirebaseService.storeMatch(address, matchDataForCurrent);
+        console.log("✅ Match stored for current user");
+      } catch (error) {
+        console.error("❌ Failed to store match for current user:", error);
+        throw error;
+      }
+
+      console.log("💕 Storing match for other user:", requesterAddress);
+      try {
+        await FirebaseService.storeMatch(requesterAddress, matchDataForOther);
+        console.log("✅ Match stored for other user");
+      } catch (error) {
+        console.error("❌ Failed to store match for other user:", error);
+        throw error;
+      }
+
+      // Remove the request
+      console.log("🗑️ Removing fuse request");
+      await FirebaseService.removeFuseRequest(address, requesterAddress);
+
+      // Update local state
+      setConnectionRequests((prev) =>
+        prev.filter((req) => req.requesterAddress !== requesterAddress)
       );
 
-      if (isMutual) {
-        // Mutual match! Store the match in Firebase for both users
-        const matchDataForCurrent = {
-          address: requesterAddress,
-          name: requesterName,
-          age:
-            connectionRequests.find(
-              (req) => req.requesterAddress === requesterAddress
-            )?.age || 25,
-          city:
-            connectionRequests.find(
-              (req) => req.requesterAddress === requesterAddress
-            )?.city || "Unknown",
-          bio:
-            connectionRequests.find(
-              (req) => req.requesterAddress === requesterAddress
-            )?.bio || "",
-          photos: [], // Will be loaded when viewing profile
-          mbti: requesterProfile?.mbti,
-          gender: requesterProfile?.gender,
-          sexuality: requesterProfile?.sexuality,
-          personalityTraits: requesterProfile?.personalityTraits || [],
-        };
+      Alert.alert(
+        "Fuse Complete! 🔥❤️",
+        `You and ${requesterName} have fused! You're now connected.`
+      );
 
-        const matchDataForOther = {
-          address: address,
-          name: requestData.name,
-          age: requestData.age,
-          city: requestData.city,
-          bio: requestData.bio,
-          photos: requestData.photos,
-          mbti: requestData.mbti,
-          gender: requestData.gender,
-          sexuality: requestData.sexuality,
-          personalityTraits: requestData.personalityTraits,
-        };
-
-        try {
-          await FirebaseService.storeMatch(address, matchDataForCurrent);
-          await FirebaseService.storeMatch(requesterAddress, matchDataForOther);
-          console.log("💕 Mutual match stored from incoming request");
-        } catch (error) {
-          console.warn("Error storing mutual match from incoming:", error);
-        }
-
-        Alert.alert(
-          "Mutual Fuse! 🔥❤️",
-          `You and ${requesterName} have fused! You're now connected.`
-        );
-      } else {
-        Alert.alert(
-          "Request Sent",
-          `Your fuse request has been sent to ${requesterName}.`
-        );
-      }
+      console.log("💕 Fuse request accepted and matches created");
+      // Manually refresh matches as backup to real-time listener
+      loadMatchedUsers();
     } catch (error) {
       console.error("Error accepting fuse request:", error);
       Alert.alert("Error", "Failed to accept fuse request. Please try again.");
@@ -833,7 +703,7 @@ export default function FusersScreen() {
                         </Text>
                         <View style={styles.traitsContainer}>
                           {Object.entries(selectedUser.personalityTraits).map(
-                            ([trait, value]) => (
+                            ([trait, value]: [string, any]) => (
                               <View key={trait} style={styles.traitTag}>
                                 <Text
                                   style={[

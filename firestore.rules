@@ -8,6 +8,7 @@ service cloud.firestore {
     }
 
     // Messages collection: Only authenticated users can read/write messages
+    // TODO: Add wallet address validation when custom auth is implemented
     match /messages/{messageId} {
       allow read, write: if request.auth != null;
     }
@@ -39,6 +40,11 @@ service cloud.firestore {
 
     // User matches collection: Authenticated users can read/write their own matches
     match /user_matches/{userId} {
+      allow read, write: if true;
+    }
+
+    // Fused users collection: Allow all access for testing
+    match /fused_users/{userId} {
       allow read, write: if true;
     }
 

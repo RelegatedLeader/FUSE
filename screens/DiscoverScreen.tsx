@@ -213,20 +213,10 @@ const DiscoverScreen: React.FC = () => {
           setRequestedUsers(new Set());
         }
 
-        // Load matches from AsyncStorage to filter out users already fused
-        const matchesData = await AsyncStorage.getItem(
-          `matched_users_${address}`
-        );
-        if (matchesData) {
-          const decrypted = CryptoJS.AES.decrypt(matchesData, address).toString(
-            CryptoJS.enc.Utf8
-          );
-          const matches = JSON.parse(decrypted);
-          const matchedAddresses = new Set(matches as string[]);
-          setMatchedUsers(matchedAddresses);
-        } else {
-          setMatchedUsers(new Set());
-        }
+        // Load matches from Firebase to filter out users already fused
+        const matches = await FirebaseService.loadMatches(address);
+        const matchedAddresses = new Set(matches.map((m: any) => m.address));
+        setMatchedUsers(matchedAddresses);
 
         // Load all potential matches using the same logic as FuseScreen
         const allMatches = await MatchingEngine.findMatchesForUser(address);
@@ -631,54 +621,29 @@ const DiscoverScreen: React.FC = () => {
         city: currentUserProfile?.location || "Unknown",
         bio: currentUserProfile?.bio || "",
         photos: currentUserPhotos,
-        mbti: currentUserProfile?.mbti,
-        gender: currentUserProfile?.gender,
-        sexuality: currentUserProfile?.sexuality,
+        mbti: currentUserProfile?.mbti || null,
+        gender: currentUserProfile?.gender || null,
+        sexuality: currentUserProfile?.sexuality || null,
         personalityTraits: currentUserProfile?.personalityTraits || [],
         requesterAddress: address,
         targetAddress: targetAddress,
       };
 
-      // This will detect mutual match and store for both users
-      const isMutual = await FirebaseService.storeFuseRequest(
+      // Store the fuse request (no longer checks for mutual)
+      await FirebaseService.storeFuseRequest(targetAddress, requestData);
+
+      // Also store as sent request for tracking
+      await FirebaseService.storeSentRequest(
+        address,
         targetAddress,
         requestData
       );
 
-      if (isMutual) {
-        Alert.alert(
-          "Mutual Fuse! 🔥❤️",
-          `You and ${selectedUser.name} have fused! You're now connected.`
-        );
-        // Close modal and refresh data
-        setShowProfileModal(false);
-        // Refresh the data to remove the user from discovery
-        const allUsersData = await FirebaseService.getAllUsersForDiscovery(
-          address
-        );
-        const discoverUsers: DiscoverUser[] = allUsersData.map((user: any) => ({
-          address: user.address,
-          name: user.name || user.firstName || "Anonymous",
-          age:
-            user.age || (user.birthdate ? calculateAge(user.birthdate) : "N/A"),
-          city: user.location || user.city || "Unknown",
-          bio: user.bio || user.description || "No bio available",
-          photos: user.photos || [],
-          mbti: user.mbti,
-          gender: user.gender,
-          sexuality: user.sexuality,
-          personalityTraits: user.personalityTraits || {},
-          interests: user.interests || [],
-        }));
-        setAllUsers(discoverUsers);
-      } else {
-        // Add to requested users
-        setRequestedUsers((prev) => new Set([...prev, targetAddress]));
-        Alert.alert(
-          "Request Sent",
-          `Your fuse request has been sent to ${selectedUser.name}.`
-        );
-      }
+      // Always show request sent alert
+      Alert.alert(
+        "Fuse Request Sent! 🔥",
+        `Your fuse request has been sent to ${selectedUser.name}.`
+      );
     } catch (error) {
       console.error("Error sending fuse request:", error);
       Alert.alert("Error", "Failed to send fuse request. Please try again.");

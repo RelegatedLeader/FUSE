@@ -685,9 +685,9 @@ export default function FuseScreen() {
           city: currentUserProfile?.location || "Unknown",
           bio: currentUserProfile?.bio || "",
           photos: currentUserPhotos,
-          mbti: currentUserProfile?.mbti,
-          gender: currentUserProfile?.gender,
-          sexuality: currentUserProfile?.sexuality,
+          mbti: currentUserProfile?.mbti || null,
+          gender: currentUserProfile?.gender || null,
+          sexuality: currentUserProfile?.sexuality || null,
           personalityTraits: currentUserProfile?.personalityTraits || [],
           requesterAddress: address,
           targetAddress: userAddress,
@@ -2416,9 +2416,6 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 10,
   },
-  scrollContent: {
-    padding: 15,
-  },
   overallScore: {
     alignItems: "center",
     marginBottom: 20,
@@ -2523,10 +2520,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
   },
-  compatibilityScore: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
   compatibilityDescription: {
     fontSize: 14,
     lineHeight: 20,
@@ -2594,44 +2587,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: "center",
   },
-  breakdownItem: {
-    borderRadius: 15,
-    padding: 20,
-    marginBottom: 15,
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  breakdownHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  breakdownCategory: {
-    fontSize: 16,
-    fontWeight: "bold",
-  },
   scoreCircle: {
     borderRadius: 25,
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginLeft: 10,
-  },
-  breakdownScore: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "white",
-  },
-  breakdownDescription: {
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 10,
   },
   breakdownFactors: {
     marginTop: 8,
@@ -2650,29 +2610,9 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: "center",
   },
-  insightItem: {
-    borderRadius: 12,
-    padding: 15,
-    marginBottom: 10,
-    borderWidth: 1,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
   insightType: {
     fontSize: 12,
     fontWeight: "bold",
     marginBottom: 5,
-  },
-  insightTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 5,
-  },
-  insightDescription: {
-    fontSize: 14,
-    lineHeight: 20,
   },
 });

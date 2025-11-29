@@ -769,69 +769,6 @@ export class EnhancedMatchingEngine {
     };
     return categories[category as keyof typeof categories] || 3;
   }
-
-  // Default compatibility result
-  private static getDefaultCompatibilityResult(): CompatibilityResult {
-    return {
-      overallScore: 50,
-      scores: {
-        profileCompatibility: 50,
-        bioCompatibility: 50,
-        interactionCompatibility: 50,
-        personalityCompatibility: 50,
-        interestCompatibility: 50,
-        valueAlignment: 50,
-      },
-      breakdown: [],
-      insights: [],
-      confidence: 30,
-      factors: ["Limited Data"],
-    };
-  }
-
-  // Description methods for compatibility breakdown
-  private static getProfileDescription(score: number): string {
-    if (score >= 80) return "Excellent match on basic profile information";
-    if (score >= 60) return "Good alignment on age, location, and basic info";
-    if (score >= 40) return "Moderate match on profile basics";
-    return "Limited profile information alignment";
-  }
-
-  private static getBioDescription(score: number): string {
-    if (score >= 80) return "Communication styles are highly compatible";
-    if (score >= 60) return "Good communication style alignment";
-    if (score >= 40) return "Moderate communication compatibility";
-    return "Communication styles may differ";
-  }
-
-  private static getInteractionDescription(score: number): string {
-    if (score >= 80) return "Interaction patterns are very compatible";
-    if (score >= 60) return "Good alignment in interaction preferences";
-    if (score >= 40) return "Moderate interaction compatibility";
-    return "Interaction patterns may need adjustment";
-  }
-
-  private static getPersonalityDescription(score: number): string {
-    if (score >= 80) return "Personality traits are highly compatible";
-    if (score >= 60) return "Good personality trait alignment";
-    if (score >= 40) return "Moderate personality compatibility";
-    return "Personality traits may differ significantly";
-  }
-
-  private static getInterestDescription(score: number): string {
-    if (score >= 80)
-      return "Shared interests create strong connection potential";
-    if (score >= 60) return "Good overlap in interests and hobbies";
-    if (score >= 40) return "Some shared interests found";
-    return "Limited shared interests";
-  }
-
-  private static getValueDescription(score: number): string {
-    if (score >= 80) return "Life values and goals are highly aligned";
-    if (score >= 60) return "Good alignment in life values";
-    if (score >= 40) return "Moderate value alignment";
-    return "Life values may differ";
-  }
 }
 
 // Type definitions

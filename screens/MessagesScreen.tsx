@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,14 +10,13 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
-  RefreshControl,
-  Dimensions,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CryptoJS from "crypto-js";
 import { MessagingService } from "../utils/messagingService";
+import { FirebaseService } from "../utils/firebaseService";
 import * as ImagePicker from "expo-image-picker";
 
 interface Message {
@@ -43,19 +42,10 @@ interface MatchedUser {
   matchedDate: Date;
 }
 
-interface Conversation {
-  id: string;
-  otherUser: string;
-  lastMessage: string;
-  timestamp: Date;
-  unread: boolean;
-}
-
 export default function MessagesScreen() {
   const { address } = useWallet();
   const { theme } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [matchedUsers, setMatchedUsers] = useState<MatchedUser[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<
     string | null
@@ -68,77 +58,6 @@ export default function MessagesScreen() {
   const [editingText, setEditingText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [recipientTyping, setRecipientTyping] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-
-  // Refs for auto-scrolling
-  const messagesScrollRef = useRef<ScrollView>(null);
-  const chatContainerRef = useRef<View>(null);
-
-  // Simplified back navigation (no gesture handling for now)
-
-  // Auto-scroll to bottom when entering chat or messages change
-  useEffect(() => {
-    if (
-      messagesScrollRef.current &&
-      selectedConversation &&
-      messages.length > 0
-    ) {
-      setTimeout(() => {
-        messagesScrollRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    }
-  }, [messages, selectedConversation]);
-
-  // Helper function to get user name from address
-  const getUserName = (userAddress: string): string => {
-    const matchedUser = matchedUsers.find(
-      (user) => user.address === userAddress
-    );
-    return matchedUser ? matchedUser.name : userAddress;
-  };
-
-  // Helper function to format address with name
-  const formatAddressWithName = (userAddress: string): string => {
-    const shortAddress = `${userAddress.slice(0, 6)}...${userAddress.slice(
-      -4
-    )}`;
-    const userName = getUserName(userAddress);
-    return userName !== userAddress
-      ? `${shortAddress} (${userName})`
-      : shortAddress;
-  };
-
-  const processMessage = (msg: any) => {
-    console.log(
-      "📨 Processing message:",
-      msg.id,
-      "from:",
-      msg.senderAddress,
-      "message:",
-      msg.message
-    );
-    let parsedMessage;
-    try {
-      parsedMessage = JSON.parse(msg.message);
-      console.log("📨 Parsed message content:", parsedMessage.content);
-    } catch (parseError) {
-      console.warn("📨 Failed to parse message JSON:", msg.message, parseError);
-      parsedMessage = { content: msg.message, messageType: "text" };
-    }
-
-    return {
-      id: msg.id,
-      from: msg.senderAddress,
-      fromName: getUserName(msg.senderAddress),
-      message: parsedMessage.content || msg.message,
-      timestamp: msg.timestamp,
-      isRead: msg.status === "read",
-      mediaUrl: parsedMessage.mediaUrl,
-      mediaType: parsedMessage.mediaType,
-      edited: parsedMessage.edited,
-      deleted: parsedMessage.deleted,
-    };
-  };
 
   useEffect(() => {
     const initializeMessaging = async () => {
@@ -147,12 +66,28 @@ export default function MessagesScreen() {
           await MessagingService.initialize(address);
           console.log("Messaging initialized for:", address);
 
-          // Check if there's a selected chat user
-          const selectedUser = await AsyncStorage.getItem("selected_chat_user");
-          if (selectedUser) {
-            setSelectedConversation(selectedUser);
-            await AsyncStorage.removeItem("selected_chat_user");
-          }
+          // Set up listener for all user messages (for Chats tab)
+          const allMessagesListener = MessagingService.listenToAllUserMessages(
+            (newMessages) => {
+              // Only update messages state if not in a conversation
+              if (!selectedConversation) {
+                setMessages(
+                  newMessages.slice(0, 20).map((msg) => ({
+                    id: msg.id,
+                    from: msg.senderAddress,
+                    fromName: msg.senderAddress, // TODO: Get real names
+                    message:
+                      typeof msg.message === "string"
+                        ? msg.message
+                        : JSON.parse(msg.message).content,
+                    timestamp: msg.timestamp,
+                    isRead: msg.status === "read",
+                  }))
+                );
+              }
+            }
+          );
+          setMessageListener(allMessagesListener);
         } catch (error) {
           console.error("Failed to initialize messaging:", error);
         }
@@ -164,103 +99,6 @@ export default function MessagesScreen() {
   }, [address]);
 
   useEffect(() => {
-    const setupListener = async () => {
-      if (!address) return;
-
-      // Clean up existing listener
-      if (messageListener) {
-        messageListener();
-        setMessageListener(null);
-      }
-
-      if (selectedConversation) {
-        // Set up conversation-specific listener
-        const conversationListener = MessagingService.listenToConversation(
-          selectedConversation,
-          (newMessages) => {
-            console.log(
-              "📨 Received messages for conversation:",
-              newMessages.length
-            );
-            setMessages(newMessages.map(processMessage));
-          }
-        );
-        setMessageListener(() => conversationListener);
-      } else {
-        // Set up listener for all user messages (for Chats tab)
-        const allMessagesListener = MessagingService.listenToAllUserMessages(
-          (newMessages) => {
-            // Process messages into conversations
-            const conversationsMap = new Map<string, Conversation>();
-            newMessages.forEach((msg: any) => {
-              const otherUser =
-                msg.senderAddress === address
-                  ? msg.recipientAddress
-                  : msg.senderAddress;
-              const convId = [address, otherUser].sort().join("_");
-              let lastMessage = "";
-              try {
-                const parsed = JSON.parse(msg.message);
-                lastMessage = parsed.content || "";
-              } catch {
-                lastMessage = msg.message;
-              }
-              const timestamp = msg.timestamp.toDate
-                ? msg.timestamp.toDate()
-                : new Date(msg.timestamp);
-              const unread =
-                msg.status !== "read" && msg.recipientAddress === address;
-
-              if (!conversationsMap.has(convId)) {
-                conversationsMap.set(convId, {
-                  id: convId,
-                  otherUser,
-                  lastMessage,
-                  timestamp,
-                  unread,
-                });
-              } else {
-                const conv = conversationsMap.get(convId)!;
-                if (timestamp > conv.timestamp) {
-                  conv.lastMessage = lastMessage;
-                  conv.timestamp = timestamp;
-                  conv.unread = unread;
-                }
-              }
-            });
-            const sortedConversations = Array.from(
-              conversationsMap.values()
-            ).sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
-            setConversations(sortedConversations);
-
-            // Only update messages state if not in a conversation
-            if (!selectedConversation) {
-              setMessages(
-                newMessages.slice(0, 20).map((msg) => ({
-                  id: msg.id,
-                  from: msg.senderAddress,
-                  fromName: msg.senderAddress, // TODO: Get real names
-                  message:
-                    typeof msg.message === "string"
-                      ? msg.message
-                      : JSON.parse(msg.message).content || "",
-                  timestamp: msg.timestamp.toDate
-                    ? msg.timestamp.toDate()
-                    : new Date(msg.timestamp),
-                  isRead: msg.status === "read",
-                }))
-              );
-            }
-          }
-        );
-        setMessageListener(() => allMessagesListener);
-      }
-    };
-
-    setupListener();
-  }, [address, selectedConversation]);
-
-  useEffect(() => {
     return () => {
       // Cleanup listeners on unmount
       if (messageListener) {
@@ -269,99 +107,69 @@ export default function MessagesScreen() {
     };
   }, [messageListener]);
 
+  const setupRealTimeListener = () => {
+    if (!selectedConversation || !address) return;
+
+    // Clean up existing listener
+    if (messageListener) {
+      messageListener();
+    }
+
+    // Set up real-time listener
+    const unsubscribe = MessagingService.listenToConversation(
+      selectedConversation,
+      (newMessages) => {
+        setMessages(
+          newMessages.map((msg) => {
+            let parsedMessage;
+            try {
+              parsedMessage = JSON.parse(msg.message);
+            } catch {
+              parsedMessage = { content: msg.message, messageType: "text" };
+            }
+
+            return {
+              id: msg.id,
+              from: msg.senderAddress,
+              fromName: msg.senderAddress === address ? "You" : "Them",
+              message: parsedMessage.content || "",
+              timestamp: msg.timestamp,
+              isRead: true,
+              mediaUrl: parsedMessage.mediaUrl,
+              mediaType: parsedMessage.mediaType,
+              edited: parsedMessage.edited,
+              deleted: parsedMessage.deleted,
+            };
+          })
+        );
+      }
+    );
+
+    setMessageListener(() => unsubscribe);
+  };
+
   const loadMatchedUsers = async () => {
     if (!address) return;
 
     try {
-      const { FirebaseService } = await import("../utils/firebaseService");
-      await FirebaseService.initializeUser(address);
       const matches = await FirebaseService.loadMatches(address);
+      // Convert matchedDate timestamps to Date objects
       const matchesWithDates = matches.map((match: any) => ({
         ...match,
         matchedDate: match.matchedDate
-          ? match.matchedDate.toDate()
+          ? new Date(
+              match.matchedDate.toDate
+                ? match.matchedDate.toDate()
+                : match.matchedDate
+            )
           : new Date(),
       }));
+
       const deduplicatedMatches = deduplicateByAddress(matchesWithDates);
       setMatchedUsers(deduplicatedMatches);
     } catch (error) {
       console.error("Error loading matched users:", error);
     }
-  };
-
-  const loadConversations = async () => {
-    if (!address) return;
-
-    try {
-      setRefreshing(true);
-      const { FirebaseService } = await import("../utils/firebaseService");
-      await FirebaseService.initializeUser(address);
-
-      // Get current matches
-      const currentMatches = await FirebaseService.loadMatches(address);
-      const matchedAddresses = new Set(
-        currentMatches.map((match) => match.address)
-      );
-
-      const messages = await FirebaseService.getAllUserMessages(address);
-
-      // Process messages into conversations, but only for matched users
-      const conversationsMap = new Map<string, Conversation>();
-      messages.forEach((msg: any) => {
-        const otherUser =
-          msg.senderAddress === address
-            ? msg.recipientAddress
-            : msg.senderAddress;
-
-        // Only include conversations with currently matched users
-        if (!matchedAddresses.has(otherUser)) {
-          return; // Skip this message if not matched
-        }
-
-        const convId = [address, otherUser].sort().join("_");
-        let lastMessage = "";
-        try {
-          const parsed = JSON.parse(msg.message);
-          lastMessage = parsed.content || "";
-        } catch {
-          lastMessage = msg.message;
-        }
-        const timestamp = msg.timestamp.toDate
-          ? msg.timestamp.toDate()
-          : new Date(msg.timestamp);
-        const unread =
-          msg.status !== "read" && msg.recipientAddress === address;
-
-        if (!conversationsMap.has(convId)) {
-          conversationsMap.set(convId, {
-            id: convId,
-            otherUser,
-            lastMessage,
-            timestamp,
-            unread,
-          });
-        } else {
-          const conv = conversationsMap.get(convId)!;
-          if (timestamp > conv.timestamp) {
-            conv.lastMessage = lastMessage;
-            conv.timestamp = timestamp;
-            conv.unread = unread;
-          }
-        }
-      });
-      const sortedConversations = Array.from(conversationsMap.values()).sort(
-        (a, b) => b.timestamp.getTime() - a.timestamp.getTime()
-      );
-      setConversations(sortedConversations);
-      setRefreshing(false);
-    } catch (error) {
-      console.error("Error loading messages:", error);
-      setRefreshing(false);
-    }
-  };
-
-  const onRefresh = async () => {
-    await loadConversations();
   };
 
   const viewUserProfile = (userAddress: string, userName: string) => {
@@ -476,7 +284,7 @@ export default function MessagesScreen() {
         newMessage.trim()
       );
 
-      // Clear input - the message will appear via real-time listener
+      // Clear input - real-time listener will update the messages
       setNewMessage("");
     } catch (error) {
       console.error("Error sending message:", error);
@@ -575,6 +383,13 @@ export default function MessagesScreen() {
     );
   };
 
+  const startEditingMessage = (message: Message) => {
+    if (message.from !== address || message.deleted) return;
+
+    setEditingMessageId(message.id);
+    setEditingText(message.message);
+  };
+
   const handleTypingStart = () => {
     if (!isTyping && selectedConversation) {
       setIsTyping(true);
@@ -597,9 +412,28 @@ export default function MessagesScreen() {
   // Listen for typing indicators (simplified - would need real-time listener)
   useEffect(() => {
     if (selectedConversation) {
-      // TODO: Implement proper typing indicators with real-time listeners
-      // For now, disable typing indicator
-      setRecipientTyping(false);
+      // In a real implementation, you'd set up a listener for typing indicators
+      // For now, this is a placeholder
+      const checkTypingStatus = async () => {
+        try {
+          const isTypingNow = await MessagingService.getUserOnlineStatus(
+            selectedConversation
+          );
+          setRecipientTyping(isTypingNow);
+        } catch (error) {
+          console.warn("Failed to check typing status:", error);
+        }
+      };
+
+      checkTypingStatus();
+      const interval = setInterval(checkTypingStatus, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [selectedConversation]);
+
+  useEffect(() => {
+    if (selectedConversation) {
+      setupRealTimeListener();
     }
   }, [selectedConversation]);
 
@@ -615,238 +449,199 @@ export default function MessagesScreen() {
 
   if (selectedConversation) {
     const conversationMessages = messages.filter(
-      (msg) => msg.from === address || msg.from === selectedConversation
+      (msg) => msg.from === selectedConversation
     );
 
     return (
-      <View ref={chatContainerRef} style={{ flex: 1 }}>
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      >
+        <View
+          style={[styles.container, { backgroundColor: theme.backgroundColor }]}
         >
           <View
             style={[
-              styles.container,
-              { backgroundColor: theme.backgroundColor },
+              styles.header,
+              { backgroundColor: theme.card.backgroundColor },
             ]}
           >
-            <View
-              style={[
-                styles.header,
-                { backgroundColor: theme.card.backgroundColor },
-              ]}
-            >
-              <TouchableOpacity onPress={() => setSelectedConversation(null)}>
-                <Text style={{ color: theme.textColor, fontSize: 18 }}>
-                  ← Back
-                </Text>
-              </TouchableOpacity>
-              <Text style={[styles.headerTitle, { color: theme.textColor }]}>
-                {getUserName(selectedConversation)}
+            <TouchableOpacity onPress={() => setSelectedConversation(null)}>
+              <Text style={{ color: theme.textColor, fontSize: 18 }}>
+                ← Back
               </Text>
-              <View style={{ width: 50 }} />
-            </View>
+            </TouchableOpacity>
+            <Text style={[styles.headerTitle, { color: theme.textColor }]}>
+              {conversationMessages[0]?.fromName || "Chat"}
+            </Text>
+            <View style={{ width: 50 }} />
+          </View>
 
-            <ScrollView
-              ref={messagesScrollRef}
-              style={styles.messagesContainer}
-              onContentSizeChange={() => {
-                messagesScrollRef.current?.scrollToEnd({ animated: true });
-              }}
-            >
-              {conversationMessages.map((message) => (
-                <View
-                  key={message.id}
-                  style={[
-                    styles.messageContainer,
-                    message.from === address
-                      ? styles.sentMessageContainer
-                      : styles.receivedMessageContainer,
-                  ]}
-                >
-                  <TouchableOpacity
-                    onLongPress={() => {
-                      if (message.from === address && !message.deleted) {
-                        Alert.alert(
-                          "Delete Message",
-                          "Are you sure you want to delete this message?",
-                          [
-                            { text: "Cancel", style: "cancel" },
-                            {
-                              text: "Delete",
-                              style: "destructive",
-                              onPress: () => handleDeleteMessage(message.id),
-                            },
-                          ]
-                        );
-                      }
-                    }}
+          <ScrollView style={styles.messagesContainer}>
+            {conversationMessages.map((message) => (
+              <TouchableOpacity
+                key={message.id}
+                onLongPress={() => startEditingMessage(message)}
+                style={[
+                  styles.messageBubble,
+                  { backgroundColor: theme.buttonBackground },
+                  message.deleted && styles.deletedMessage,
+                ]}
+              >
+                {message.mediaUrl &&
+                  message.mediaType === "image" &&
+                  !message.deleted && (
+                    <Image
+                      source={{ uri: message.mediaUrl }}
+                      style={styles.messageImage}
+                      resizeMode="cover"
+                    />
+                  )}
+                {message.message && !message.deleted && (
+                  <Text style={{ color: theme.buttonText }}>
+                    {message.message}
+                  </Text>
+                )}
+                {message.deleted && (
+                  <Text
+                    style={{ color: theme.buttonText, fontStyle: "italic" }}
+                  >
+                    {message.message}
+                  </Text>
+                )}
+                <View style={styles.messageFooter}>
+                  {message.edited && !message.deleted && (
+                    <Text
+                      style={[
+                        styles.editedLabel,
+                        { color: theme.buttonText, opacity: 0.7 },
+                      ]}
+                    >
+                      edited
+                    </Text>
+                  )}
+                  <Text
                     style={[
-                      styles.messageBubble,
-                      message.from === address
-                        ? {
-                            backgroundColor: theme.buttonBackground,
-                            alignSelf: "flex-end",
-                          }
-                        : {
-                            backgroundColor: theme.card.backgroundColor,
-                            alignSelf: "flex-start",
-                          },
-                      message.deleted && styles.deletedMessage,
+                      styles.timestamp,
+                      { color: theme.buttonText, opacity: 0.7 },
                     ]}
                   >
-                    {message.mediaUrl &&
-                      message.mediaType === "image" &&
-                      !message.deleted && (
-                        <Image
-                          source={{ uri: message.mediaUrl }}
-                          style={styles.messageImage}
-                          resizeMode="cover"
-                        />
-                      )}
-                    {message.message && !message.deleted && (
-                      <Text style={{ color: theme.buttonText }}>
-                        {message.message}
-                      </Text>
-                    )}
-                    {message.deleted && (
-                      <Text
-                        style={{
-                          color: theme.buttonText,
-                          fontStyle: "italic",
-                        }}
-                      >
-                        {message.message}
-                      </Text>
-                    )}
-                    <View style={styles.messageFooter}>
-                      {message.edited && !message.deleted && (
-                        <Text
-                          style={[
-                            styles.editedLabel,
-                            { color: theme.buttonText, opacity: 0.7 },
-                          ]}
-                        >
-                          edited
-                        </Text>
-                      )}
-                      <Text
-                        style={[
-                          styles.timestamp,
-                          { color: theme.buttonText, opacity: 0.7 },
-                        ]}
-                      >
-                        {message.timestamp.toLocaleTimeString()}
-                      </Text>
-                    </View>
-                  </TouchableOpacity>
-                </View>
-              ))}
-
-              {recipientTyping && (
-                <View
-                  style={[
-                    styles.typingIndicator,
-                    { backgroundColor: theme.card.backgroundColor },
-                  ]}
-                >
-                  <Text style={{ color: theme.textColor, fontSize: 14 }}>
-                    💬 Typing...
+                    {message.timestamp.toLocaleTimeString()}
                   </Text>
                 </View>
-              )}
-            </ScrollView>
+                {message.from === address && !message.deleted && (
+                  <TouchableOpacity
+                    onPress={() => handleDeleteMessage(message.id)}
+                    style={styles.deleteButton}
+                  >
+                    <Text style={{ color: theme.buttonText, fontSize: 12 }}>
+                      🗑️
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+            ))}
 
-            <View
-              style={[
-                styles.inputContainer,
-                { backgroundColor: theme.card.backgroundColor },
-              ]}
-            >
-              {editingMessageId ? (
-                <>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setEditingMessageId(null);
-                      setEditingText("");
-                    }}
-                    style={[
-                      styles.cancelButton,
-                      { backgroundColor: "#dc3545" },
-                    ]}
-                  >
-                    <Text style={{ color: "#fff" }}>✕</Text>
-                  </TouchableOpacity>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: theme.input.backgroundColor,
-                        color: theme.textColor,
-                      },
-                    ]}
-                    placeholder="Edit message..."
-                    placeholderTextColor={theme.textColor}
-                    value={editingText}
-                    onChangeText={setEditingText}
-                    multiline
-                    autoFocus
-                  />
-                  <TouchableOpacity
-                    onPress={handleEditMessage}
-                    style={[
-                      styles.sendButton,
-                      { backgroundColor: theme.buttonBackground },
-                    ]}
-                  >
-                    <Text style={{ color: theme.buttonText }}>✓</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <TouchableOpacity
-                    onPress={handleSendMedia}
-                    style={[
-                      styles.mediaButton,
-                      { backgroundColor: theme.buttonBackground },
-                    ]}
-                  >
-                    <Text style={{ color: theme.buttonText }}>📎</Text>
-                  </TouchableOpacity>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: theme.input.backgroundColor,
-                        color: theme.textColor,
-                      },
-                    ]}
-                    placeholder="Type a message..."
-                    placeholderTextColor={theme.textColor}
-                    value={newMessage}
-                    onChangeText={(text) => {
-                      setNewMessage(text);
-                      handleTypingStart();
-                    }}
-                    onBlur={handleTypingStop}
-                    multiline
-                  />
-                  <TouchableOpacity
-                    onPress={handleSendMessage}
-                    style={[
-                      styles.sendButton,
-                      { backgroundColor: theme.buttonBackground },
-                    ]}
-                  >
-                    <Text style={{ color: theme.buttonText }}>📤</Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
+            {recipientTyping && (
+              <View
+                style={[
+                  styles.typingIndicator,
+                  { backgroundColor: theme.card.backgroundColor },
+                ]}
+              >
+                <Text style={{ color: theme.textColor, fontSize: 14 }}>
+                  💬 Typing...
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+
+          <View
+            style={[
+              styles.inputContainer,
+              { backgroundColor: theme.card.backgroundColor },
+            ]}
+          >
+            {editingMessageId ? (
+              <>
+                <TouchableOpacity
+                  onPress={() => {
+                    setEditingMessageId(null);
+                    setEditingText("");
+                  }}
+                  style={[styles.cancelButton, { backgroundColor: "#dc3545" }]}
+                >
+                  <Text style={{ color: "#fff" }}>✕</Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.input.backgroundColor,
+                      color: theme.textColor,
+                    },
+                  ]}
+                  placeholder="Edit message..."
+                  placeholderTextColor={theme.textColor}
+                  value={editingText}
+                  onChangeText={setEditingText}
+                  multiline
+                  autoFocus
+                />
+                <TouchableOpacity
+                  onPress={handleEditMessage}
+                  style={[
+                    styles.sendButton,
+                    { backgroundColor: theme.buttonBackground },
+                  ]}
+                >
+                  <Text style={{ color: theme.buttonText }}>✓</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity
+                  onPress={handleSendMedia}
+                  style={[
+                    styles.mediaButton,
+                    { backgroundColor: theme.buttonBackground },
+                  ]}
+                >
+                  <Text style={{ color: theme.buttonText }}>📎</Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: theme.input.backgroundColor,
+                      color: theme.textColor,
+                    },
+                  ]}
+                  placeholder="Type a message..."
+                  placeholderTextColor={theme.textColor}
+                  value={newMessage}
+                  onChangeText={(text) => {
+                    setNewMessage(text);
+                    handleTypingStart();
+                  }}
+                  onBlur={handleTypingStop}
+                  multiline
+                />
+                <TouchableOpacity
+                  onPress={handleSendMessage}
+                  style={[
+                    styles.sendButton,
+                    { backgroundColor: theme.buttonBackground },
+                  ]}
+                >
+                  <Text style={{ color: theme.buttonText }}>📤</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
-        </KeyboardAvoidingView>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -857,13 +652,98 @@ export default function MessagesScreen() {
       <Text style={theme.title}>Chats</Text>
       <Text style={theme.subtitle}>Connect through conversation</Text>
 
-      <ScrollView
-        style={styles.messagesList}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
-        {conversations.length === 0 ? (
+      {/* Selected Fusers Section - Matched users for messaging */}
+      {matchedUsers.length > 0 && (
+        <View style={styles.matchedUsersContainer}>
+          <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
+            Selected Fusers 💕
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.matchedUsersScroll}
+          >
+            {matchedUsers.map((user) => (
+              <View
+                key={user.address}
+                style={[
+                  styles.matchedUserCard,
+                  { backgroundColor: theme.card.backgroundColor },
+                ]}
+              >
+                <TouchableOpacity
+                  style={styles.matchedUserContent}
+                  onPress={() => {
+                    setSelectedConversation(user.address);
+                  }}
+                >
+                  <Image
+                    source={{
+                      uri:
+                        user.photos && user.photos.length > 0
+                          ? user.photos[0]
+                          : "https://via.placeholder.com/60x60?text=👤",
+                    }}
+                    style={styles.matchedUserImage}
+                  />
+                  <Text
+                    style={[styles.matchedUserName, { color: theme.textColor }]}
+                    numberOfLines={1}
+                  >
+                    {user.name}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.matchedUserDetails,
+                      { color: theme.textColor, opacity: 0.7 },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {user.age} • {user.city}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
+      {/* Others Section - Discover and fuse with new users */}
+      <View style={styles.othersContainer}>
+        <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
+          Others 🌟
+        </Text>
+        <Text
+          style={[
+            styles.sectionSubtitle,
+            { color: theme.textColor, opacity: 0.7 },
+          ]}
+        >
+          Discover and connect with new people
+        </Text>
+        <TouchableOpacity
+          style={[
+            styles.discoverButton,
+            { backgroundColor: theme.buttonBackground },
+          ]}
+          onPress={() => {
+            // Navigate to fuse/discovery screen
+            Alert.alert(
+              "Discover",
+              "Navigate to discovery screen to find new connections!"
+            );
+          }}
+        >
+          <Text
+            style={[styles.discoverButtonText, { color: theme.buttonText }]}
+          >
+            🔍 Find New Connections
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={styles.messagesList}>
+        {messages.length === 0 ? (
           <View style={theme.card}>
             <Text
               style={{
@@ -872,33 +752,33 @@ export default function MessagesScreen() {
                 fontSize: 16,
               }}
             >
-              💬 No conversations yet.{"\n"}Start fusing to begin chatting!
+              💬 No messages yet.{"\n"}Start fusing to begin conversations!
             </Text>
           </View>
         ) : (
-          conversations.map((conversation) => (
+          messages.map((message) => (
             <TouchableOpacity
-              key={conversation.id}
+              key={message.id}
               style={[
                 styles.messageItem,
                 { backgroundColor: theme.card.backgroundColor },
               ]}
               onPress={() => {
-                setSelectedConversation(conversation.otherUser);
-                // Mark as read if needed
+                setSelectedConversation(message.from);
+                markAsRead(message.id);
               }}
             >
               <View style={styles.messageHeader}>
                 <Text style={[styles.senderName, { color: theme.textColor }]}>
-                  {formatAddressWithName(conversation.otherUser)}
+                  {message.fromName}
                 </Text>
-                {conversation.unread && <View style={styles.unreadDot} />}
+                {!message.isRead && <View style={styles.unreadDot} />}
               </View>
               <Text
                 style={[styles.messagePreview, { color: theme.textColor }]}
                 numberOfLines={2}
               >
-                {conversation.lastMessage}
+                {message.message}
               </Text>
               <Text
                 style={[
@@ -906,7 +786,7 @@ export default function MessagesScreen() {
                   { color: theme.textColor, opacity: 0.6 },
                 ]}
               >
-                {conversation.timestamp.toLocaleDateString()}
+                {message.timestamp.toLocaleDateString()}
               </Text>
             </TouchableOpacity>
           ))
@@ -995,6 +875,17 @@ const styles = StyleSheet.create({
   editedLabel: {
     fontSize: 10,
     fontStyle: "italic",
+  },
+  deleteButton: {
+    position: "absolute",
+    top: 5,
+    right: 5,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   typingIndicator: {
     padding: 10,
@@ -1125,16 +1016,6 @@ const styles = StyleSheet.create({
   discoverButtonText: {
     fontSize: 16,
     fontWeight: "bold",
-  },
-  messageContainer: {
-    marginVertical: 5,
-    paddingHorizontal: 10,
-  },
-  sentMessageContainer: {
-    alignItems: "flex-end",
-  },
-  receivedMessageContainer: {
-    alignItems: "flex-start",
   },
 });
 
