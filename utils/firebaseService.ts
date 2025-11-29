@@ -281,7 +281,13 @@ export class FirebaseService {
   }
 
   // Get messages for a conversation
-  static async getConversationMessages(conversationId: string): Promise<any[]> {
+  static async getConversationMessages(userAddress: string, recipientAddress: string): Promise<any[]> {
+    const conversationId = [userAddress, recipientAddress].sort().join("_");
+
+    // Always generate the key deterministically
+    const hash = CryptoJS.SHA256(conversationId + "fuse_shared_messaging_key_2024");
+    const conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(0, 64);
+
     try {
       const messagesRef = collection(db, "messages");
       const q = query(
@@ -295,15 +301,6 @@ export class FirebaseService {
       for (const docSnap of querySnapshot.docs) {
         const data = docSnap.data();
         try {
-          // Generate the conversation key for this conversation
-          const hash = CryptoJS.SHA256(
-            conversationId + "fuse_shared_messaging_key_2024"
-          );
-          const conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(
-            0,
-            64
-          );
-
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
             conversationKey

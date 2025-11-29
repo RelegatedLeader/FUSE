@@ -62,30 +62,15 @@ export class MessagingService {
       this.currentUser,
       recipientAddress
     );
-    const keyStorageKey = `conversation_key_v2_${conversationId}`;
 
-    // Try to get existing key
-    let conversationKey = await AsyncStorage.getItem(keyStorageKey);
+    // Always generate the key deterministically
+    const hash = CryptoJS.SHA256(conversationId + this.SHARED_MESSAGING_KEY);
+    const conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(0, 64); // 64 hex chars = 32 bytes
 
-    if (!conversationKey) {
-      // Generate deterministic key for this conversation (both users will generate the same key)
-      // Use hash of conversation ID as the key - take first 32 bytes for AES-256
-      const hash = CryptoJS.SHA256(conversationId + this.SHARED_MESSAGING_KEY);
-      conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(0, 64); // 64 hex chars = 32 bytes
-
-      // Store the key
-      await AsyncStorage.setItem(keyStorageKey, conversationKey);
-
-      console.log(
-        "🔑 MessagingService: Generated deterministic conversation key for:",
-        conversationId
-      );
-    } else {
-      console.log(
-        "🔑 MessagingService: Retrieved conversation key for:",
-        conversationId
-      );
-    }
+    console.log(
+      "🔑 Messaging conversation key:",
+      conversationKey.substring(0, 16) + "..."
+    );
 
     return conversationKey;
   }
@@ -249,7 +234,8 @@ export class MessagingService {
 
       // Get the original message to preserve metadata
       const messages = await FirebaseService.getConversationMessages(
-        conversationId
+        this.currentUser,
+        recipientAddress
       );
       const originalMessage = messages.find((msg) => msg.id === messageId);
 
@@ -337,7 +323,8 @@ export class MessagingService {
 
       // Get all messages in the conversation
       const messages = await FirebaseService.getConversationMessages(
-        conversationId
+        this.currentUser,
+        recipientAddress
       );
 
       // Mark each message as deleted
@@ -376,7 +363,8 @@ export class MessagingService {
 
       // Get conversation messages
       const messages = await FirebaseService.getConversationMessages(
-        conversationId
+        this.currentUser,
+        recipientAddress
       );
 
       if (messages.length === 0) {
@@ -466,11 +454,7 @@ export class MessagingService {
     }
 
     try {
-      const conversationId = this.generateConversationId(
-        this.currentUser,
-        recipientAddress
-      );
-      return await FirebaseService.getConversationMessages(conversationId);
+      return await FirebaseService.getConversationMessages(this.currentUser, recipientAddress);
     } catch (error) {
       throw new Error("Failed to get conversation messages: " + error);
     }
