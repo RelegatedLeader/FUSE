@@ -137,10 +137,8 @@ export default function MessagesScreen() {
                 )
                 .slice(0, 20);
 
-              // Only update conversations state if not in a conversation
-              if (!selectedConversation) {
-                setConversations(conversationList);
-              }
+              // Update conversations state
+              setConversations(conversationList);
             }
           );
           setMessageListener(allMessagesListener);

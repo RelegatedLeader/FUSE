@@ -28,6 +28,7 @@ import { db, storage } from "./firebase";
 import { EncryptionService } from "./encryption";
 import { KeyManager } from "./keyManager";
 import CryptoJS from "crypto-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Firebase service with encryption integration for FUSE
 export class FirebaseService {
@@ -249,6 +250,24 @@ export class FirebaseService {
     }
   }
 
+  // Update encrypted message
+  static async updateMessage(
+    messageId: string,
+    encryptedMessage: string
+  ): Promise<void> {
+    try {
+      const messageRef = doc(db, "messages", messageId);
+      await updateDoc(messageRef, {
+        encryptedMessage,
+        timestamp: Timestamp.now(),
+      });
+
+      console.log("📝 Updated message:", messageId);
+    } catch (error) {
+      throw new Error("Failed to update message: " + error);
+    }
+  }
+
   // Get messages for a conversation
   static async getConversationMessages(conversationId: string): Promise<any[]> {
     try {
@@ -374,25 +393,33 @@ export class FirebaseService {
       for (const doc of querySnapshot.docs) {
         const data = doc.data();
         try {
-          // Generate the conversation key for this conversation
-          const hash = CryptoJS.SHA256(
-            conversationId + "fuse_shared_messaging_key_2024"
-          );
-          const conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(
-            0,
-            64
-          );
+          // Get the conversation key (same logic as MessagingService)
+          const keyStorageKey = `conversation_key_v2_${conversationId}`;
+          let conversationKey = await AsyncStorage.getItem(keyStorageKey);
+
+          if (!conversationKey) {
+            // Generate deterministic key for this conversation
+            const hash = CryptoJS.SHA256(
+              conversationId + "fuse_shared_messaging_key_2024"
+            );
+            conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(0, 64);
+          }
+
+          console.log("🔑 Firebase conversation key:", conversationKey.substring(0, 16) + "...");
 
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
             conversationKey
           );
 
+          console.log("🔓 Raw decrypted message:", decryptedMessage);
+
           let parsedMessage;
           try {
             parsedMessage = JSON.parse(decryptedMessage);
+            console.log("📄 Successfully parsed message:", parsedMessage);
           } catch (parseError) {
-            console.log("❌ Failed to parse decrypted message:", parseError);
+            console.log("❌ Failed to parse decrypted message:", parseError, "Raw decrypted:", decryptedMessage);
             parsedMessage = { content: decryptedMessage };
           }
 
@@ -457,17 +484,20 @@ export class FirebaseService {
       for (const doc of querySnapshot.docs) {
         const data = doc.data();
         try {
-          // Generate the conversation key for this message
+          // Get the conversation key (same logic as MessagingService)
           const conversationId = [data.senderAddress, data.recipientAddress]
             .sort()
             .join("_");
-          const hash = CryptoJS.SHA256(
-            conversationId + "fuse_shared_messaging_key_2024"
-          );
-          const conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(
-            0,
-            64
-          );
+          const keyStorageKey = `conversation_key_v2_${conversationId}`;
+          let conversationKey = await AsyncStorage.getItem(keyStorageKey);
+
+          if (!conversationKey) {
+            // Generate deterministic key for this conversation
+            const hash = CryptoJS.SHA256(
+              conversationId + "fuse_shared_messaging_key_2024"
+            );
+            conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(0, 64);
+          }
 
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,

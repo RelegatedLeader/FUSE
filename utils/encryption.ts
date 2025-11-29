@@ -23,7 +23,7 @@ export class EncryptionService {
     key: string
   ): { encrypted: string; iv: string; tag: string } {
     const iv = this.generateIV();
-    const encrypted = CryptoJS.AES.encrypt(data, CryptoJS.enc.Hex.parse(key), {
+    const encrypted = CryptoJS.AES.encrypt(data, key, {
       iv: CryptoJS.enc.Hex.parse(iv),
       mode: CryptoJS.mode.CBC,
       padding: CryptoJS.pad.Pkcs7,
@@ -47,7 +47,7 @@ export class EncryptionService {
     try {
       const decrypted = CryptoJS.AES.decrypt(
         encryptedData,
-        CryptoJS.enc.Hex.parse(key),
+        key,
         {
           iv: CryptoJS.enc.Hex.parse(iv),
           mode: CryptoJS.mode.CBC,

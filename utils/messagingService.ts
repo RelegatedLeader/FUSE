@@ -121,6 +121,8 @@ export class MessagingService {
       // Get the conversation-specific key
       const conversationKey = await this.getConversationKey(recipientAddress);
 
+      console.log("🔑 Messaging conversation key:", conversationKey.substring(0, 16) + "...");
+
       const messageData = {
         content: message,
         messageType,
@@ -134,6 +136,8 @@ export class MessagingService {
         JSON.stringify(messageData),
         conversationKey
       );
+
+      console.log("🔒 Final encrypted message to send:", encryptedMessage.substring(0, 50) + "...");
 
       await FirebaseService.sendMessage(
         conversationId,
@@ -342,12 +346,10 @@ export class MessagingService {
         conversationKey
       );
 
-      // Create a replacement message
-      await FirebaseService.sendMessage(
-        conversationId,
-        encryptedMessage,
-        this.currentUser,
-        recipientAddress
+      // Update the existing message
+      await FirebaseService.updateMessage(
+        messageId,
+        encryptedMessage
       );
 
       console.log("🗑️ Message deleted:", messageId);
