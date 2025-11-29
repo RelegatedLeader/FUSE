@@ -121,7 +121,10 @@ export class MessagingService {
       // Get the conversation-specific key
       const conversationKey = await this.getConversationKey(recipientAddress);
 
-      console.log("🔑 Messaging conversation key:", conversationKey.substring(0, 16) + "...");
+      console.log(
+        "🔑 Messaging conversation key:",
+        conversationKey.substring(0, 16) + "..."
+      );
 
       const messageData = {
         content: message,
@@ -137,7 +140,10 @@ export class MessagingService {
         conversationKey
       );
 
-      console.log("🔒 Final encrypted message to send:", encryptedMessage.substring(0, 50) + "...");
+      console.log(
+        "🔒 Final encrypted message to send:",
+        encryptedMessage.substring(0, 50) + "..."
+      );
 
       await FirebaseService.sendMessage(
         conversationId,

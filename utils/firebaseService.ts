@@ -417,7 +417,10 @@ export class FirebaseService {
             conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(0, 64);
           }
 
-          console.log("🔑 Firebase conversation key:", conversationKey.substring(0, 16) + "...");
+          console.log(
+            "🔑 Firebase conversation key:",
+            conversationKey.substring(0, 16) + "..."
+          );
 
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
@@ -431,7 +434,12 @@ export class FirebaseService {
             parsedMessage = JSON.parse(decryptedMessage);
             console.log("📄 Successfully parsed message:", parsedMessage);
           } catch (parseError) {
-            console.log("❌ Failed to parse decrypted message:", parseError, "Raw decrypted:", decryptedMessage);
+            console.log(
+              "❌ Failed to parse decrypted message:",
+              parseError,
+              "Raw decrypted:",
+              decryptedMessage
+            );
             parsedMessage = { content: decryptedMessage };
           }
 

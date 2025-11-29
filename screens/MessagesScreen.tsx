@@ -90,56 +90,7 @@ export default function MessagesScreen() {
           // Set up listener for all user messages (for Chats tab)
           const allMessagesListener = MessagingService.listenToAllUserMessages(
             (newMessages) => {
-              // Group messages by conversation partner and get the latest message for each
-              const conversationMap = new Map<string, any>();
-
-              newMessages.forEach((msg) => {
-                // Determine the partner address (the other person in the conversation)
-                const partnerAddress =
-                  msg.senderAddress === address
-                    ? msg.recipientAddress
-                    : msg.senderAddress;
-                const existing = conversationMap.get(partnerAddress);
-
-                // Get partner name from matched users
-                const matchedUser = matchedUsers.find(
-                  (user) => user.address === partnerAddress
-                );
-                const partnerName = matchedUser
-                  ? matchedUser.name
-                  : partnerAddress;
-
-                if (!existing || msg.timestamp > existing.timestamp) {
-                  conversationMap.set(partnerAddress, {
-                    id: msg.id,
-                    partnerAddress,
-                    partnerName,
-                    lastMessage: msg.message,
-                    lastMessageTime: msg.timestamp,
-                    unreadCount:
-                      msg.status !== "read" && msg.senderAddress !== address
-                        ? 1
-                        : 0,
-                    lastMessageId: msg.id,
-                  });
-                } else if (
-                  msg.status !== "read" &&
-                  msg.senderAddress !== address
-                ) {
-                  // Increment unread count for existing conversation (only for received messages)
-                  existing.unreadCount += 1;
-                }
-              });
-
-              const conversationList = Array.from(conversationMap.values())
-                .sort(
-                  (a, b) =>
-                    b.lastMessageTime.getTime() - a.lastMessageTime.getTime()
-                )
-                .slice(0, 20);
-
-              // Update conversations state
-              setConversations(conversationList);
+              buildConversationsFromMessages(newMessages);
             }
           );
           setMessageListener(allMessagesListener);
@@ -164,22 +115,76 @@ export default function MessagesScreen() {
 
   // Update conversation names when matched users change
   useEffect(() => {
-    if (conversations.length > 0 && matchedUsers.length > 0) {
-      setConversations((prevConversations) =>
-        prevConversations.map((conversation) => {
-          const matchedUser = matchedUsers.find(
-            (user) => user.address === conversation.partnerAddress
-          );
-          return {
-            ...conversation,
-            partnerName: matchedUser
-              ? matchedUser.name
-              : conversation.partnerAddress,
-          };
-        })
-      );
+    if (matchedUsers.length > 0) {
+      // Rebuild conversations list when matched users change
+      buildConversationsFromMessages([]);
     }
-  }, [matchedUsers, conversations.length]);
+  }, [matchedUsers]);
+
+  const buildConversationsFromMessages = (newMessages: any[]) => {
+    // Start with all matched users as potential conversations
+    const conversationMap = new Map<string, any>();
+
+    // Initialize conversations for all matched users (even without messages)
+    matchedUsers.forEach((user) => {
+      conversationMap.set(user.address, {
+        id: `conversation_${user.address}`,
+        partnerAddress: user.address,
+        partnerName: user.name,
+        lastMessage: "Start a conversation...",
+        lastMessageTime: user.matchedDate, // Use match date as fallback
+        unreadCount: 0,
+        lastMessageId: null,
+        hasMessages: false,
+      });
+    });
+
+    // Update with actual message data where available
+    newMessages.forEach((msg) => {
+      // Determine the partner address (the other person in the conversation)
+      const partnerAddress =
+        msg.senderAddress === address
+          ? msg.recipientAddress
+          : msg.senderAddress;
+      const existing = conversationMap.get(partnerAddress);
+
+      // Only update if this partner is in our matched users
+      if (existing) {
+        if (!existing.hasMessages || msg.timestamp > existing.lastMessageTime) {
+          conversationMap.set(partnerAddress, {
+            id: msg.id,
+            partnerAddress,
+            partnerName: existing.partnerName,
+            lastMessage: msg.message,
+            lastMessageTime: msg.timestamp,
+            unreadCount:
+              msg.status !== "read" && msg.senderAddress !== address
+                ? (existing.hasMessages ? existing.unreadCount + 1 : 1)
+                : existing.unreadCount,
+            lastMessageId: msg.id,
+            hasMessages: true,
+          });
+        } else if (
+          msg.status !== "read" &&
+          msg.senderAddress !== address &&
+          existing.hasMessages
+        ) {
+          // Increment unread count for existing conversation (only for received messages)
+          existing.unreadCount += 1;
+        }
+      }
+    });
+
+    const conversationList = Array.from(conversationMap.values())
+      .sort(
+        (a, b) =>
+          b.lastMessageTime.getTime() - a.lastMessageTime.getTime()
+      )
+      .slice(0, 50); // Show more since we include all matches
+
+    // Update conversations state
+    setConversations(conversationList);
+  };
 
   const setupRealTimeListener = () => {
     if (!selectedConversation || !address) return;
@@ -469,7 +474,7 @@ export default function MessagesScreen() {
     if (!selectedConversation || !address) return;
 
     // Find the message to check if user can delete it
-    const message = messages.find(msg => msg.id === messageId);
+    const message = messages.find((msg) => msg.id === messageId);
     if (!message || message.from !== address) {
       Alert.alert("Error", "You can only delete your own messages.");
       return;
@@ -490,7 +495,9 @@ export default function MessagesScreen() {
                 messageId
               );
               // Remove the message from local state
-              setMessages(prevMessages => prevMessages.filter(msg => msg.id !== messageId));
+              setMessages((prevMessages) =>
+                prevMessages.filter((msg) => msg.id !== messageId)
+              );
             } catch (error) {
               console.error("Error deleting message:", error);
               Alert.alert(
@@ -549,8 +556,13 @@ export default function MessagesScreen() {
       (user) => user.address === selectedConversation
     );
     const displayName = matchedUser
-      ? `${matchedUser.name} ${selectedConversation.slice(0, 6)}...${selectedConversation.slice(-4)}`
-      : `${selectedConversation.slice(0, 6)}...${selectedConversation.slice(-4)}`;
+      ? `${matchedUser.name} ${selectedConversation.slice(
+          0,
+          6
+        )}...${selectedConversation.slice(-4)}`
+      : `${selectedConversation.slice(0, 6)}...${selectedConversation.slice(
+          -4
+        )}`;
 
     return (
       <KeyboardAvoidingView
@@ -578,10 +590,12 @@ export default function MessagesScreen() {
             <View style={{ width: 50 }} />
           </View>
 
-          <ScrollView 
+          <ScrollView
             ref={scrollViewRef}
             style={styles.messagesContainer}
-            onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+            onContentSizeChange={() =>
+              scrollViewRef.current?.scrollToEnd({ animated: true })
+            }
           >
             {conversationMessages.map((message) => {
               const isFromCurrentUser = message.from === address;
@@ -591,61 +605,73 @@ export default function MessagesScreen() {
                   onLongPress={() => handleDeleteMessage(message.id)}
                   style={[
                     styles.messageBubble,
-                    isFromCurrentUser ? styles.sentMessage : styles.receivedMessage,
+                    isFromCurrentUser
+                      ? styles.sentMessage
+                      : styles.receivedMessage,
                     message.deleted && styles.deletedMessage,
                   ]}
                 >
-                {message.mediaUrl &&
-                  message.mediaType === "image" &&
-                  !message.deleted && (
-                    <Image
-                      source={{ uri: message.mediaUrl }}
-                      style={styles.messageImage}
-                      resizeMode="cover"
-                    />
-                  )}
-                {message.message && !message.deleted && (
-                  <Text style={[
-                    styles.messageText,
-                    isFromCurrentUser ? styles.sentMessageText : styles.receivedMessageText
-                  ]}>
-                    {message.message}
-                  </Text>
-                )}
-                {message.deleted && (
-                  <Text
-                    style={[
-                      styles.messageText,
-                      isFromCurrentUser ? styles.sentMessageText : styles.receivedMessageText,
-                      { fontStyle: "italic" }
-                    ]}
-                  >
-                    {message.message}
-                  </Text>
-                )}
-                <View style={styles.messageFooter}>
-                  {message.edited && !message.deleted && (
+                  {message.mediaUrl &&
+                    message.mediaType === "image" &&
+                    !message.deleted && (
+                      <Image
+                        source={{ uri: message.mediaUrl }}
+                        style={styles.messageImage}
+                        resizeMode="cover"
+                      />
+                    )}
+                  {message.message && !message.deleted && (
                     <Text
                       style={[
-                        styles.editedLabel,
-                        isFromCurrentUser ? styles.sentMessageText : styles.receivedMessageText,
+                        styles.messageText,
+                        isFromCurrentUser
+                          ? styles.sentMessageText
+                          : styles.receivedMessageText,
+                      ]}
+                    >
+                      {message.message}
+                    </Text>
+                  )}
+                  {message.deleted && (
+                    <Text
+                      style={[
+                        styles.messageText,
+                        isFromCurrentUser
+                          ? styles.sentMessageText
+                          : styles.receivedMessageText,
+                        { fontStyle: "italic" },
+                      ]}
+                    >
+                      {message.message}
+                    </Text>
+                  )}
+                  <View style={styles.messageFooter}>
+                    {message.edited && !message.deleted && (
+                      <Text
+                        style={[
+                          styles.editedLabel,
+                          isFromCurrentUser
+                            ? styles.sentMessageText
+                            : styles.receivedMessageText,
+                          { opacity: 0.7 },
+                        ]}
+                      >
+                        edited
+                      </Text>
+                    )}
+                    <Text
+                      style={[
+                        styles.timestamp,
+                        isFromCurrentUser
+                          ? styles.sentMessageText
+                          : styles.receivedMessageText,
                         { opacity: 0.7 },
                       ]}
                     >
-                      edited
+                      {message.timestamp.toLocaleTimeString()}
                     </Text>
-                  )}
-                  <Text
-                    style={[
-                      styles.timestamp,
-                      isFromCurrentUser ? styles.sentMessageText : styles.receivedMessageText,
-                      { opacity: 0.7 },
-                    ]}
-                  >
-                    {message.timestamp.toLocaleTimeString()}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
               );
             })}
           </ScrollView>
@@ -751,7 +777,7 @@ export default function MessagesScreen() {
                 fontSize: 16,
               }}
             >
-              💬 No messages yet.{"\n"}Start fusing to begin conversations!
+              💬 No conversations yet.{"\n"}Start fusing to connect with people!
             </Text>
           </View>
         ) : (
