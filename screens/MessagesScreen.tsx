@@ -549,8 +549,8 @@ export default function MessagesScreen() {
       (user) => user.address === selectedConversation
     );
     const displayName = matchedUser
-      ? `${matchedUser.name} (${selectedConversation.slice(0, 8)}...${selectedConversation.slice(-6)})`
-      : `${selectedConversation.slice(0, 8)}...${selectedConversation.slice(-6)}`;
+      ? `${matchedUser.name} ${selectedConversation.slice(0, 6)}...${selectedConversation.slice(-4)}`
+      : `${selectedConversation.slice(0, 6)}...${selectedConversation.slice(-4)}`;
 
     return (
       <KeyboardAvoidingView
@@ -583,16 +583,18 @@ export default function MessagesScreen() {
             style={styles.messagesContainer}
             onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
           >
-            {conversationMessages.map((message) => (
-              <TouchableOpacity
-                key={message.id}
-                onLongPress={() => handleDeleteMessage(message.id)}
-                style={[
-                  styles.messageBubble,
-                  { backgroundColor: theme.buttonBackground },
-                  message.deleted && styles.deletedMessage,
-                ]}
-              >
+            {conversationMessages.map((message) => {
+              const isFromCurrentUser = message.from === address;
+              return (
+                <TouchableOpacity
+                  key={message.id}
+                  onLongPress={() => handleDeleteMessage(message.id)}
+                  style={[
+                    styles.messageBubble,
+                    isFromCurrentUser ? styles.sentMessage : styles.receivedMessage,
+                    message.deleted && styles.deletedMessage,
+                  ]}
+                >
                 {message.mediaUrl &&
                   message.mediaType === "image" &&
                   !message.deleted && (
@@ -603,13 +605,20 @@ export default function MessagesScreen() {
                     />
                   )}
                 {message.message && !message.deleted && (
-                  <Text style={{ color: theme.buttonText }}>
+                  <Text style={[
+                    styles.messageText,
+                    isFromCurrentUser ? styles.sentMessageText : styles.receivedMessageText
+                  ]}>
                     {message.message}
                   </Text>
                 )}
                 {message.deleted && (
                   <Text
-                    style={{ color: theme.buttonText, fontStyle: "italic" }}
+                    style={[
+                      styles.messageText,
+                      isFromCurrentUser ? styles.sentMessageText : styles.receivedMessageText,
+                      { fontStyle: "italic" }
+                    ]}
                   >
                     {message.message}
                   </Text>
@@ -619,7 +628,8 @@ export default function MessagesScreen() {
                     <Text
                       style={[
                         styles.editedLabel,
-                        { color: theme.buttonText, opacity: 0.7 },
+                        isFromCurrentUser ? styles.sentMessageText : styles.receivedMessageText,
+                        { opacity: 0.7 },
                       ]}
                     >
                       edited
@@ -628,14 +638,16 @@ export default function MessagesScreen() {
                   <Text
                     style={[
                       styles.timestamp,
-                      { color: theme.buttonText, opacity: 0.7 },
+                      isFromCurrentUser ? styles.sentMessageText : styles.receivedMessageText,
+                      { opacity: 0.7 },
                     ]}
                   >
                     {message.timestamp.toLocaleTimeString()}
                   </Text>
                 </View>
               </TouchableOpacity>
-            ))}
+              );
+            })}
           </ScrollView>
 
           <View
@@ -866,6 +878,23 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     maxWidth: "80%",
     alignSelf: "flex-start",
+  },
+  sentMessage: {
+    backgroundColor: "#007AFF",
+    alignSelf: "flex-end",
+  },
+  receivedMessage: {
+    backgroundColor: "#E5E5EA",
+    alignSelf: "flex-start",
+  },
+  messageText: {
+    fontSize: 16,
+  },
+  sentMessageText: {
+    color: "white",
+  },
+  receivedMessageText: {
+    color: "#333",
   },
   deletedMessage: {
     opacity: 0.6,
