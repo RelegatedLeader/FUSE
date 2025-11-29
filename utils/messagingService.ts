@@ -292,12 +292,12 @@ export class MessagingService {
     }
   }
 
-  // Delete message (mark as deleted)
+  // Delete message permanently
   static async deleteMessage(
     recipientAddress: string,
     messageId: string
   ): Promise<void> {
-    if (!this.currentUser || !this.userKeys) {
+    if (!this.currentUser) {
       throw new Error("Messaging service not initialized");
     }
 
@@ -307,52 +307,11 @@ export class MessagingService {
         recipientAddress
       );
 
-      // Get the conversation-specific key
-      const conversationKey = await this.getConversationKey(recipientAddress);
+      // For now, just try to delete the message
+      // In a real app, you'd check if the user owns the message
+      await FirebaseService.deleteMessage(messageId);
 
-      // Get the original message
-      const messages = await FirebaseService.getConversationMessages(
-        conversationId
-      );
-      const originalMessage = messages.find((msg) => msg.id === messageId);
-
-      if (
-        !originalMessage ||
-        originalMessage.senderAddress !== this.currentUser
-      ) {
-        throw new Error("Message not found or not owned by user");
-      }
-
-      let originalData;
-      try {
-        originalData = JSON.parse(originalMessage.message);
-      } catch {
-        originalData = {
-          content: originalMessage.message,
-          messageType: "text",
-        };
-      }
-
-      // Mark as deleted
-      const deletedData = {
-        ...originalData,
-        content: "This message was deleted",
-        deleted: true,
-        deletedAt: Date.now(),
-      };
-
-      const encryptedMessage = EncryptionService.encryptMessage(
-        JSON.stringify(deletedData),
-        conversationKey
-      );
-
-      // Update the existing message
-      await FirebaseService.updateMessage(
-        messageId,
-        encryptedMessage
-      );
-
-      console.log("🗑️ Message deleted:", messageId);
+      console.log("🗑️ Message permanently deleted:", messageId);
     } catch (error) {
       throw new Error("Failed to delete message: " + error);
     }

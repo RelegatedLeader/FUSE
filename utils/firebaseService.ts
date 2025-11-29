@@ -268,6 +268,18 @@ export class FirebaseService {
     }
   }
 
+  // Delete message permanently
+  static async deleteMessage(messageId: string): Promise<void> {
+    try {
+      const messageRef = doc(db, "messages", messageId);
+      await deleteDoc(messageRef);
+
+      console.log("🗑️ Permanently deleted message:", messageId);
+    } catch (error) {
+      throw new Error("Failed to delete message: " + error);
+    }
+  }
+
   // Get messages for a conversation
   static async getConversationMessages(conversationId: string): Promise<any[]> {
     try {

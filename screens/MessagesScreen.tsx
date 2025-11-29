@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -68,6 +68,7 @@ export default function MessagesScreen() {
   );
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
+  const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     const initializeMessaging = async () => {
@@ -469,11 +470,11 @@ export default function MessagesScreen() {
 
     Alert.alert(
       "Delete Message",
-      "Are you sure you want to delete this message?",
+      "Are you sure you want to permanently delete this message? This action cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
         {
-          text: "Delete",
+          text: "Delete Forever",
           style: "destructive",
           onPress: async () => {
             try {
@@ -481,6 +482,8 @@ export default function MessagesScreen() {
                 selectedConversation,
                 messageId
               );
+              // Remove the message from local state
+              setMessages(prevMessages => prevMessages.filter(msg => msg.id !== messageId));
             } catch (error) {
               console.error("Error deleting message:", error);
               Alert.alert(
@@ -506,6 +509,15 @@ export default function MessagesScreen() {
       setupRealTimeListener();
     }
   }, [selectedConversation]);
+
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (selectedConversation && messages.length > 0) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [messages, selectedConversation]);
 
   const markAsRead = (messageId: string) => {
     setMessages(
@@ -559,7 +571,11 @@ export default function MessagesScreen() {
             <View style={{ width: 50 }} />
           </View>
 
-          <ScrollView style={styles.messagesContainer}>
+          <ScrollView 
+            ref={scrollViewRef}
+            style={styles.messagesContainer}
+            onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
+          >
             {conversationMessages.map((message) => (
               <TouchableOpacity
                 key={message.id}
