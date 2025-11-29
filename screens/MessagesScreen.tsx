@@ -10,6 +10,7 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
+  RefreshControl,
 } from "react-native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -71,6 +72,7 @@ export default function MessagesScreen() {
   const [editingText, setEditingText] = useState("");
   const scrollViewRef = useRef<ScrollView>(null);
   const [conversationsLoaded, setConversationsLoaded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     const initializeMessaging = async () => {
@@ -214,6 +216,12 @@ export default function MessagesScreen() {
       loadConversationsWithMessages();
     }
   }, [matchedUsers, address]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadConversationsWithMessages();
+    setRefreshing(false);
+  };
 
   const buildConversationsFromMessages = (newMessages: any[]) => {
     setConversations((prevConversations) => {
@@ -880,7 +888,7 @@ export default function MessagesScreen() {
       <Text style={theme.title}>Chats</Text>
       <Text style={theme.subtitle}>Connect through conversation</Text>
 
-      <ScrollView style={styles.messagesList}>
+      <ScrollView style={styles.messagesList} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
         {conversations.length === 0 ? (
           <View style={theme.card}>
             <Text

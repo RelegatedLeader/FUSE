@@ -316,6 +316,12 @@ export class FirebaseService {
             parsedMessage = { content: decryptedMessage };
           }
 
+          // Skip messages with empty content
+          if (!parsedMessage.content || !parsedMessage.content.trim()) {
+            console.warn("Skipping message with empty content:", docSnap.id);
+            continue;
+          }
+
           messages.push({
             id: docSnap.id,
             message: parsedMessage.content || decryptedMessage,
