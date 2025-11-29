@@ -566,8 +566,16 @@ export class MessagingService {
     }
 
     try {
-      // In a production app, this would update message status in Firebase
-      // For now, this is a placeholder
+      const conversationId = this.generateConversationId(
+        this.currentUser,
+        recipientAddress
+      );
+
+      // Update all unread messages in this conversation to "read"
+      await FirebaseService.markMessagesAsRead(
+        conversationId,
+        this.currentUser
+      );
       console.log("✓ Marked messages as read for:", recipientAddress);
     } catch (error) {
       throw new Error("Failed to mark messages as read: " + error);

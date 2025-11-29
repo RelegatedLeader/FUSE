@@ -1925,4 +1925,31 @@ export class FirebaseService {
       throw error;
     }
   }
+
+  // Mark messages as read in a conversation
+  static async markMessagesAsRead(
+    conversationId: string,
+    userAddress: string
+  ): Promise<void> {
+    try {
+      const messagesRef = collection(db, "messages");
+      // Get all messages for this conversation and recipient, then filter client-side
+      const q = query(
+        messagesRef,
+        where("conversationId", "==", conversationId),
+        where("recipientAddress", "==", userAddress)
+      );
+
+      const querySnapshot = await getDocs(q);
+      const updatePromises = querySnapshot.docs
+        .filter(doc => doc.data().status !== "read")
+        .map(doc => updateDoc(doc.ref, { status: "read" }));
+
+      await Promise.all(updatePromises);
+      console.log(`Marked ${updatePromises.length} messages as read`);
+    } catch (error) {
+      console.error("Failed to mark messages as read:", error);
+      throw error;
+    }
+  }
 }

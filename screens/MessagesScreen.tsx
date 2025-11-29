@@ -40,7 +40,8 @@ interface Conversation {
   lastMessage: string;
   lastMessageTime: Date;
   unreadCount: number;
-  lastMessageId: string;
+  lastMessageId: string | null;
+  hasMessages?: boolean;
 }
 
 interface MatchedUser {
@@ -69,6 +70,7 @@ export default function MessagesScreen() {
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const scrollViewRef = useRef<ScrollView>(null);
+  const [conversationsLoaded, setConversationsLoaded] = useState(false);
 
   useEffect(() => {
     const initializeMessaging = async () => {
@@ -90,7 +92,10 @@ export default function MessagesScreen() {
           // Set up listener for all user messages (for Chats tab)
           const allMessagesListener = MessagingService.listenToAllUserMessages(
             (newMessages) => {
-              buildConversationsFromMessages(newMessages);
+              // Only process real-time updates if conversations are loaded
+              if (conversationsLoaded) {
+                buildConversationsFromMessages(newMessages);
+              }
             }
           );
           setMessageListener(allMessagesListener);
@@ -113,77 +118,156 @@ export default function MessagesScreen() {
     };
   }, [messageListener]);
 
-  // Update conversation names when matched users change
-  useEffect(() => {
-    if (matchedUsers.length > 0) {
-      // Rebuild conversations list when matched users change
-      buildConversationsFromMessages([]);
+  // Load last messages for all matched users
+  const loadConversationsWithMessages = async () => {
+    if (matchedUsers.length === 0 || !address) return;
+
+    try {
+      const conversationPromises = matchedUsers.map(async (user) => {
+        try {
+          const messages = await MessagingService.getConversationMessages(
+            user.address
+          );
+          console.log(`📨 Loaded ${messages.length} messages for ${user.name}`);
+          
+          // Find the latest message that has content
+          const validMessages = messages.filter(msg => msg.message && typeof msg.message === 'string' && msg.message.trim());
+          const latestMessage = validMessages.length > 0 
+            ? validMessages[validMessages.length - 1]
+            : messages.length > 0 
+              ? messages[messages.length - 1]
+              : null;
+              
+          if (latestMessage) {
+            console.log(`📨 Latest message: "${latestMessage.message}" at ${latestMessage.timestamp}`);
+            const displayName = `${user.name} (${user.address.slice(0, 6)}...${user.address.slice(-4)})`;
+
+            return {
+              id: latestMessage.id,
+              partnerAddress: user.address,
+              partnerName: displayName,
+              lastMessage: latestMessage.message && typeof latestMessage.message === 'string' && latestMessage.message.trim() 
+                ? latestMessage.message 
+                : "No message content",
+              lastMessageTime: latestMessage.timestamp,
+              unreadCount: messages.filter(
+                (msg) => msg.status !== "read" && msg.senderAddress !== address
+              ).length,
+              lastMessageId: latestMessage.id,
+              hasMessages: true,
+            };
+          } else {
+            // No messages yet
+            const displayName = `${user.name} (${user.address.slice(
+              0,
+              6
+            )}...${user.address.slice(-4)})`;
+            return {
+              id: `conversation_${user.address}`,
+              partnerAddress: user.address,
+              partnerName: displayName,
+              lastMessage: "Start a conversation...",
+              lastMessageTime: user.matchedDate,
+              unreadCount: 0,
+              lastMessageId: null,
+              hasMessages: false,
+            };
+          }
+        } catch (error) {
+          console.error(`Error loading messages for ${user.address}:`, error);
+          // Return placeholder on error
+          const displayName = `${user.name} (${user.address.slice(
+            0,
+            6
+          )}...${user.address.slice(-4)})`;
+          return {
+            id: `conversation_${user.address}`,
+            partnerAddress: user.address,
+            partnerName: displayName,
+            lastMessage: "Start a conversation...",
+            lastMessageTime: user.matchedDate,
+            unreadCount: 0,
+            lastMessageId: null,
+            hasMessages: false,
+          };
+        }
+      });
+
+      const conversations = await Promise.all(conversationPromises);
+      const sortedConversations = conversations
+        .sort(
+          (a, b) => b.lastMessageTime.getTime() - a.lastMessageTime.getTime()
+        )
+        .slice(0, 50);
+
+      setConversations(sortedConversations);
+    } catch (error) {
+      console.error("Error loading conversations:", error);
+    } finally {
+      setConversationsLoaded(true);
     }
-  }, [matchedUsers]);
+  };
+
+  // Load conversations when matched users are available
+  useEffect(() => {
+    if (matchedUsers.length > 0 && address) {
+      loadConversationsWithMessages();
+    }
+  }, [matchedUsers, address]);
 
   const buildConversationsFromMessages = (newMessages: any[]) => {
-    // Start with all matched users as potential conversations
-    const conversationMap = new Map<string, any>();
+    setConversations((prevConversations) => {
+      const updatedConversations = [...prevConversations];
 
-    // Initialize conversations for all matched users (even without messages)
-    matchedUsers.forEach((user) => {
-      conversationMap.set(user.address, {
-        id: `conversation_${user.address}`,
-        partnerAddress: user.address,
-        partnerName: user.name,
-        lastMessage: "Start a conversation...",
-        lastMessageTime: user.matchedDate, // Use match date as fallback
-        unreadCount: 0,
-        lastMessageId: null,
-        hasMessages: false,
-      });
-    });
+      newMessages.forEach((msg) => {
+        const partnerAddress =
+          msg.senderAddress === address
+            ? msg.recipientAddress
+            : msg.senderAddress;
 
-    // Update with actual message data where available
-    newMessages.forEach((msg) => {
-      // Determine the partner address (the other person in the conversation)
-      const partnerAddress =
-        msg.senderAddress === address
-          ? msg.recipientAddress
-          : msg.senderAddress;
-      const existing = conversationMap.get(partnerAddress);
+        const conversationIndex = updatedConversations.findIndex(
+          (conv) => conv.partnerAddress === partnerAddress
+        );
 
-      // Only update if this partner is in our matched users
-      if (existing) {
-        if (!existing.hasMessages || msg.timestamp > existing.lastMessageTime) {
-          conversationMap.set(partnerAddress, {
-            id: msg.id,
-            partnerAddress,
-            partnerName: existing.partnerName,
-            lastMessage: msg.message,
-            lastMessageTime: msg.timestamp,
-            unreadCount:
-              msg.status !== "read" && msg.senderAddress !== address
-                ? (existing.hasMessages ? existing.unreadCount + 1 : 1)
-                : existing.unreadCount,
-            lastMessageId: msg.id,
-            hasMessages: true,
-          });
-        } else if (
-          msg.status !== "read" &&
-          msg.senderAddress !== address &&
-          existing.hasMessages
-        ) {
-          // Increment unread count for existing conversation (only for received messages)
-          existing.unreadCount += 1;
+        if (conversationIndex !== -1) {
+          const existing = updatedConversations[conversationIndex];
+
+          if (
+            !existing.hasMessages ||
+            msg.timestamp > existing.lastMessageTime
+          ) {
+            updatedConversations[conversationIndex] = {
+              id: msg.id,
+              partnerAddress,
+              partnerName: existing.partnerName,
+              lastMessage: msg.message,
+              lastMessageTime: msg.timestamp,
+              unreadCount:
+                msg.status !== "read" && msg.senderAddress !== address
+                  ? existing.hasMessages
+                    ? existing.unreadCount + 1
+                    : 1
+                  : existing.unreadCount,
+              lastMessageId: msg.id,
+              hasMessages: true,
+            };
+          } else if (
+            msg.status !== "read" &&
+            msg.senderAddress !== address &&
+            existing.hasMessages
+          ) {
+            // Increment unread count for existing conversation
+            updatedConversations[conversationIndex].unreadCount += 1;
+          }
         }
-      }
+      });
+
+      return updatedConversations
+        .sort(
+          (a, b) => b.lastMessageTime.getTime() - a.lastMessageTime.getTime()
+        )
+        .slice(0, 50);
     });
-
-    const conversationList = Array.from(conversationMap.values())
-      .sort(
-        (a, b) =>
-          b.lastMessageTime.getTime() - a.lastMessageTime.getTime()
-      )
-      .slice(0, 50); // Show more since we include all matches
-
-    // Update conversations state
-    setConversations(conversationList);
   };
 
   const setupRealTimeListener = () => {
@@ -392,6 +476,25 @@ export default function MessagesScreen() {
 
       setMessages((prevMessages) => [...prevMessages, optimisticMessage]);
 
+      // Optimistically update the conversation in the list
+      setConversations((prevConversations) => {
+        const updatedConversations = prevConversations.map((conv) => {
+          if (conv.partnerAddress === selectedConversation) {
+            return {
+              ...conv,
+              lastMessage: messageToSend,
+              lastMessageTime: new Date(),
+              hasMessages: true,
+              id: `temp_${Date.now()}`, // Temporary ID
+            };
+          }
+          return conv;
+        });
+        return updatedConversations.sort(
+          (a, b) => b.lastMessageTime.getTime() - a.lastMessageTime.getTime()
+        );
+      });
+
       await MessagingService.sendMessage(selectedConversation, messageToSend);
 
       // Clear input
@@ -533,12 +636,22 @@ export default function MessagesScreen() {
     }
   }, [messages, selectedConversation]);
 
-  const markAsRead = (messageId: string) => {
-    setMessages(
-      messages.map((msg) =>
-        msg.id === messageId ? { ...msg, isRead: true } : msg
-      )
-    );
+  const formatMessageTime = (timestamp: Date) => {
+    const now = new Date();
+    const diffInMs = now.getTime() - timestamp.getTime();
+    const diffInHours = diffInMs / (1000 * 60 * 60);
+    const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
+
+    if (diffInHours < 1) {
+      const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+      return diffInMinutes <= 1 ? "now" : `${diffInMinutes}m ago`;
+    } else if (diffInHours < 24) {
+      return `${Math.floor(diffInHours)}h ago`;
+    } else if (diffInDays < 7) {
+      return `${Math.floor(diffInDays)}d ago`;
+    } else {
+      return timestamp.toLocaleDateString();
+    }
   };
 
   const unreadCount = messages.filter((msg) => !msg.isRead).length;
@@ -794,6 +907,14 @@ export default function MessagesScreen() {
                 MessagingService.markMessagesAsRead(
                   conversation.partnerAddress
                 );
+                // Also update local state immediately
+                setConversations((prevConversations) =>
+                  prevConversations.map((conv) =>
+                    conv.partnerAddress === conversation.partnerAddress
+                      ? { ...conv, unreadCount: 0 }
+                      : conv
+                  )
+                );
               }}
             >
               <View style={styles.messageHeader}>
@@ -812,7 +933,9 @@ export default function MessagesScreen() {
                 style={[styles.messagePreview, { color: theme.textColor }]}
                 numberOfLines={1}
               >
-                {conversation.lastMessage}
+                {conversation.lastMessage && conversation.lastMessage.trim()
+                  ? conversation.lastMessage
+                  : "Start a conversation..."}
               </Text>
               <Text
                 style={[
@@ -820,7 +943,7 @@ export default function MessagesScreen() {
                   { color: theme.textColor, opacity: 0.6 },
                 ]}
               >
-                {conversation.lastMessageTime.toLocaleDateString()}
+                {formatMessageTime(conversation.lastMessageTime)}
               </Text>
             </TouchableOpacity>
           ))
