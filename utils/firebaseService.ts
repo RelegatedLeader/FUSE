@@ -43,6 +43,29 @@ export class FirebaseService {
   private static readonly ARWEAVE_BASE_URL = "https://arweave.net";
   private static readonly IRYS_BASE_URL = "https://node1.irys.xyz";
 
+  // Helper function to clean data for Firestore (remove undefined values)
+  private static cleanDataForFirestore(data: any): any {
+    if (data === null || data === undefined) {
+      return null;
+    }
+    
+    if (Array.isArray(data)) {
+      return data.map(item => this.cleanDataForFirestore(item));
+    }
+    
+    if (typeof data === 'object') {
+      const cleaned: any = {};
+      for (const key in data) {
+        if (data[key] !== undefined) {
+          cleaned[key] = this.cleanDataForFirestore(data[key]);
+        }
+      }
+      return cleaned;
+    }
+    
+    return data;
+  }
+
   // Initialize user encryption keys (TEST MODE: no auth required)
   static async initializeUser(walletAddress: string): Promise<void> {
     try {
@@ -509,20 +532,23 @@ export class FirebaseService {
       const matchesRef = doc(db, "fused_users", userAddress);
       const currentMatches = await this.loadMatches(userAddress);
 
+      // Clean the match data by removing undefined values
+      const cleanMatchData = this.cleanDataForFirestore(matchData);
+
       // Check if match already exists
       const existingIndex = currentMatches.findIndex(
-        (m: any) => m.address === matchData.address
+        (m: any) => m.address === cleanMatchData.address
       );
       if (existingIndex >= 0) {
         // Update existing match
-        currentMatches[existingIndex] = matchData;
+        currentMatches[existingIndex] = cleanMatchData;
       } else {
         // Add new match
-        currentMatches.push(matchData);
+        currentMatches.push(cleanMatchData);
       }
 
       await setDoc(matchesRef, {
-        matches: currentMatches,
+        matches: currentMatches.map(match => this.cleanDataForFirestore(match)),
         lastUpdated: Timestamp.now(),
       });
 
@@ -1188,19 +1214,19 @@ export class FirebaseService {
           "🔄 Updating existing fuse request from:",
           requestData.requesterAddress
         );
-        Object.assign(existingRequest, requestData, {
+        Object.assign(existingRequest, this.cleanDataForFirestore(requestData), {
           timestamp: Timestamp.now(),
         });
       } else {
         // Add new request
         requests.push({
-          ...requestData,
+          ...this.cleanDataForFirestore(requestData),
           timestamp: Timestamp.now(),
         });
       }
 
       await setDoc(requestsRef, {
-        requests,
+        requests: requests.map((req: any) => this.cleanDataForFirestore(req)),
         lastUpdated: Timestamp.now(),
       });
 
