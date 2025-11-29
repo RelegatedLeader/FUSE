@@ -468,6 +468,13 @@ export default function MessagesScreen() {
   const handleDeleteMessage = async (messageId: string) => {
     if (!selectedConversation || !address) return;
 
+    // Find the message to check if user can delete it
+    const message = messages.find(msg => msg.id === messageId);
+    if (!message || message.from !== address) {
+      Alert.alert("Error", "You can only delete your own messages.");
+      return;
+    }
+
     Alert.alert(
       "Delete Message",
       "Are you sure you want to permanently delete this message? This action cannot be undone.",
@@ -579,7 +586,7 @@ export default function MessagesScreen() {
             {conversationMessages.map((message) => (
               <TouchableOpacity
                 key={message.id}
-                onLongPress={() => startEditingMessage(message)}
+                onLongPress={() => handleDeleteMessage(message.id)}
                 style={[
                   styles.messageBubble,
                   { backgroundColor: theme.buttonBackground },
@@ -627,16 +634,6 @@ export default function MessagesScreen() {
                     {message.timestamp.toLocaleTimeString()}
                   </Text>
                 </View>
-                {message.from === address && !message.deleted && (
-                  <TouchableOpacity
-                    onPress={() => handleDeleteMessage(message.id)}
-                    style={styles.deleteButton}
-                  >
-                    <Text style={{ color: theme.buttonText, fontSize: 12 }}>
-                      🗑️
-                    </Text>
-                  </TouchableOpacity>
-                )}
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -888,17 +885,6 @@ const styles = StyleSheet.create({
   editedLabel: {
     fontSize: 10,
     fontStyle: "italic",
-  },
-  deleteButton: {
-    position: "absolute",
-    top: 5,
-    right: 5,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "center",
-    alignItems: "center",
   },
   typingIndicator: {
     padding: 10,
