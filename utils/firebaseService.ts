@@ -27,6 +27,7 @@ import { getAuth, getIdToken } from "firebase/auth";
 import { db, storage } from "./firebase";
 import { EncryptionService } from "./encryption";
 import { KeyManager } from "./keyManager";
+import CryptoJS from "crypto-js";
 
 // Firebase service with encryption integration for FUSE
 export class FirebaseService {
@@ -223,27 +224,19 @@ export class FirebaseService {
   // Store encrypted message
   static async sendMessage(
     conversationId: string,
-    message: string,
+    encryptedMessage: string,
     senderAddress: string,
     recipientAddress: string
   ): Promise<void> {
-    if (!this.userKeys) {
-      throw new Error("User keys not initialized");
-    }
-
     try {
       const messageId = `${conversationId}_${Date.now()}_${Math.random()
         .toString(36)
         .substr(2, 9)}`;
-      const encryptedMessage = EncryptionService.encryptMessage(
-        message,
-        this.userKeys.messagingKey
-      );
 
       const messageRef = doc(db, "messages", messageId);
       await setDoc(messageRef, {
         conversationId,
-        encryptedMessage,
+        encryptedMessage, // Already encrypted by MessagingService
         senderAddress,
         recipientAddress,
         timestamp: Timestamp.now(),
@@ -258,10 +251,6 @@ export class FirebaseService {
 
   // Get messages for a conversation
   static async getConversationMessages(conversationId: string): Promise<any[]> {
-    if (!this.userKeys) {
-      throw new Error("User keys not initialized");
-    }
-
     try {
       const messagesRef = collection(db, "messages");
       const q = query(
@@ -275,17 +264,35 @@ export class FirebaseService {
       for (const docSnap of querySnapshot.docs) {
         const data = docSnap.data();
         try {
+          // Generate the conversation key for this conversation
+          const hash = CryptoJS.SHA256(
+            conversationId + "fuse_shared_messaging_key_2024"
+          );
+          const conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(
+            0,
+            64
+          );
+
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
-            this.userKeys.messagingKey
+            conversationKey
           );
+
+          let parsedMessage;
+          try {
+            parsedMessage = JSON.parse(decryptedMessage);
+          } catch {
+            parsedMessage = { content: decryptedMessage };
+          }
+
           messages.push({
             id: docSnap.id,
-            message: decryptedMessage,
+            message: parsedMessage.content || decryptedMessage,
             senderAddress: data.senderAddress,
             recipientAddress: data.recipientAddress,
             timestamp: data.timestamp.toDate(),
             status: data.status,
+            rawMessage: parsedMessage,
           });
         } catch (decryptError) {
           console.warn("Failed to decrypt message:", docSnap.id, decryptError);
@@ -352,37 +359,66 @@ export class FirebaseService {
     conversationId: string,
     callback: (messages: any[]) => void
   ): () => void {
-    if (!this.userKeys) {
-      throw new Error("User keys not initialized");
-    }
-
     const messagesRef = collection(db, "messages");
     const q = query(messagesRef, where("conversationId", "==", conversationId));
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    const unsubscribe = onSnapshot(q, async (querySnapshot) => {
+      console.log(
+        "🔥 Firebase listener triggered for conversation:",
+        conversationId,
+        "docs:",
+        querySnapshot.docs.length
+      );
       const messages: any[] = [];
-      querySnapshot.forEach((doc) => {
+
+      for (const doc of querySnapshot.docs) {
         const data = doc.data();
         try {
+          // Generate the conversation key for this conversation
+          const hash = CryptoJS.SHA256(
+            conversationId + "fuse_shared_messaging_key_2024"
+          );
+          const conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(
+            0,
+            64
+          );
+
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
-            this.userKeys!.messagingKey
+            conversationKey
           );
+
+          let parsedMessage;
+          try {
+            parsedMessage = JSON.parse(decryptedMessage);
+          } catch (parseError) {
+            console.log("❌ Failed to parse decrypted message:", parseError);
+            parsedMessage = { content: decryptedMessage };
+          }
+
           messages.push({
             id: doc.id,
-            message: decryptedMessage,
+            message: parsedMessage.content || decryptedMessage,
             senderAddress: data.senderAddress,
             recipientAddress: data.recipientAddress,
             timestamp: data.timestamp.toDate(),
             status: data.status,
+            rawMessage: parsedMessage,
           });
+          console.log(
+            "✅ Decrypted message:",
+            doc.id,
+            "content:",
+            parsedMessage.content || decryptedMessage
+          );
         } catch (decryptError) {
           console.warn("Failed to decrypt message:", doc.id, decryptError);
         }
-      });
+      }
 
       // Sort messages by timestamp on client side
       messages.sort((a, b) => a.timestamp - b.timestamp);
+      console.log("📤 Calling callback with", messages.length, "messages");
       callback(messages);
     });
 
@@ -394,43 +430,103 @@ export class FirebaseService {
     userAddress: string,
     callback: (messages: any[]) => void
   ): () => void {
-    if (!this.userKeys) {
-      throw new Error("User keys not initialized");
-    }
-
     const messagesRef = collection(db, "messages");
-    const q = query(
+
+    // Listen for received messages
+    const q1 = query(
       messagesRef,
       where("recipientAddress", "==", userAddress),
       orderBy("timestamp", "desc"),
       limit(100)
     );
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    // Listen for sent messages
+    const q2 = query(
+      messagesRef,
+      where("senderAddress", "==", userAddress),
+      orderBy("timestamp", "desc"),
+      limit(100)
+    );
+
+    let receivedMessages: any[] = [];
+    let sentMessages: any[] = [];
+
+    const processMessages = async (querySnapshot: any, isSent: boolean) => {
       const messages: any[] = [];
-      querySnapshot.forEach((doc) => {
+
+      for (const doc of querySnapshot.docs) {
         const data = doc.data();
         try {
+          // Generate the conversation key for this message
+          const conversationId = [data.senderAddress, data.recipientAddress]
+            .sort()
+            .join("_");
+          const hash = CryptoJS.SHA256(
+            conversationId + "fuse_shared_messaging_key_2024"
+          );
+          const conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(
+            0,
+            64
+          );
+
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
-            this.userKeys!.messagingKey
+            conversationKey
           );
-          messages.unshift({
+
+          let parsedMessage;
+          try {
+            parsedMessage = JSON.parse(decryptedMessage);
+          } catch {
+            parsedMessage = { content: decryptedMessage };
+          }
+
+          messages.push({
             id: doc.id,
-            message: decryptedMessage,
+            message: parsedMessage.content || decryptedMessage,
             senderAddress: data.senderAddress,
             recipientAddress: data.recipientAddress,
             timestamp: data.timestamp.toDate(),
             status: data.status,
+            rawMessage: parsedMessage,
+            isSent,
           });
         } catch (error) {
-          console.warn("Failed to decrypt message:", doc.id);
+          console.warn("Failed to decrypt message:", doc.id, error);
         }
-      });
-      callback(messages);
+      }
+
+      return messages;
+    };
+
+    const unsubscribe1 = onSnapshot(q1, async (querySnapshot) => {
+      receivedMessages = await processMessages(querySnapshot, false);
+
+      // Combine and deduplicate all messages
+      const allMessages = [...receivedMessages, ...sentMessages];
+      const uniqueMessages = allMessages.filter(
+        (msg, index, self) => index === self.findIndex((m) => m.id === msg.id)
+      );
+
+      callback(uniqueMessages);
     });
 
-    return unsubscribe;
+    const unsubscribe2 = onSnapshot(q2, async (querySnapshot) => {
+      sentMessages = await processMessages(querySnapshot, true);
+
+      // Combine and deduplicate all messages
+      const allMessages = [...receivedMessages, ...sentMessages];
+      const uniqueMessages = allMessages.filter(
+        (msg, index, self) => index === self.findIndex((m) => m.id === msg.id)
+      );
+
+      callback(uniqueMessages);
+    });
+
+    return () => {
+      unsubscribe1();
+      unsubscribe2();
+    };
   }
 
   // Store encrypted match data

@@ -142,17 +142,12 @@ export class MessagingService {
         recipientAddress
       );
 
-      // Store interaction
-      await FirebaseService.storeInteraction({
-        interactionType: "send_message",
-        targetUser: recipientAddress,
-        metadata: {
-          messageLength: message.length,
-          messageType,
-        },
-      });
-
-      console.log("📤 Message sent to:", recipientAddress);
+      console.log(
+        "📤 Message sent successfully to:",
+        recipientAddress,
+        "conversation:",
+        conversationId
+      );
     } catch (error) {
       throw new Error("Failed to send message: " + error);
     }
@@ -537,7 +532,15 @@ export class MessagingService {
 
       const unsubscribe = FirebaseService.listenToMessages(
         conversationId,
-        callback
+        (messages) => {
+          console.log(
+            "💬 Conversation messages received:",
+            messages.length,
+            "for conversation:",
+            conversationId
+          );
+          callback(messages);
+        }
       );
       this.messageListeners.set(conversationId, unsubscribe);
 

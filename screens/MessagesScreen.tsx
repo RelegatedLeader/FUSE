@@ -22,6 +22,7 @@ import * as ImagePicker from "expo-image-picker";
 interface Message {
   id: string;
   from: string;
+  to: string;
   fromName: string;
   message: string;
   timestamp: Date;
@@ -30,6 +31,16 @@ interface Message {
   mediaType?: "image" | "gif" | "file";
   edited?: boolean;
   deleted?: boolean;
+}
+
+interface Conversation {
+  id: string;
+  partnerAddress: string;
+  partnerName: string;
+  lastMessage: string;
+  lastMessageTime: Date;
+  unreadCount: number;
+  lastMessageId: string;
 }
 
 interface MatchedUser {
@@ -46,6 +57,7 @@ export default function MessagesScreen() {
   const { address } = useWallet();
   const { theme } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [matchedUsers, setMatchedUsers] = useState<MatchedUser[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<
     string | null
@@ -64,24 +76,70 @@ export default function MessagesScreen() {
           await MessagingService.initialize(address);
           console.log("Messaging initialized for:", address);
 
+          // Check if there's a selected chat user from navigation
+          const selectedChatUser = await AsyncStorage.getItem(
+            "selected_chat_user"
+          );
+          if (selectedChatUser) {
+            console.log("Found selected chat user:", selectedChatUser);
+            await AsyncStorage.removeItem("selected_chat_user"); // Clear it
+            setSelectedConversation(selectedChatUser);
+          }
+
           // Set up listener for all user messages (for Chats tab)
           const allMessagesListener = MessagingService.listenToAllUserMessages(
             (newMessages) => {
-              // Only update messages state if not in a conversation
-              if (!selectedConversation) {
-                setMessages(
-                  newMessages.slice(0, 20).map((msg) => ({
-                    id: msg.id,
-                    from: msg.senderAddress,
-                    fromName: msg.senderAddress, // TODO: Get real names
-                    message:
-                      typeof msg.message === "string"
-                        ? msg.message
-                        : JSON.parse(msg.message).content,
-                    timestamp: msg.timestamp,
-                    isRead: msg.status === "read",
-                  }))
+              // Group messages by conversation partner and get the latest message for each
+              const conversationMap = new Map<string, any>();
+
+              newMessages.forEach((msg) => {
+                // Determine the partner address (the other person in the conversation)
+                const partnerAddress =
+                  msg.senderAddress === address
+                    ? msg.recipientAddress
+                    : msg.senderAddress;
+                const existing = conversationMap.get(partnerAddress);
+
+                // Get partner name from matched users
+                const matchedUser = matchedUsers.find(
+                  (user) => user.address === partnerAddress
                 );
+                const partnerName = matchedUser
+                  ? matchedUser.name
+                  : partnerAddress;
+
+                if (!existing || msg.timestamp > existing.timestamp) {
+                  conversationMap.set(partnerAddress, {
+                    id: msg.id,
+                    partnerAddress,
+                    partnerName,
+                    lastMessage: msg.message,
+                    lastMessageTime: msg.timestamp,
+                    unreadCount:
+                      msg.status !== "read" && msg.senderAddress !== address
+                        ? 1
+                        : 0,
+                    lastMessageId: msg.id,
+                  });
+                } else if (
+                  msg.status !== "read" &&
+                  msg.senderAddress !== address
+                ) {
+                  // Increment unread count for existing conversation (only for received messages)
+                  existing.unreadCount += 1;
+                }
+              });
+
+              const conversationList = Array.from(conversationMap.values())
+                .sort(
+                  (a, b) =>
+                    b.lastMessageTime.getTime() - a.lastMessageTime.getTime()
+                )
+                .slice(0, 20);
+
+              // Only update conversations state if not in a conversation
+              if (!selectedConversation) {
+                setConversations(conversationList);
               }
             }
           );
@@ -105,6 +163,25 @@ export default function MessagesScreen() {
     };
   }, [messageListener]);
 
+  // Update conversation names when matched users change
+  useEffect(() => {
+    if (conversations.length > 0 && matchedUsers.length > 0) {
+      setConversations((prevConversations) =>
+        prevConversations.map((conversation) => {
+          const matchedUser = matchedUsers.find(
+            (user) => user.address === conversation.partnerAddress
+          );
+          return {
+            ...conversation,
+            partnerName: matchedUser
+              ? matchedUser.name
+              : conversation.partnerAddress,
+          };
+        })
+      );
+    }
+  }, [matchedUsers, conversations.length]);
+
   const setupRealTimeListener = () => {
     if (!selectedConversation || !address) return;
 
@@ -117,29 +194,44 @@ export default function MessagesScreen() {
     const unsubscribe = MessagingService.listenToConversation(
       selectedConversation,
       (newMessages) => {
-        setMessages(
-          newMessages.map((msg) => {
-            let parsedMessage;
-            try {
-              parsedMessage = JSON.parse(msg.message);
-            } catch {
-              parsedMessage = { content: msg.message, messageType: "text" };
-            }
+        console.log("📨 Real-time messages received:", newMessages.length);
+        const processedMessages = newMessages.map((msg) => {
+          // msg.message is already the parsed content from Firebase listener
+          return {
+            id: msg.id,
+            from: msg.senderAddress,
+            to: msg.recipientAddress,
+            fromName: msg.senderAddress === address ? "You" : "Them",
+            message: msg.message,
+            timestamp: msg.timestamp,
+            isRead: true,
+            mediaUrl: msg.rawMessage?.mediaUrl,
+            mediaType: msg.rawMessage?.mediaType,
+            edited: msg.rawMessage?.edited,
+            deleted: msg.rawMessage?.deleted,
+          };
+        });
 
-            return {
-              id: msg.id,
-              from: msg.senderAddress,
-              fromName: msg.senderAddress === address ? "You" : "Them",
-              message: parsedMessage.content || "",
-              timestamp: msg.timestamp,
-              isRead: true,
-              mediaUrl: parsedMessage.mediaUrl,
-              mediaType: parsedMessage.mediaType,
-              edited: parsedMessage.edited,
-              deleted: parsedMessage.deleted,
-            };
-          })
-        );
+        // Replace messages, but keep optimistic messages that haven't been confirmed yet
+        setMessages((prevMessages) => {
+          const confirmedMessages = processedMessages;
+          const optimisticMessages = prevMessages.filter((msg) =>
+            msg.id.startsWith("temp_")
+          );
+
+          // Remove optimistic messages that are now confirmed
+          const filteredOptimistic = optimisticMessages.filter((optMsg) => {
+            return !confirmedMessages.some(
+              (confMsg) =>
+                confMsg.message === optMsg.message &&
+                Math.abs(
+                  confMsg.timestamp.getTime() - optMsg.timestamp.getTime()
+                ) < 5000 // Within 5 seconds
+            );
+          });
+
+          return [...confirmedMessages, ...filteredOptimistic];
+        });
       }
     );
 
@@ -265,11 +357,9 @@ export default function MessagesScreen() {
         messages.map((msg) => ({
           id: msg.id,
           from: msg.senderAddress,
+          to: msg.recipientAddress,
           fromName: msg.senderAddress === address ? "You" : "Them", // TODO: Get real names
-          message:
-            typeof msg.message === "string"
-              ? msg.message
-              : JSON.parse(msg.message).content,
+          message: msg.message, // Already parsed by getConversationMessages
           timestamp: msg.timestamp,
           isRead: true, // TODO: Implement read status
         }))
@@ -282,16 +372,35 @@ export default function MessagesScreen() {
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedConversation || !address) return;
 
-    try {
-      await MessagingService.sendMessage(
-        selectedConversation,
-        newMessage.trim()
-      );
+    const messageToSend = newMessage.trim();
 
-      // Clear input - real-time listener will update the messages
+    try {
+      // Optimistically add the message to local state immediately
+      const optimisticMessage: Message = {
+        id: `temp_${Date.now()}`,
+        from: address,
+        to: selectedConversation,
+        fromName: "You",
+        message: messageToSend,
+        timestamp: new Date(),
+        isRead: true,
+      };
+
+      setMessages((prevMessages) => [...prevMessages, optimisticMessage]);
+
+      await MessagingService.sendMessage(selectedConversation, messageToSend);
+
+      // Clear input
       setNewMessage("");
+
+      // The real-time listener will update with the actual message from Firebase
+      console.log("📤 Message sent optimistically:", messageToSend);
     } catch (error) {
       console.error("Error sending message:", error);
+      // Remove the optimistic message on error
+      setMessages((prevMessages) =>
+        prevMessages.filter((msg) => !msg.id.startsWith("temp_"))
+      );
       Alert.alert("Error", "Failed to send message. Please try again.");
     }
   };
@@ -411,9 +520,20 @@ export default function MessagesScreen() {
   const unreadCount = messages.filter((msg) => !msg.isRead).length;
 
   if (selectedConversation) {
+    // Filter messages for this conversation (messages between current user and selected conversation partner)
     const conversationMessages = messages.filter(
-      (msg) => msg.from === selectedConversation
+      (msg) =>
+        (msg.from === selectedConversation && msg.to === address) ||
+        (msg.from === address && msg.to === selectedConversation)
     );
+
+    // Find the matched user for the selected conversation
+    const matchedUser = matchedUsers.find(
+      (user) => user.address === selectedConversation
+    );
+    const displayName = matchedUser
+      ? `${matchedUser.name} (${selectedConversation.slice(0, 8)}...${selectedConversation.slice(-6)})`
+      : `${selectedConversation.slice(0, 8)}...${selectedConversation.slice(-6)}`;
 
     return (
       <KeyboardAvoidingView
@@ -436,7 +556,7 @@ export default function MessagesScreen() {
               </Text>
             </TouchableOpacity>
             <Text style={[styles.headerTitle, { color: theme.textColor }]}>
-              {conversationMessages[0]?.fromName || "Chat"}
+              {displayName}
             </Text>
             <View style={{ width: 50 }} />
           </View>
@@ -599,7 +719,7 @@ export default function MessagesScreen() {
       <Text style={theme.subtitle}>Connect through conversation</Text>
 
       <ScrollView style={styles.messagesList}>
-        {messages.length === 0 ? (
+        {conversations.length === 0 ? (
           <View style={theme.card}>
             <Text
               style={{
@@ -612,29 +732,38 @@ export default function MessagesScreen() {
             </Text>
           </View>
         ) : (
-          messages.map((message) => (
+          conversations.map((conversation) => (
             <TouchableOpacity
-              key={message.id}
+              key={conversation.id}
               style={[
                 styles.messageItem,
                 { backgroundColor: theme.card.backgroundColor },
               ]}
               onPress={() => {
-                setSelectedConversation(message.from);
-                markAsRead(message.id);
+                setSelectedConversation(conversation.partnerAddress);
+                // Mark messages as read when opening conversation
+                MessagingService.markMessagesAsRead(
+                  conversation.partnerAddress
+                );
               }}
             >
               <View style={styles.messageHeader}>
                 <Text style={[styles.senderName, { color: theme.textColor }]}>
-                  {message.fromName}
+                  {conversation.partnerName}
                 </Text>
-                {!message.isRead && <View style={styles.unreadDot} />}
+                {conversation.unreadCount > 0 && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadBadgeText}>
+                      {conversation.unreadCount}
+                    </Text>
+                  </View>
+                )}
               </View>
               <Text
                 style={[styles.messagePreview, { color: theme.textColor }]}
-                numberOfLines={2}
+                numberOfLines={1}
               >
-                {message.message}
+                {conversation.lastMessage}
               </Text>
               <Text
                 style={[
@@ -642,7 +771,7 @@ export default function MessagesScreen() {
                   { color: theme.textColor, opacity: 0.6 },
                 ]}
               >
-                {message.timestamp.toLocaleDateString()}
+                {conversation.lastMessageTime.toLocaleDateString()}
               </Text>
             </TouchableOpacity>
           ))
@@ -694,6 +823,20 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: "#007AFF",
+  },
+  unreadBadge: {
+    backgroundColor: "#007AFF",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 6,
+  },
+  unreadBadgeText: {
+    color: "white",
+    fontSize: 12,
+    fontWeight: "bold",
   },
   messagePreview: {
     fontSize: 14,
