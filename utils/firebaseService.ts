@@ -48,12 +48,12 @@ export class FirebaseService {
     if (data === null || data === undefined) {
       return null;
     }
-    
+
     if (Array.isArray(data)) {
-      return data.map(item => this.cleanDataForFirestore(item));
+      return data.map((item) => this.cleanDataForFirestore(item));
     }
-    
-    if (typeof data === 'object') {
+
+    if (typeof data === "object") {
       const cleaned: any = {};
       for (const key in data) {
         if (data[key] !== undefined) {
@@ -62,7 +62,7 @@ export class FirebaseService {
       }
       return cleaned;
     }
-    
+
     return data;
   }
 
@@ -548,7 +548,9 @@ export class FirebaseService {
       }
 
       await setDoc(matchesRef, {
-        matches: currentMatches.map(match => this.cleanDataForFirestore(match)),
+        matches: currentMatches.map((match) =>
+          this.cleanDataForFirestore(match)
+        ),
         lastUpdated: Timestamp.now(),
       });
 
@@ -1214,9 +1216,13 @@ export class FirebaseService {
           "🔄 Updating existing fuse request from:",
           requestData.requesterAddress
         );
-        Object.assign(existingRequest, this.cleanDataForFirestore(requestData), {
-          timestamp: Timestamp.now(),
-        });
+        Object.assign(
+          existingRequest,
+          this.cleanDataForFirestore(requestData),
+          {
+            timestamp: Timestamp.now(),
+          }
+        );
       } else {
         // Add new request
         requests.push({
@@ -1242,13 +1248,26 @@ export class FirebaseService {
       let isMutual = false;
       if (mutualSnap.exists()) {
         const mutualRequests = mutualSnap.data().requests || [];
-        console.log("🔍 Checking mutual requests in", requestData.requesterAddress, ":", mutualRequests.map((r: any) => r.requesterAddress));
+        console.log(
+          "🔍 Checking mutual requests in",
+          requestData.requesterAddress,
+          ":",
+          mutualRequests.map((r: any) => r.requesterAddress)
+        );
         isMutual = mutualRequests.some(
           (req: any) => req.requesterAddress === targetAddress
         );
-        console.log("🔍 Mutual check result:", isMutual, "looking for requester:", targetAddress);
+        console.log(
+          "🔍 Mutual check result:",
+          isMutual,
+          "looking for requester:",
+          targetAddress
+        );
       } else {
-        console.log("🔍 No mutual requests document found for:", requestData.requesterAddress);
+        console.log(
+          "🔍 No mutual requests document found for:",
+          requestData.requesterAddress
+        );
       }
 
       if (isMutual) {
@@ -1262,8 +1281,12 @@ export class FirebaseService {
         await runTransaction(db, async (transaction) => {
           // First, read both documents
           const targetRef = doc(db, "fuse_requests", targetAddress);
-          const requesterRef = doc(db, "fuse_requests", requestData.requesterAddress);
-          
+          const requesterRef = doc(
+            db,
+            "fuse_requests",
+            requestData.requesterAddress
+          );
+
           const targetSnap = await transaction.get(targetRef);
           const requesterSnap = await transaction.get(requesterRef);
 
@@ -1272,7 +1295,8 @@ export class FirebaseService {
             const targetRequests = targetSnap.data().requests || [];
             transaction.set(targetRef, {
               requests: targetRequests.filter(
-                (req: any) => req.requesterAddress !== requestData.requesterAddress
+                (req: any) =>
+                  req.requesterAddress !== requestData.requesterAddress
               ),
               lastUpdated: Timestamp.now(),
             });

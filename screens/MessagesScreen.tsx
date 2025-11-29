@@ -56,8 +56,6 @@ export default function MessagesScreen() {
   );
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
-  const [recipientTyping, setRecipientTyping] = useState(false);
 
   useEffect(() => {
     const initializeMessaging = async () => {
@@ -186,7 +184,7 @@ export default function MessagesScreen() {
 
     Alert.alert(
       "Unfuse User",
-      "Are you sure you want to unfuse with this user? This will remove them from your matches and end the conversation.",
+      "Are you sure you want to unfuse with this user? This will permanently delete all messages and prevent future fusions.",
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -194,6 +192,12 @@ export default function MessagesScreen() {
           style: "destructive",
           onPress: async () => {
             try {
+              // Delete all messages between these users
+              await MessagingService.deleteConversation(userAddress);
+
+              // Block the user to prevent future fusions
+              await MessagingService.blockUser(userAddress);
+
               // Remove from current user's matches
               const updatedMatches = matchedUsers.filter(
                 (user) => user.address !== userAddress
@@ -204,7 +208,7 @@ export default function MessagesScreen() {
               ).toString();
               await AsyncStorage.setItem(`matched_users_${address}`, encrypted);
 
-              // Remove from other user's matches
+              // Remove from other user's matches and delete their messages too
               const otherUserMatchesData = await AsyncStorage.getItem(
                 `matched_users_${userAddress}`
               );
@@ -238,7 +242,7 @@ export default function MessagesScreen() {
 
               Alert.alert(
                 "Unfused",
-                "You are no longer connected with this user."
+                "You are no longer connected with this user. All messages have been deleted and future fusions are blocked."
               );
             } catch (error) {
               console.error("Error unfusing user:", error);
@@ -390,47 +394,6 @@ export default function MessagesScreen() {
     setEditingText(message.message);
   };
 
-  const handleTypingStart = () => {
-    if (!isTyping && selectedConversation) {
-      setIsTyping(true);
-      MessagingService.sendTypingIndicator(selectedConversation, true);
-
-      // Auto-stop typing after 3 seconds of inactivity
-      setTimeout(() => {
-        handleTypingStop();
-      }, 3000);
-    }
-  };
-
-  const handleTypingStop = () => {
-    if (isTyping && selectedConversation) {
-      setIsTyping(false);
-      MessagingService.sendTypingIndicator(selectedConversation, false);
-    }
-  };
-
-  // Listen for typing indicators (simplified - would need real-time listener)
-  useEffect(() => {
-    if (selectedConversation) {
-      // In a real implementation, you'd set up a listener for typing indicators
-      // For now, this is a placeholder
-      const checkTypingStatus = async () => {
-        try {
-          const isTypingNow = await MessagingService.getUserOnlineStatus(
-            selectedConversation
-          );
-          setRecipientTyping(isTypingNow);
-        } catch (error) {
-          console.warn("Failed to check typing status:", error);
-        }
-      };
-
-      checkTypingStatus();
-      const interval = setInterval(checkTypingStatus, 2000);
-      return () => clearInterval(interval);
-    }
-  }, [selectedConversation]);
-
   useEffect(() => {
     if (selectedConversation) {
       setupRealTimeListener();
@@ -542,19 +505,6 @@ export default function MessagesScreen() {
                 )}
               </TouchableOpacity>
             ))}
-
-            {recipientTyping && (
-              <View
-                style={[
-                  styles.typingIndicator,
-                  { backgroundColor: theme.card.backgroundColor },
-                ]}
-              >
-                <Text style={{ color: theme.textColor, fontSize: 14 }}>
-                  💬 Typing...
-                </Text>
-              </View>
-            )}
           </ScrollView>
 
           <View
@@ -621,11 +571,7 @@ export default function MessagesScreen() {
                   placeholder="Type a message..."
                   placeholderTextColor={theme.textColor}
                   value={newMessage}
-                  onChangeText={(text) => {
-                    setNewMessage(text);
-                    handleTypingStart();
-                  }}
-                  onBlur={handleTypingStop}
+                  onChangeText={setNewMessage}
                   multiline
                 />
                 <TouchableOpacity
@@ -651,96 +597,6 @@ export default function MessagesScreen() {
     >
       <Text style={theme.title}>Chats</Text>
       <Text style={theme.subtitle}>Connect through conversation</Text>
-
-      {/* Selected Fusers Section - Matched users for messaging */}
-      {matchedUsers.length > 0 && (
-        <View style={styles.matchedUsersContainer}>
-          <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
-            Selected Fusers 💕
-          </Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.matchedUsersScroll}
-          >
-            {matchedUsers.map((user) => (
-              <View
-                key={user.address}
-                style={[
-                  styles.matchedUserCard,
-                  { backgroundColor: theme.card.backgroundColor },
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.matchedUserContent}
-                  onPress={() => {
-                    setSelectedConversation(user.address);
-                  }}
-                >
-                  <Image
-                    source={{
-                      uri:
-                        user.photos && user.photos.length > 0
-                          ? user.photos[0]
-                          : "https://via.placeholder.com/60x60?text=👤",
-                    }}
-                    style={styles.matchedUserImage}
-                  />
-                  <Text
-                    style={[styles.matchedUserName, { color: theme.textColor }]}
-                    numberOfLines={1}
-                  >
-                    {user.name}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.matchedUserDetails,
-                      { color: theme.textColor, opacity: 0.7 },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {user.age} • {user.city}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      )}
-
-      {/* Others Section - Discover and fuse with new users */}
-      <View style={styles.othersContainer}>
-        <Text style={[styles.sectionTitle, { color: theme.textColor }]}>
-          Others 🌟
-        </Text>
-        <Text
-          style={[
-            styles.sectionSubtitle,
-            { color: theme.textColor, opacity: 0.7 },
-          ]}
-        >
-          Discover and connect with new people
-        </Text>
-        <TouchableOpacity
-          style={[
-            styles.discoverButton,
-            { backgroundColor: theme.buttonBackground },
-          ]}
-          onPress={() => {
-            // Navigate to fuse/discovery screen
-            Alert.alert(
-              "Discover",
-              "Navigate to discovery screen to find new connections!"
-            );
-          }}
-        >
-          <Text
-            style={[styles.discoverButtonText, { color: theme.buttonText }]}
-          >
-            🔍 Find New Connections
-          </Text>
-        </TouchableOpacity>
-      </View>
 
       <ScrollView style={styles.messagesList}>
         {messages.length === 0 ? (

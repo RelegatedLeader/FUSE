@@ -361,6 +361,42 @@ export class MessagingService {
     }
   }
 
+  // Delete entire conversation (mark all messages as deleted)
+  static async deleteConversation(recipientAddress: string): Promise<void> {
+    if (!this.currentUser || !this.userKeys) {
+      throw new Error("Messaging service not initialized");
+    }
+
+    try {
+      const conversationId = this.generateConversationId(
+        this.currentUser,
+        recipientAddress
+      );
+
+      // Get all messages in the conversation
+      const messages = await FirebaseService.getConversationMessages(
+        conversationId
+      );
+
+      // Mark each message as deleted
+      for (const message of messages) {
+        if (message.senderAddress === this.currentUser) {
+          // Only delete messages sent by current user
+          await this.deleteMessage(recipientAddress, message.id);
+        }
+      }
+
+      console.log(
+        "🗑️ Conversation deleted between:",
+        this.currentUser,
+        "and",
+        recipientAddress
+      );
+    } catch (error) {
+      throw new Error("Failed to delete conversation: " + error);
+    }
+  }
+
   // Analyze conversation for AI insights (optional Arweave storage)
   static async analyzeConversationForAI(
     recipientAddress: string,
