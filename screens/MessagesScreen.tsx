@@ -15,6 +15,7 @@ import {
 import { useFocusEffect } from "@react-navigation/native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
+import { useMessaging } from "../contexts/MessagingContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CryptoJS from "crypto-js";
 import { MessagingService } from "../utils/messagingService";
@@ -59,6 +60,7 @@ interface MatchedUser {
 export default function MessagesScreen() {
   const { address } = useWallet();
   const { theme } = useTheme();
+  const { updateUnreadCount } = useMessaging();
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [matchedUsers, setMatchedUsers] = useState<MatchedUser[]>([]);
@@ -120,27 +122,17 @@ export default function MessagesScreen() {
   // Load last messages for all matched users
   const loadConversationsWithMessages = async () => {
     if (matchedUsers.length === 0 || !address) {
-      console.log(
-        "🚫 loadConversationsWithMessages: no matched users or address"
-      );
       return;
     }
 
-    console.log(
-      "📨 Loading conversations for",
-      matchedUsers.length,
-      "matched users"
-    );
     setConversationsLoaded(true);
 
     try {
       const conversationPromises = matchedUsers.map(async (user) => {
         try {
-          console.log(`📨 Loading messages for ${user.name} (${user.address})`);
           const messages = await MessagingService.getConversationMessages(
             user.address
           );
-          console.log(`📨 Loaded ${messages.length} messages for ${user.name}`);
 
           // Find the latest message that has content
           const validMessages = messages.filter(
@@ -148,9 +140,6 @@ export default function MessagesScreen() {
               msg.message &&
               typeof msg.message === "string" &&
               msg.message.trim()
-          );
-          console.log(
-            `📨 Valid messages: ${validMessages.length} out of ${messages.length}`
           );
 
           const latestMessage =
@@ -161,9 +150,6 @@ export default function MessagesScreen() {
               : null;
 
           if (latestMessage) {
-            console.log(
-              `📨 Latest message: "${latestMessage.message}" at ${latestMessage.timestamp}`
-            );
             const displayName = `${user.name} (${user.address.slice(
               0,
               6
@@ -188,7 +174,6 @@ export default function MessagesScreen() {
             };
           } else {
             // No messages yet
-            console.log(`📨 No messages found for ${user.name}`);
             const displayName = `${user.name} (${user.address.slice(
               0,
               6
@@ -247,21 +232,10 @@ export default function MessagesScreen() {
   };
 
   const buildConversationsFromMessages = (newMessages: any[]) => {
-    console.log(
-      "🔄 buildConversationsFromMessages called with",
-      newMessages.length,
-      "messages"
-    );
     setConversations((prevConversations) => {
       const updatedConversations = [...prevConversations];
 
       newMessages.forEach((msg) => {
-        console.log(
-          "🔄 Processing message:",
-          msg.id,
-          "content:",
-          msg.message?.substring(0, 50)
-        );
         const partnerAddress =
           msg.senderAddress === address
             ? msg.recipientAddress
@@ -278,10 +252,6 @@ export default function MessagesScreen() {
             !existing.hasMessages ||
             msg.timestamp > existing.lastMessageTime
           ) {
-            console.log(
-              "🔄 Updating existing conversation for",
-              partnerAddress
-            );
             updatedConversations[conversationIndex] = {
               id: msg.id,
               partnerAddress,
@@ -328,16 +298,17 @@ export default function MessagesScreen() {
               lastMessageId: msg.id,
               hasMessages: true,
             });
-          } else {
-            console.log(
-              "🔄 Skipping message for non-matched user",
-              partnerAddress
-            );
           }
         }
       });
 
-      console.log("🔄 Final conversations count:", updatedConversations.length);
+      // Calculate total unread count
+      const totalUnread = updatedConversations.reduce(
+        (sum, conv) => sum + conv.unreadCount,
+        0
+      );
+      updateUnreadCount(totalUnread);
+
       return updatedConversations
         .sort(
           (a, b) => b.lastMessageTime.getTime() - a.lastMessageTime.getTime()
@@ -347,10 +318,16 @@ export default function MessagesScreen() {
   };
 
   const setupRealTimeListener = () => {
-    if (!selectedConversation || !address) return;
+    if (!selectedConversation || !address) {
+      console.log("🚫 setupRealTimeListener: no conversation or address");
+      return;
+    }
+
+    console.log("🎧 Setting up real-time listener for conversation:", selectedConversation);
 
     // Clean up existing listener
     if (messageListener) {
+      console.log("🧹 Cleaning up existing message listener");
       messageListener();
     }
 
@@ -358,7 +335,7 @@ export default function MessagesScreen() {
     const unsubscribe = MessagingService.listenToConversation(
       selectedConversation,
       (newMessages) => {
-        console.log("📨 Real-time messages received:", newMessages.length);
+        console.log("📨 Real-time conversation messages received:", newMessages.length);
         const processedMessages = newMessages.map((msg) => {
           // msg.message is already the parsed content from Firebase listener
           return {
@@ -378,23 +355,33 @@ export default function MessagesScreen() {
 
         // Replace messages, but keep optimistic messages that haven't been confirmed yet
         setMessages((prevMessages) => {
-          const confirmedMessages = processedMessages;
+          // Deduplicate confirmed messages by id
+          const confirmedMap = new Map();
+          processedMessages.forEach(msg => confirmedMap.set(msg.id, msg));
+          const confirmedMessages = Array.from(confirmedMap.values());
+
           const optimisticMessages = prevMessages.filter((msg) =>
             msg.id.startsWith("temp_")
           );
 
-          // Remove optimistic messages that are now confirmed
+          // Remove optimistic messages that are now confirmed (match by content and recent timestamp)
           const filteredOptimistic = optimisticMessages.filter((optMsg) => {
             return !confirmedMessages.some(
               (confMsg) =>
                 confMsg.message === optMsg.message &&
+                confMsg.from === optMsg.from &&
                 Math.abs(
                   confMsg.timestamp.getTime() - optMsg.timestamp.getTime()
-                ) < 5000 // Within 5 seconds
+                ) < 10000 // Within 10 seconds
             );
           });
 
-          return [...confirmedMessages, ...filteredOptimistic];
+          const finalMessages = [...confirmedMessages, ...filteredOptimistic];
+
+          // Sort by timestamp
+          finalMessages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+          return finalMessages;
         });
       }
     );
@@ -566,6 +553,14 @@ export default function MessagesScreen() {
           }
           return conv;
         });
+
+        // Recalculate total unread count after updating conversations
+        const totalUnread = updatedConversations.reduce(
+          (sum, conv) => sum + conv.unreadCount,
+          0
+        );
+        updateUnreadCount(totalUnread);
+
         return updatedConversations.sort(
           (a, b) => b.lastMessageTime.getTime() - a.lastMessageTime.getTime()
         );
@@ -698,7 +693,9 @@ export default function MessagesScreen() {
   };
 
   useEffect(() => {
+    console.log("🎯 useEffect triggered, selectedConversation:", selectedConversation);
     if (selectedConversation) {
+      console.log("📞 Calling setupRealTimeListener for:", selectedConversation);
       setupRealTimeListener();
     }
   }, [selectedConversation]);
@@ -715,18 +712,12 @@ export default function MessagesScreen() {
   // Set up listener for all user messages when matched users are loaded
   useEffect(() => {
     if (matchedUsers.length > 0 && address) {
-      console.log(
-        "🎧 Setting up message listener for",
-        matchedUsers.length,
-        "matched users"
-      );
       // Load initial conversations
       loadConversationsWithMessages();
 
       // Set up listener for all user messages (for Chats tab)
       const allMessagesListener = MessagingService.listenToAllUserMessages(
         (newMessages) => {
-          console.log("📨 Real-time messages received:", newMessages.length);
           // Update conversations in real-time
           buildConversationsFromMessages(newMessages);
         }
@@ -735,7 +726,6 @@ export default function MessagesScreen() {
 
       return () => {
         if (allMessagesListener) {
-          console.log("🧹 Cleaning up message listener");
           allMessagesListener();
         }
       };
@@ -1020,13 +1010,22 @@ export default function MessagesScreen() {
                   conversation.partnerAddress
                 );
                 // Also update local state immediately
-                setConversations((prevConversations) =>
-                  prevConversations.map((conv) =>
+                setConversations((prevConversations) => {
+                  const updatedConversations = prevConversations.map((conv) =>
                     conv.partnerAddress === conversation.partnerAddress
                       ? { ...conv, unreadCount: 0 }
                       : conv
-                  )
-                );
+                  );
+
+                  // Recalculate total unread count
+                  const totalUnread = updatedConversations.reduce(
+                    (sum, conv) => sum + conv.unreadCount,
+                    0
+                  );
+                  updateUnreadCount(totalUnread);
+
+                  return updatedConversations;
+                });
               }}
             >
               <View style={styles.messageHeader}>

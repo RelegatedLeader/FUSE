@@ -17,6 +17,7 @@ import {
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { WalletProvider, useWallet } from "./contexts/WalletContext";
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
+import { MessagingProvider, useMessaging } from "./contexts/MessagingContext";
 import { useNavigation } from "@react-navigation/native";
 
 // Conditionally import PagerView for native platforms only
@@ -61,6 +62,7 @@ type MainPagerNavigationProp = StackNavigationProp<RootStackParamList, "Main">;
 function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
   const { address, disconnectWallet } = useWallet();
   const { theme } = useTheme();
+  const { totalUnreadCount } = useMessaging();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const [alliancesTab, setAlliancesTab] = useState("AlliancesMain");
@@ -376,7 +378,16 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
                 onPress={() => setFuseTab("FuseChats")}
                 style={styles.navItem}
               >
-                <Text style={{ fontSize: 20 }}>💬</Text>
+                <View style={styles.navIconContainer}>
+                  <Text style={{ fontSize: 20 }}>💬</Text>
+                  {totalUnreadCount > 0 && (
+                    <View style={styles.unreadBadge}>
+                      <Text style={styles.unreadBadgeText}>
+                        {totalUnreadCount > 99 ? "99+" : totalUnreadCount}
+                      </Text>
+                    </View>
+                  )}
+                </View>
                 <Text
                   style={[
                     styles.navText,
@@ -533,9 +544,11 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>
         <WalletProvider>
-          <NavigationContainer>
-            <AppNavigator />
-          </NavigationContainer>
+          <MessagingProvider>
+            <NavigationContainer>
+              <AppNavigator />
+            </NavigationContainer>
+          </MessagingProvider>
         </WalletProvider>
       </ThemeProvider>
     </GestureHandlerRootView>
@@ -621,5 +634,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "bold",
     marginTop: 2,
+  },
+  navIconContainer: {
+    position: "relative",
+    alignItems: "center",
+  },
+  unreadBadge: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    backgroundColor: "#FF4444",
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  unreadBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "bold",
   },
 });

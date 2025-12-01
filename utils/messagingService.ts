@@ -92,6 +92,8 @@ export class MessagingService {
         recipientAddress.toLowerCase()
       );
 
+      console.log("📤 Sending message with conversationId:", conversationId);
+
       // Get the conversation-specific key
       const conversationKey = await this.getConversationKey(recipientAddress);
 
@@ -461,15 +463,20 @@ export class MessagingService {
       throw new Error("Messaging service not initialized");
     }
 
+    console.log("🎧 MessagingService.listenToConversation called for:", recipientAddress);
+
     try {
       const conversationId = this.generateConversationId(
         this.currentUser,
         recipientAddress.toLowerCase()
       );
 
+      console.log("🆔 Generated conversationId:", conversationId);
+
       // Remove existing listener if any
       const existingListener = this.messageListeners.get(conversationId);
       if (existingListener) {
+        console.log("🧹 Removing existing listener for conversationId:", conversationId);
         existingListener();
       }
 
@@ -697,26 +704,6 @@ export class MessagingService {
       return [];
     } catch (error) {
       throw new Error("Failed to search messages: " + error);
-    }
-  }
-
-  // Listen to all user messages for conversation list
-  static listenToAllUserMessages(
-    callback: (messages: any[]) => void
-  ): () => void {
-    if (!this.currentUser) {
-      throw new Error("Messaging service not initialized");
-    }
-
-    try {
-      const unsubscribe = FirebaseService.listenToAllUserMessages(
-        this.currentUser,
-        callback
-      );
-
-      return unsubscribe;
-    } catch (error) {
-      throw new Error("Failed to listen to all user messages: " + error);
     }
   }
 }

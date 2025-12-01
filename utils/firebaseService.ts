@@ -302,16 +302,15 @@ export class FirebaseService {
       const messages: any[] = [];
 
       // First try querying by conversationId
-      let q = query(
-        messagesRef,
-        where("conversationId", "==", conversationId)
-      );
+      let q = query(messagesRef, where("conversationId", "==", conversationId));
 
       let querySnapshot = await getDocs(q);
 
       // If no messages found, try querying by participants array
       if (querySnapshot.empty) {
-        console.log("No messages found by conversationId, trying participants query");
+        console.log(
+          "No messages found by conversationId, trying participants query"
+        );
         q = query(
           messagesRef,
           where("participants", "array-contains", userAddress.toLowerCase())
@@ -319,9 +318,12 @@ export class FirebaseService {
         const participantsSnapshot = await getDocs(q);
 
         // Filter for messages with this specific recipient
-        const filteredDocs = participantsSnapshot.docs.filter(doc => {
+        const filteredDocs = participantsSnapshot.docs.filter((doc) => {
           const data = doc.data();
-          return data.participants && data.participants.includes(recipientAddress.toLowerCase());
+          return (
+            data.participants &&
+            data.participants.includes(recipientAddress.toLowerCase())
+          );
         });
 
         // Process filtered docs
@@ -356,7 +358,11 @@ export class FirebaseService {
               rawMessage: parsedMessage,
             });
           } catch (decryptError) {
-            console.warn("Failed to decrypt message:", docSnap.id, decryptError);
+            console.warn(
+              "Failed to decrypt message:",
+              docSnap.id,
+              decryptError
+            );
             // Skip undecryptable messages
           }
         }
@@ -462,8 +468,15 @@ export class FirebaseService {
     conversationId: string,
     callback: (messages: any[]) => void
   ): () => void {
+    console.log("🎧 FirebaseService.listenToMessages called with conversationId:", conversationId);
     const messagesRef = collection(db, "messages");
-    const q = query(messagesRef, where("conversationId", "==", conversationId));
+
+    // Query by conversationId
+    const q = query(
+      messagesRef,
+      where("conversationId", "==", conversationId)
+    );
+    console.log("🔍 Querying messages where conversationId ==", conversationId);
 
     const unsubscribe = onSnapshot(q, async (querySnapshot) => {
       console.log(
@@ -472,31 +485,27 @@ export class FirebaseService {
         "docs:",
         querySnapshot.docs.length
       );
+
       const messages: any[] = [];
 
       for (const doc of querySnapshot.docs) {
         const data = doc.data();
+
+        console.log("✅ Processing message between participants");
+
         try {
           // Use fixed hex key for all conversations
           const conversationKey =
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-
-          console.log(
-            "🔑 Firebase conversation key:",
-            conversationKey.substring(0, 16) + "..."
-          );
 
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
             conversationKey
           );
 
-          console.log("🔓 Raw decrypted message:", decryptedMessage);
-
           let parsedMessage;
           try {
             parsedMessage = JSON.parse(decryptedMessage);
-            console.log("📄 Successfully parsed message:", parsedMessage);
           } catch (parseError) {
             console.log(
               "❌ Failed to parse decrypted message:",
@@ -516,12 +525,6 @@ export class FirebaseService {
             status: data.status,
             rawMessage: parsedMessage,
           });
-          console.log(
-            "✅ Decrypted message:",
-            doc.id,
-            "content:",
-            parsedMessage.content || decryptedMessage
-          );
         } catch (decryptError) {
           console.warn("Failed to decrypt message:", doc.id, decryptError);
         }
