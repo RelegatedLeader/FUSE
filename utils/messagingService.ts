@@ -31,11 +31,11 @@ export class MessagingService {
   // Initialize messaging for user
   static async initialize(userAddress: string): Promise<void> {
     try {
-      this.currentUser = userAddress;
-      this.userKeys = await KeyManager.getUserKeys(userAddress);
+      this.currentUser = userAddress.toLowerCase();
+      this.userKeys = await KeyManager.getUserKeys(userAddress.toLowerCase());
 
       if (!this.userKeys) {
-        this.userKeys = await KeyManager.generateUserKeys(userAddress);
+        this.userKeys = await KeyManager.generateUserKeys(userAddress.toLowerCase());
       }
 
       await FirebaseService.initializeUser(userAddress);
@@ -47,7 +47,7 @@ export class MessagingService {
 
   // Generate consistent conversation ID for two users
   private static generateConversationId(user1: string, user2: string): string {
-    return [user1, user2].sort().join("_");
+    return [user1.toLowerCase(), user2.toLowerCase()].sort().join("_");
   }
 
   // Get or create conversation key for E2E encryption
@@ -58,21 +58,8 @@ export class MessagingService {
       throw new Error("Messaging service not initialized");
     }
 
-    const conversationId = this.generateConversationId(
-      this.currentUser,
-      recipientAddress
-    );
-
-    // Always generate the key deterministically
-    const hash = CryptoJS.SHA256(conversationId + this.SHARED_MESSAGING_KEY);
-    const conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(0, 64); // 64 hex chars = 32 bytes
-
-    console.log(
-      "🔑 Messaging conversation key:",
-      conversationKey.substring(0, 16) + "..."
-    );
-
-    return conversationKey;
+    // Use a fixed hex key for all conversations
+    return "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
   }
 
   // Send encrypted message
@@ -89,7 +76,7 @@ export class MessagingService {
       // Check if users are currently matched/fused
       const isMatched = await FirebaseService.areUsersMatched(
         this.currentUser,
-        recipientAddress
+        recipientAddress.toLowerCase()
       );
 
       if (!isMatched) {
@@ -100,7 +87,7 @@ export class MessagingService {
 
       const conversationId = this.generateConversationId(
         this.currentUser,
-        recipientAddress
+        recipientAddress.toLowerCase()
       );
 
       // Get the conversation-specific key
@@ -456,7 +443,7 @@ export class MessagingService {
     try {
       return await FirebaseService.getConversationMessages(
         this.currentUser,
-        recipientAddress
+        recipientAddress.toLowerCase()
       );
     } catch (error) {
       throw new Error("Failed to get conversation messages: " + error);
@@ -475,7 +462,7 @@ export class MessagingService {
     try {
       const conversationId = this.generateConversationId(
         this.currentUser,
-        recipientAddress
+        recipientAddress.toLowerCase()
       );
 
       // Remove existing listener if any

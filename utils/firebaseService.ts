@@ -285,7 +285,7 @@ export class FirebaseService {
     userAddress: string,
     recipientAddress: string
   ): Promise<any[]> {
-    const conversationId = [userAddress, recipientAddress].sort().join("_");
+    const conversationId = [userAddress.toLowerCase(), recipientAddress.toLowerCase()].sort().join("_");
 
     // Always generate the key deterministically
     const hash = CryptoJS.SHA256(
@@ -413,17 +413,8 @@ export class FirebaseService {
       for (const doc of querySnapshot.docs) {
         const data = doc.data();
         try {
-          // Get the conversation key (same logic as MessagingService)
-          const keyStorageKey = `conversation_key_v2_${conversationId}`;
-          let conversationKey = await AsyncStorage.getItem(keyStorageKey);
-
-          if (!conversationKey) {
-            // Generate deterministic key for this conversation
-            const hash = CryptoJS.SHA256(
-              conversationId + "fuse_shared_messaging_key_2024"
-            );
-            conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(0, 64);
-          }
+          // Use fixed hex key for all conversations
+          const conversationKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
           console.log(
             "🔑 Firebase conversation key:",
@@ -448,7 +439,7 @@ export class FirebaseService {
               "Raw decrypted:",
               decryptedMessage
             );
-            parsedMessage = { content: decryptedMessage };
+            continue; // Skip invalid messages
           }
 
           messages.push({
@@ -502,18 +493,8 @@ export class FirebaseService {
       for (const doc of querySnapshot.docs) {
         const data = doc.data();
         try {
-          // Get the conversation key (same logic as MessagingService)
-          const conversationId = [data.senderAddress, data.recipientAddress]
-            .sort()
-            .join("_");
-          // Always generate the key deterministically
-          const hash = CryptoJS.SHA256(
-            conversationId + "fuse_shared_messaging_key_2024"
-          );
-          const conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(
-            0,
-            64
-          );
+          // Use fixed hex key for all conversations
+          const conversationKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
@@ -524,7 +505,12 @@ export class FirebaseService {
           try {
             parsedMessage = JSON.parse(decryptedMessage);
           } catch {
-            parsedMessage = { content: decryptedMessage };
+            continue; // Skip invalid messages
+          }
+
+          // Skip messages with empty content
+          if (!parsedMessage.content || !parsedMessage.content.trim()) {
+            continue;
           }
 
           messages.push({

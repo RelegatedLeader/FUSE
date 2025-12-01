@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   RefreshControl,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { useWallet } from "../contexts/WalletContext";
 import { useTheme } from "../contexts/ThemeContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -74,44 +75,59 @@ export default function MessagesScreen() {
   const [conversationsLoaded, setConversationsLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    const initializeMessaging = async () => {
-      if (address) {
-        try {
-          await MessagingService.initialize(address);
-          console.log("Messaging initialized for:", address);
+  useFocusEffect(
+    React.useCallback(() => {
+      const initializeMessaging = async () => {
+        if (address) {
+          try {
+            await MessagingService.initialize(address);
+            console.log("Messaging initialized for:", address);
 
-          // Check if there's a selected chat user from navigation
-          const selectedChatUser = await AsyncStorage.getItem(
-            "selected_chat_user"
-          );
-          if (selectedChatUser) {
-            console.log("Found selected chat user:", selectedChatUser);
-            await AsyncStorage.removeItem("selected_chat_user"); // Clear it
-            setSelectedConversation(selectedChatUser);
-          }
-
-          await loadMatchedUsers();
-          if (matchedUsers.length > 0) {
-            await loadConversationsWithMessages();
-          }
-
-          // Set up listener for all user messages (for Chats tab)
-          const allMessagesListener = MessagingService.listenToAllUserMessages(
-            (newMessages) => {
-              // Update conversations in real-time
-              buildConversationsFromMessages(newMessages);
+            // Check if there's a selected chat user from navigation
+            const selectedChatUser = await AsyncStorage.getItem(
+              "selected_chat_user"
+            );
+            if (selectedChatUser) {
+              console.log("Found selected chat user:", selectedChatUser);
+              await AsyncStorage.removeItem("selected_chat_user"); // Clear it
+              setSelectedConversation(selectedChatUser);
             }
-          );
-          setMessageListener(allMessagesListener);
-        } catch (error) {
-          console.error("Failed to initialize messaging:", error);
-        }
-      }
-    };
 
-    initializeMessaging();
-  }, [address]);
+            await loadMatchedUsers();
+            if (matchedUsers.length > 0) {
+              await loadConversationsWithMessages();
+            }
+
+            // Set up listener for all user messages (for Chats tab)
+            const allMessagesListener = MessagingService.listenToAllUserMessages(
+              (newMessages) => {
+                // Update conversations in real-time
+                buildConversationsFromMessages(newMessages);
+              }
+            );
+            setMessageListener(allMessagesListener);
+
+            // Set up specific listener if conversation selected
+            if (selectedConversation) {
+              setupRealTimeListener();
+            }
+          } catch (error) {
+            console.error("Failed to initialize messaging:", error);
+          }
+        }
+      };
+
+      initializeMessaging();
+
+      return () => {
+        // Cleanup listeners on blur
+        if (messageListener) {
+          messageListener();
+          setMessageListener(null);
+        }
+      };
+    }, [address, selectedConversation])
+  );
 
   useEffect(() => {
     return () => {

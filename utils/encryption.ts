@@ -17,7 +17,7 @@ export class EncryptionService {
     return CryptoJS.lib.WordArray.random(this.IV_SIZE / 8).toString();
   }
 
-  // Encrypt data using AES-256-CBC (compatible with crypto-js)
+  // Encrypt data using AES-256-CBC
   static encrypt(
     data: string,
     key: string
@@ -29,11 +29,10 @@ export class EncryptionService {
       padding: CryptoJS.pad.Pkcs7,
     });
 
-    // For CBC, we don't have a separate tag, so we'll use the salt as a simple integrity check
     return {
       encrypted: encrypted.toString(),
       iv: iv,
-      tag: encrypted.salt?.toString() || "",
+      tag: "",
     };
   }
 
