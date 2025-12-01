@@ -119,13 +119,24 @@ export default function MessagesScreen() {
 
   // Load last messages for all matched users
   const loadConversationsWithMessages = async () => {
-    if (matchedUsers.length === 0 || !address) return;
+    if (matchedUsers.length === 0 || !address) {
+      console.log(
+        "🚫 loadConversationsWithMessages: no matched users or address"
+      );
+      return;
+    }
 
+    console.log(
+      "📨 Loading conversations for",
+      matchedUsers.length,
+      "matched users"
+    );
     setConversationsLoaded(true);
 
     try {
       const conversationPromises = matchedUsers.map(async (user) => {
         try {
+          console.log(`📨 Loading messages for ${user.name} (${user.address})`);
           const messages = await MessagingService.getConversationMessages(
             user.address
           );
@@ -138,6 +149,10 @@ export default function MessagesScreen() {
               typeof msg.message === "string" &&
               msg.message.trim()
           );
+          console.log(
+            `📨 Valid messages: ${validMessages.length} out of ${messages.length}`
+          );
+
           const latestMessage =
             validMessages.length > 0
               ? validMessages[validMessages.length - 1]
@@ -173,6 +188,7 @@ export default function MessagesScreen() {
             };
           } else {
             // No messages yet
+            console.log(`📨 No messages found for ${user.name}`);
             const displayName = `${user.name} (${user.address.slice(
               0,
               6
@@ -231,10 +247,21 @@ export default function MessagesScreen() {
   };
 
   const buildConversationsFromMessages = (newMessages: any[]) => {
+    console.log(
+      "🔄 buildConversationsFromMessages called with",
+      newMessages.length,
+      "messages"
+    );
     setConversations((prevConversations) => {
       const updatedConversations = [...prevConversations];
 
       newMessages.forEach((msg) => {
+        console.log(
+          "🔄 Processing message:",
+          msg.id,
+          "content:",
+          msg.message?.substring(0, 50)
+        );
         const partnerAddress =
           msg.senderAddress === address
             ? msg.recipientAddress
@@ -251,6 +278,10 @@ export default function MessagesScreen() {
             !existing.hasMessages ||
             msg.timestamp > existing.lastMessageTime
           ) {
+            console.log(
+              "🔄 Updating existing conversation for",
+              partnerAddress
+            );
             updatedConversations[conversationIndex] = {
               id: msg.id,
               partnerAddress,
@@ -278,6 +309,10 @@ export default function MessagesScreen() {
           // Add new conversation if partner is matched
           const user = matchedUsers.find((u) => u.address === partnerAddress);
           if (user) {
+            console.log(
+              "🔄 Adding new conversation for matched user",
+              user.name
+            );
             const displayName = `${user.name} (${user.address.slice(
               0,
               6
@@ -293,10 +328,16 @@ export default function MessagesScreen() {
               lastMessageId: msg.id,
               hasMessages: true,
             });
+          } else {
+            console.log(
+              "🔄 Skipping message for non-matched user",
+              partnerAddress
+            );
           }
         }
       });
 
+      console.log("🔄 Final conversations count:", updatedConversations.length);
       return updatedConversations
         .sort(
           (a, b) => b.lastMessageTime.getTime() - a.lastMessageTime.getTime()
@@ -674,12 +715,18 @@ export default function MessagesScreen() {
   // Set up listener for all user messages when matched users are loaded
   useEffect(() => {
     if (matchedUsers.length > 0 && address) {
+      console.log(
+        "🎧 Setting up message listener for",
+        matchedUsers.length,
+        "matched users"
+      );
       // Load initial conversations
       loadConversationsWithMessages();
 
       // Set up listener for all user messages (for Chats tab)
       const allMessagesListener = MessagingService.listenToAllUserMessages(
         (newMessages) => {
+          console.log("📨 Real-time messages received:", newMessages.length);
           // Update conversations in real-time
           buildConversationsFromMessages(newMessages);
         }
@@ -688,6 +735,7 @@ export default function MessagesScreen() {
 
       return () => {
         if (allMessagesListener) {
+          console.log("🧹 Cleaning up message listener");
           allMessagesListener();
         }
       };

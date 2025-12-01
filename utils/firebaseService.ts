@@ -286,6 +286,10 @@ export class FirebaseService {
     userAddress: string,
     recipientAddress: string
   ): Promise<any[]> {
+    // Use fixed hex key for all conversations
+    const conversationKey =
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
     const conversationId = [
       userAddress.toLowerCase(),
       recipientAddress.toLowerCase(),
@@ -293,22 +297,76 @@ export class FirebaseService {
       .sort()
       .join("_");
 
-    // Always generate the key deterministically
-    const hash = CryptoJS.SHA256(
-      conversationId + "fuse_shared_messaging_key_2024"
-    );
-    const conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(0, 64);
-
     try {
       const messagesRef = collection(db, "messages");
-      const q = query(
+      const messages: any[] = [];
+
+      // First try querying by conversationId
+      let q = query(
         messagesRef,
         where("conversationId", "==", conversationId)
       );
 
-      const querySnapshot = await getDocs(q);
-      const messages = [];
+      let querySnapshot = await getDocs(q);
 
+      // If no messages found, try querying by participants array
+      if (querySnapshot.empty) {
+        console.log("No messages found by conversationId, trying participants query");
+        q = query(
+          messagesRef,
+          where("participants", "array-contains", userAddress.toLowerCase())
+        );
+        const participantsSnapshot = await getDocs(q);
+
+        // Filter for messages with this specific recipient
+        const filteredDocs = participantsSnapshot.docs.filter(doc => {
+          const data = doc.data();
+          return data.participants && data.participants.includes(recipientAddress.toLowerCase());
+        });
+
+        // Process filtered docs
+        for (const docSnap of filteredDocs) {
+          const data = docSnap.data();
+          try {
+            const decryptedMessage = EncryptionService.decryptMessage(
+              data.encryptedMessage,
+              conversationKey
+            );
+
+            let parsedMessage;
+            try {
+              parsedMessage = JSON.parse(decryptedMessage);
+            } catch {
+              parsedMessage = { content: decryptedMessage };
+            }
+
+            // Skip messages with empty content
+            if (!parsedMessage.content || !parsedMessage.content.trim()) {
+              console.warn("Skipping message with empty content:", docSnap.id);
+              continue;
+            }
+
+            messages.push({
+              id: docSnap.id,
+              message: parsedMessage.content || decryptedMessage,
+              senderAddress: data.senderAddress,
+              recipientAddress: data.recipientAddress,
+              timestamp: data.timestamp.toDate(),
+              status: data.status,
+              rawMessage: parsedMessage,
+            });
+          } catch (decryptError) {
+            console.warn("Failed to decrypt message:", docSnap.id, decryptError);
+            // Skip undecryptable messages
+          }
+        }
+
+        // Sort messages by timestamp
+        messages.sort((a: any, b: any) => a.timestamp - b.timestamp);
+        return messages;
+      }
+
+      // Process conversationId query results
       for (const docSnap of querySnapshot.docs) {
         const data = docSnap.data();
         try {
@@ -346,7 +404,7 @@ export class FirebaseService {
       }
 
       // Sort messages by timestamp
-      messages.sort((a, b) => a.timestamp - b.timestamp);
+      messages.sort((a: any, b: any) => a.timestamp - b.timestamp);
       return messages;
     } catch (error) {
       throw new Error("Failed to get conversation messages: " + error);
