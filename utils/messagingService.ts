@@ -35,7 +35,9 @@ export class MessagingService {
       this.userKeys = await KeyManager.getUserKeys(userAddress.toLowerCase());
 
       if (!this.userKeys) {
-        this.userKeys = await KeyManager.generateUserKeys(userAddress.toLowerCase());
+        this.userKeys = await KeyManager.generateUserKeys(
+          userAddress.toLowerCase()
+        );
       }
 
       await FirebaseService.initializeUser(userAddress);
@@ -695,6 +697,26 @@ export class MessagingService {
       return [];
     } catch (error) {
       throw new Error("Failed to search messages: " + error);
+    }
+  }
+
+  // Listen to all user messages for conversation list
+  static listenToAllUserMessages(
+    callback: (messages: any[]) => void
+  ): () => void {
+    if (!this.currentUser) {
+      throw new Error("Messaging service not initialized");
+    }
+
+    try {
+      const unsubscribe = FirebaseService.listenToAllUserMessages(
+        this.currentUser,
+        callback
+      );
+
+      return unsubscribe;
+    } catch (error) {
+      throw new Error("Failed to listen to all user messages: " + error);
     }
   }
 }

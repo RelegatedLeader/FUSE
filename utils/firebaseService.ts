@@ -240,6 +240,7 @@ export class FirebaseService {
         encryptedMessage, // Already encrypted by MessagingService
         senderAddress,
         recipientAddress,
+        participants: [senderAddress, recipientAddress].sort(),
         timestamp: Timestamp.now(),
         status: "sent",
       });
@@ -285,7 +286,12 @@ export class FirebaseService {
     userAddress: string,
     recipientAddress: string
   ): Promise<any[]> {
-    const conversationId = [userAddress.toLowerCase(), recipientAddress.toLowerCase()].sort().join("_");
+    const conversationId = [
+      userAddress.toLowerCase(),
+      recipientAddress.toLowerCase(),
+    ]
+      .sort()
+      .join("_");
 
     // Always generate the key deterministically
     const hash = CryptoJS.SHA256(
@@ -414,7 +420,8 @@ export class FirebaseService {
         const data = doc.data();
         try {
           // Use fixed hex key for all conversations
-          const conversationKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+          const conversationKey =
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
           console.log(
             "🔑 Firebase conversation key:",
@@ -494,7 +501,8 @@ export class FirebaseService {
         const data = doc.data();
         try {
           // Use fixed hex key for all conversations
-          const conversationKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+          const conversationKey =
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,

@@ -94,18 +94,6 @@ export default function MessagesScreen() {
             }
 
             await loadMatchedUsers();
-            if (matchedUsers.length > 0) {
-              await loadConversationsWithMessages();
-            }
-
-            // Set up listener for all user messages (for Chats tab)
-            const allMessagesListener = MessagingService.listenToAllUserMessages(
-              (newMessages) => {
-                // Update conversations in real-time
-                buildConversationsFromMessages(newMessages);
-              }
-            );
-            setMessageListener(allMessagesListener);
 
             // Set up specific listener if conversation selected
             if (selectedConversation) {
@@ -128,15 +116,6 @@ export default function MessagesScreen() {
       };
     }, [address, selectedConversation])
   );
-
-  useEffect(() => {
-    return () => {
-      // Cleanup listeners on unmount
-      if (messageListener) {
-        messageListener();
-      }
-    };
-  }, [messageListener]);
 
   // Load last messages for all matched users
   const loadConversationsWithMessages = async () => {
@@ -294,6 +273,26 @@ export default function MessagesScreen() {
           ) {
             // Increment unread count for existing conversation
             updatedConversations[conversationIndex].unreadCount += 1;
+          }
+        } else {
+          // Add new conversation if partner is matched
+          const user = matchedUsers.find((u) => u.address === partnerAddress);
+          if (user) {
+            const displayName = `${user.name} (${user.address.slice(
+              0,
+              6
+            )}...${user.address.slice(-4)})`;
+            updatedConversations.push({
+              id: msg.id,
+              partnerAddress,
+              partnerName: displayName,
+              lastMessage: msg.message,
+              lastMessageTime: msg.timestamp,
+              unreadCount:
+                msg.status !== "read" && msg.senderAddress !== address ? 1 : 0,
+              lastMessageId: msg.id,
+              hasMessages: true,
+            });
           }
         }
       });
@@ -671,6 +670,29 @@ export default function MessagesScreen() {
       }, 100);
     }
   }, [messages, selectedConversation]);
+
+  // Set up listener for all user messages when matched users are loaded
+  useEffect(() => {
+    if (matchedUsers.length > 0 && address) {
+      // Load initial conversations
+      loadConversationsWithMessages();
+
+      // Set up listener for all user messages (for Chats tab)
+      const allMessagesListener = MessagingService.listenToAllUserMessages(
+        (newMessages) => {
+          // Update conversations in real-time
+          buildConversationsFromMessages(newMessages);
+        }
+      );
+      setMessageListener(allMessagesListener);
+
+      return () => {
+        if (allMessagesListener) {
+          allMessagesListener();
+        }
+      };
+    }
+  }, [matchedUsers, address]);
 
   const formatMessageTime = (timestamp: Date) => {
     const now = new Date();
