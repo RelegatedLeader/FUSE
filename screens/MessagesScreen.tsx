@@ -91,13 +91,16 @@ export default function MessagesScreen() {
             setSelectedConversation(selectedChatUser);
           }
 
+          await loadMatchedUsers();
+          if (matchedUsers.length > 0) {
+            await loadConversationsWithMessages();
+          }
+
           // Set up listener for all user messages (for Chats tab)
           const allMessagesListener = MessagingService.listenToAllUserMessages(
             (newMessages) => {
-              // Only process real-time updates if conversations are loaded
-              if (conversationsLoaded) {
-                buildConversationsFromMessages(newMessages);
-              }
+              // Update conversations in real-time
+              buildConversationsFromMessages(newMessages);
             }
           );
           setMessageListener(allMessagesListener);
@@ -108,7 +111,6 @@ export default function MessagesScreen() {
     };
 
     initializeMessaging();
-    loadMatchedUsers();
   }, [address]);
 
   useEffect(() => {
@@ -124,6 +126,8 @@ export default function MessagesScreen() {
   const loadConversationsWithMessages = async () => {
     if (matchedUsers.length === 0 || !address) return;
 
+    setConversationsLoaded(true);
+
     try {
       const conversationPromises = matchedUsers.map(async (user) => {
         try {
@@ -131,26 +135,40 @@ export default function MessagesScreen() {
             user.address
           );
           console.log(`📨 Loaded ${messages.length} messages for ${user.name}`);
-          
+
           // Find the latest message that has content
-          const validMessages = messages.filter(msg => msg.message && typeof msg.message === 'string' && msg.message.trim());
-          const latestMessage = validMessages.length > 0 
-            ? validMessages[validMessages.length - 1]
-            : messages.length > 0 
+          const validMessages = messages.filter(
+            (msg) =>
+              msg.message &&
+              typeof msg.message === "string" &&
+              msg.message.trim()
+          );
+          const latestMessage =
+            validMessages.length > 0
+              ? validMessages[validMessages.length - 1]
+              : messages.length > 0
               ? messages[messages.length - 1]
               : null;
-              
+
           if (latestMessage) {
-            console.log(`📨 Latest message: "${latestMessage.message}" at ${latestMessage.timestamp}`);
-            const displayName = `${user.name} (${user.address.slice(0, 6)}...${user.address.slice(-4)})`;
+            console.log(
+              `📨 Latest message: "${latestMessage.message}" at ${latestMessage.timestamp}`
+            );
+            const displayName = `${user.name} (${user.address.slice(
+              0,
+              6
+            )}...${user.address.slice(-4)})`;
 
             return {
               id: latestMessage.id,
               partnerAddress: user.address,
               partnerName: displayName,
-              lastMessage: latestMessage.message && typeof latestMessage.message === 'string' && latestMessage.message.trim() 
-                ? latestMessage.message 
-                : "No message content",
+              lastMessage:
+                latestMessage.message &&
+                typeof latestMessage.message === "string" &&
+                latestMessage.message.trim()
+                  ? latestMessage.message
+                  : "No message content",
               lastMessageTime: latestMessage.timestamp,
               unreadCount: messages.filter(
                 (msg) => msg.status !== "read" && msg.senderAddress !== address
@@ -205,17 +223,11 @@ export default function MessagesScreen() {
       setConversations(sortedConversations);
     } catch (error) {
       console.error("Error loading conversations:", error);
-    } finally {
-      setConversationsLoaded(true);
     }
   };
 
   // Load conversations when matched users are available
-  useEffect(() => {
-    if (matchedUsers.length > 0 && address) {
-      loadConversationsWithMessages();
-    }
-  }, [matchedUsers, address]);
+  // Removed separate useEffect, now handled in initializeMessaging
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -720,6 +732,7 @@ export default function MessagesScreen() {
           >
             {conversationMessages.map((message) => {
               const isFromCurrentUser = message.from === address;
+              if (!message.message || !message.message.trim()) return null;
               return (
                 <TouchableOpacity
                   key={message.id}
@@ -888,7 +901,12 @@ export default function MessagesScreen() {
       <Text style={theme.title}>Chats</Text>
       <Text style={theme.subtitle}>Connect through conversation</Text>
 
-      <ScrollView style={styles.messagesList} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+      <ScrollView
+        style={styles.messagesList}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
         {conversations.length === 0 ? (
           <View style={theme.card}>
             <Text

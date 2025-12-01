@@ -23,7 +23,7 @@ export class EncryptionService {
     key: string
   ): { encrypted: string; iv: string; tag: string } {
     const iv = this.generateIV();
-    const encrypted = CryptoJS.AES.encrypt(data, key, {
+    const encrypted = CryptoJS.AES.encrypt(data, CryptoJS.enc.Hex.parse(key), {
       iv: CryptoJS.enc.Hex.parse(iv),
       mode: CryptoJS.mode.CBC,
       padding: CryptoJS.pad.Pkcs7,
@@ -45,15 +45,19 @@ export class EncryptionService {
     tag?: string
   ): string {
     try {
-      const decrypted = CryptoJS.AES.decrypt(encryptedData, key, {
-        iv: CryptoJS.enc.Hex.parse(iv),
-        mode: CryptoJS.mode.CBC,
-        padding: CryptoJS.pad.Pkcs7,
-      });
+      const decrypted = CryptoJS.AES.decrypt(
+        encryptedData,
+        CryptoJS.enc.Hex.parse(key),
+        {
+          iv: CryptoJS.enc.Hex.parse(iv),
+          mode: CryptoJS.mode.CBC,
+          padding: CryptoJS.pad.Pkcs7,
+        }
+      );
 
       return decrypted.toString(CryptoJS.enc.Utf8);
     } catch (error) {
-      throw new Error("Decryption failed: Invalid key, IV, or corrupted data");
+      throw new Error("Decryption failed");
     }
   }
 

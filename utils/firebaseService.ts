@@ -281,11 +281,16 @@ export class FirebaseService {
   }
 
   // Get messages for a conversation
-  static async getConversationMessages(userAddress: string, recipientAddress: string): Promise<any[]> {
+  static async getConversationMessages(
+    userAddress: string,
+    recipientAddress: string
+  ): Promise<any[]> {
     const conversationId = [userAddress, recipientAddress].sort().join("_");
 
     // Always generate the key deterministically
-    const hash = CryptoJS.SHA256(conversationId + "fuse_shared_messaging_key_2024");
+    const hash = CryptoJS.SHA256(
+      conversationId + "fuse_shared_messaging_key_2024"
+    );
     const conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(0, 64);
 
     try {
@@ -483,20 +488,10 @@ export class FirebaseService {
     const messagesRef = collection(db, "messages");
 
     // Listen for received messages
-    const q1 = query(
-      messagesRef,
-      where("recipientAddress", "==", userAddress),
-      orderBy("timestamp", "desc"),
-      limit(100)
-    );
+    const q1 = query(messagesRef, where("recipientAddress", "==", userAddress));
 
     // Listen for sent messages
-    const q2 = query(
-      messagesRef,
-      where("senderAddress", "==", userAddress),
-      orderBy("timestamp", "desc"),
-      limit(100)
-    );
+    const q2 = query(messagesRef, where("senderAddress", "==", userAddress));
 
     let receivedMessages: any[] = [];
     let sentMessages: any[] = [];
@@ -511,16 +506,14 @@ export class FirebaseService {
           const conversationId = [data.senderAddress, data.recipientAddress]
             .sort()
             .join("_");
-          const keyStorageKey = `conversation_key_v2_${conversationId}`;
-          let conversationKey = await AsyncStorage.getItem(keyStorageKey);
-
-          if (!conversationKey) {
-            // Generate deterministic key for this conversation
-            const hash = CryptoJS.SHA256(
-              conversationId + "fuse_shared_messaging_key_2024"
-            );
-            conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(0, 64);
-          }
+          // Always generate the key deterministically
+          const hash = CryptoJS.SHA256(
+            conversationId + "fuse_shared_messaging_key_2024"
+          );
+          const conversationKey = CryptoJS.enc.Hex.stringify(hash).substring(
+            0,
+            64
+          );
 
           const decryptedMessage = EncryptionService.decryptMessage(
             data.encryptedMessage,
@@ -548,6 +541,9 @@ export class FirebaseService {
           console.warn("Failed to decrypt message:", doc.id, error);
         }
       }
+
+      // Sort messages by timestamp descending (latest first)
+      messages.sort((a, b) => b.timestamp - a.timestamp);
 
       return messages;
     };
@@ -1945,8 +1941,8 @@ export class FirebaseService {
 
       const querySnapshot = await getDocs(q);
       const updatePromises = querySnapshot.docs
-        .filter(doc => doc.data().status !== "read")
-        .map(doc => updateDoc(doc.ref, { status: "read" }));
+        .filter((doc) => doc.data().status !== "read")
+        .map((doc) => updateDoc(doc.ref, { status: "read" }));
 
       await Promise.all(updatePromises);
       console.log(`Marked ${updatePromises.length} messages as read`);

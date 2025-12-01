@@ -454,7 +454,10 @@ export class MessagingService {
     }
 
     try {
-      return await FirebaseService.getConversationMessages(this.currentUser, recipientAddress);
+      return await FirebaseService.getConversationMessages(
+        this.currentUser,
+        recipientAddress
+      );
     } catch (error) {
       throw new Error("Failed to get conversation messages: " + error);
     }
