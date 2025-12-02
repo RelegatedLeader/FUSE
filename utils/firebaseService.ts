@@ -468,14 +468,23 @@ export class FirebaseService {
     conversationId: string,
     callback: (messages: any[]) => void
   ): () => void {
-    console.log("🎧 FirebaseService.listenToMessages called with conversationId:", conversationId);
+    // Check Firebase authentication
+    const auth = getAuth();
+    if (!auth.currentUser) {
+      console.error("❌ Firebase authentication required for real-time listeners");
+      throw new Error("Firebase authentication required for real-time listeners");
+    }
+
+    console.log(
+      "🎧 FirebaseService.listenToMessages called with conversationId:",
+      conversationId,
+      "with auth user:",
+      auth.currentUser.uid
+    );
     const messagesRef = collection(db, "messages");
 
     // Query by conversationId
-    const q = query(
-      messagesRef,
-      where("conversationId", "==", conversationId)
-    );
+    const q = query(messagesRef, where("conversationId", "==", conversationId));
     console.log("🔍 Querying messages where conversationId ==", conversationId);
 
     const unsubscribe = onSnapshot(q, async (querySnapshot) => {
@@ -539,18 +548,28 @@ export class FirebaseService {
     return unsubscribe;
   }
 
-  // Listen to all messages for a user (for Chats tab)
+  // Listen to all messages for a user (sent and received)
   static listenToAllUserMessages(
-    userAddress: string,
+    walletAddress: string,
     callback: (messages: any[]) => void
   ): () => void {
-    const messagesRef = collection(db, "messages");
+    if (!this.userKeys) {
+      throw new Error("User keys not initialized");
+    }
 
-    // Listen for received messages
-    const q1 = query(messagesRef, where("recipientAddress", "==", userAddress));
+    // Check Firebase authentication
+    const auth = getAuth();
+    if (!auth.currentUser) {
+      console.error("❌ Firebase authentication required for real-time listeners");
+      throw new Error("Firebase authentication required for real-time listeners");
+    }
 
-    // Listen for sent messages
-    const q2 = query(messagesRef, where("senderAddress", "==", userAddress));
+    console.log(
+      "🎧 Setting up listener for all messages for user:",
+      walletAddress,
+      "with auth user:",
+      auth.currentUser.uid
+    );
 
     let receivedMessages: any[] = [];
     let sentMessages: any[] = [];
@@ -603,7 +622,23 @@ export class FirebaseService {
       return messages;
     };
 
-    const unsubscribe1 = onSnapshot(q1, async (querySnapshot) => {
+    // Listen to messages where user is recipient
+    const receivedQuery = query(
+      collection(db, "messages"),
+      where("recipientAddress", "==", walletAddress),
+      orderBy("timestamp", "desc"),
+      limit(100)
+    );
+
+    // Listen to messages where user is sender
+    const sentQuery = query(
+      collection(db, "messages"),
+      where("senderAddress", "==", walletAddress),
+      orderBy("timestamp", "desc"),
+      limit(100)
+    );
+
+    const unsubscribe1 = onSnapshot(receivedQuery, async (querySnapshot) => {
       receivedMessages = await processMessages(querySnapshot, false);
 
       // Combine and deduplicate all messages
@@ -615,7 +650,7 @@ export class FirebaseService {
       callback(uniqueMessages);
     });
 
-    const unsubscribe2 = onSnapshot(q2, async (querySnapshot) => {
+    const unsubscribe2 = onSnapshot(sentQuery, async (querySnapshot) => {
       sentMessages = await processMessages(querySnapshot, true);
 
       // Combine and deduplicate all messages

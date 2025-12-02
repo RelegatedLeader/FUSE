@@ -19,6 +19,7 @@ import { WalletProvider, useWallet } from "./contexts/WalletContext";
 import { ThemeProvider, useTheme } from "./contexts/ThemeContext";
 import { MessagingProvider, useMessaging } from "./contexts/MessagingContext";
 import { useNavigation } from "@react-navigation/native";
+import { initializeFirebaseAuth } from "./utils/firebase";
 
 // Conditionally import PagerView for native platforms only
 let PagerView: any = null;
@@ -540,6 +541,21 @@ function AppNavigator() {
 }
 
 export default function App() {
+  // Initialize Firebase authentication on app startup
+  useEffect(() => {
+    const initFirebase = async () => {
+      try {
+        console.log("🚀 Initializing Firebase authentication...");
+        await initializeFirebaseAuth();
+        console.log("✅ Firebase authentication initialized successfully");
+      } catch (error) {
+        console.error("❌ Failed to initialize Firebase authentication:", error);
+      }
+    };
+
+    initFirebase();
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider>

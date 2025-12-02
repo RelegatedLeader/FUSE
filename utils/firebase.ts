@@ -40,19 +40,20 @@ export const initializeFirebaseAuth = async () => {
     );
     if (!auth.currentUser) {
       console.log("🔐 Signing in anonymously...");
-      await signInAnonymously(auth);
+      const userCredential = await signInAnonymously(auth);
       console.log(
         "🔐 Firebase anonymous authentication initialized, user:",
-        (auth.currentUser as any)?.uid || "none"
+        userCredential.user.uid
       );
     } else {
       console.log(
         "🔐 Already authenticated, user:",
-        (auth.currentUser as any)?.uid || "none"
+        auth.currentUser.uid
       );
     }
   } catch (error) {
-    console.error("Failed to initialize Firebase auth:", error);
+    console.error("❌ Failed to initialize Firebase auth:", error);
+    throw error;
   }
 };
 
