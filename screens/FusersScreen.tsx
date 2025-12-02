@@ -271,6 +271,19 @@ export default function FusersScreen() {
     );
   };
 
+  const handleCreateAlliance = () => {
+    if (matchedUsers.length < 4) {
+      Alert.alert(
+        "Not Enough Fusers",
+        "You need at least 4 fusers to create an alliance. Keep connecting!"
+      );
+      return;
+    }
+
+    // Navigate to alliances page
+    NavigationService.getInstance().navigateToTab("AlliancesMain");
+  };
+
   const handleFuseIncoming = async (
     requesterAddress: string,
     requesterName: string
@@ -400,7 +413,17 @@ export default function FusersScreen() {
     <View
       style={[styles.container, { backgroundColor: theme.backgroundColor }]}
     >
-      <Text style={theme.title}>Fusers</Text>
+      <View style={styles.headerContainer}>
+        <Text style={theme.title}>Fusers</Text>
+        {matchedUsers.length >= 4 && (
+          <TouchableOpacity
+            style={[theme.button, styles.createAllianceButton]}
+            onPress={handleCreateAlliance}
+          >
+            <Text style={theme.buttonTextStyle}>🤝 Create an Alliance</Text>
+          </TouchableOpacity>
+        )}
+      </View>
       <Text style={theme.subtitle}>Your connections</Text>
 
       {/* Menu Picker  <View style={styles.pickerContainer}>
@@ -910,6 +933,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 20,
+  },
+  headerContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  createAllianceButton: {
+    marginLeft: 15,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
   },
   requestsContainer: {
     flex: 1,

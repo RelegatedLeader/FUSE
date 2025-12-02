@@ -46,10 +46,7 @@ export const initializeFirebaseAuth = async () => {
         userCredential.user.uid
       );
     } else {
-      console.log(
-        "🔐 Already authenticated, user:",
-        auth.currentUser.uid
-      );
+      console.log("🔐 Already authenticated, user:", auth.currentUser.uid);
     }
   } catch (error) {
     console.error("❌ Failed to initialize Firebase auth:", error);

@@ -471,8 +471,12 @@ export class FirebaseService {
     // Check Firebase authentication
     const auth = getAuth();
     if (!auth.currentUser) {
-      console.error("❌ Firebase authentication required for real-time listeners");
-      throw new Error("Firebase authentication required for real-time listeners");
+      console.error(
+        "❌ Firebase authentication required for real-time listeners"
+      );
+      throw new Error(
+        "Firebase authentication required for real-time listeners"
+      );
     }
 
     console.log(
@@ -560,8 +564,12 @@ export class FirebaseService {
     // Check Firebase authentication
     const auth = getAuth();
     if (!auth.currentUser) {
-      console.error("❌ Firebase authentication required for real-time listeners");
-      throw new Error("Firebase authentication required for real-time listeners");
+      console.error(
+        "❌ Firebase authentication required for real-time listeners"
+      );
+      throw new Error(
+        "Firebase authentication required for real-time listeners"
+      );
     }
 
     console.log(

@@ -70,6 +70,7 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
   const [fuseTab, setFuseTab] = useState("FuseHome");
   const [cyberspaceTab, setCyberspaceTab] = useState("CyberspaceMain");
   const [isLocked, setIsLocked] = useState(false);
+  const [matchedUsersCount, setMatchedUsersCount] = useState(0);
 
   const pagerRef = useRef<any>(null);
 
@@ -80,10 +81,41 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
       setFuseTab("FuseChats");
     });
 
+    // Register navigation callback for Alliances
+    NavigationService.getInstance().registerCallback("AlliancesMain", () => {
+      pagerRef.current?.setPage(0); // Switch to Alliances page
+      setAlliancesTab("AlliancesMain");
+    });
+
     return () => {
       // Cleanup if needed
     };
   }, []);
+
+  // Check alliances access based on matched users count
+  useEffect(() => {
+    const checkAlliancesAccess = async () => {
+      if (!address) return;
+
+      try {
+        // Import FirebaseService dynamically to avoid circular imports
+        const { FirebaseService } = await import("./utils/firebaseService");
+        const { initializeFirebaseAuth } = await import("./utils/firebase");
+        await initializeFirebaseAuth();
+        await FirebaseService.initializeUser(address);
+
+        const matches = await FirebaseService.loadMatches(address);
+        setMatchedUsersCount(matches.length);
+
+        console.log(`🤝 User has ${matches.length} matches - Alliances ${matches.length >= 4 ? 'unlocked' : 'locked'}`);
+      } catch (error) {
+        console.error("Error checking alliances access:", error);
+        setMatchedUsersCount(0);
+      }
+    };
+
+    checkAlliancesAccess();
+  }, [address]);
 
   const goToFuse = () => {
     pagerRef.current?.setPage(1);
@@ -114,6 +146,31 @@ function MainPager({ navigation }: { navigation: MainPagerNavigationProp }) {
   };
 
   const renderAlliancesContent = () => {
+    // Check if user has enough matches for alliances
+    if (matchedUsersCount < 4) {
+      return (
+        <View style={[styles.lockedContainer, { backgroundColor: theme.backgroundColor }]}>
+          <Text style={[theme.title, { textAlign: 'center' }]}>🔒 Alliances Locked</Text>
+          <Text style={[theme.subtitle, { textAlign: 'center', marginTop: 10 }]}>
+            Connect with 4 people to unlock alliances
+          </Text>
+          <Text style={[styles.lockedText, { color: theme.textColor }]}>
+            🤝 Alliances allow you to form powerful network connections with groups of compatible users.
+            Keep fusing to unlock this feature!
+          </Text>
+          <Text style={[styles.progressText, { color: theme.textColor }]}>
+            Progress: {matchedUsersCount}/4 Fusers
+          </Text>
+          <TouchableOpacity
+            style={[theme.button, styles.unlockButton]}
+            onPress={() => pagerRef.current?.setPage(1)}
+          >
+            <Text style={theme.buttonTextStyle}>🚀 Go Fuse More People</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     if (alliancesTab === "AlliancesTeams") return <TeamsScreen />;
     if (alliancesTab === "AlliancesGuilds") return <GuildsScreen />;
     return <AlliancesScreen />;
@@ -549,7 +606,10 @@ export default function App() {
         await initializeFirebaseAuth();
         console.log("✅ Firebase authentication initialized successfully");
       } catch (error) {
-        console.error("❌ Failed to initialize Firebase authentication:", error);
+        console.error(
+          "❌ Failed to initialize Firebase authentication:",
+          error
+        );
       }
     };
 
@@ -672,5 +732,27 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 10,
     fontWeight: "bold",
+  },
+  lockedContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  lockedText: {
+    fontSize: 16,
+    textAlign: "center",
+    marginVertical: 20,
+    lineHeight: 24,
+  },
+  progressText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    marginVertical: 15,
+  },
+  unlockButton: {
+    marginTop: 20,
+    paddingHorizontal: 30,
+    paddingVertical: 15,
   },
 });
